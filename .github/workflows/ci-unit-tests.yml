@@ -41,6 +41,11 @@ jobs:
         with:
           files: |
             test-report.xml
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
       - run: ginkgo run -r --coverprofile=coverage.txt --covermode=atomic
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v4
