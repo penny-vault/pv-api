@@ -155,7 +155,7 @@ var _ = Describe("PlPgSql Functions", func() {
 		})
 
 		When("all sequence numbers are shuffled", func() {
-			It("should have the same balance", func() {
+			It("should update the balance", func() {
 				// sequence shuffle:
 				// 1 = 4 (amount = 35; balance = 35)
 				// 2 = 3 (amount = 70; balance = 105)
@@ -194,12 +194,7 @@ var _ = Describe("PlPgSql Functions", func() {
 		})
 
 		When("first sequence becomes last sequence", func() {
-			It("should have the same balance", func() {
-				// sequence shuffle:
-				// 1 = 4 (amount = 35; balance = 35)
-				// 2 = 3 (amount = 70; balance = 105)
-				// 3 = 2 (amount = 40; balance = 145)
-				// 4 = 1 (amount = 25; balance = 170)
+			It("should update the balance", func() {
 				sequenceUpdateCmd := fmt.Sprintf(`[{"id": "%s", "sequence_num": 1, "tx_date": "%s"}, {"id": "%s", "sequence_num": 4, "tx_date": "%s"}]`,
 					trxIds[3], trxDate, trxIds[0], trxDate)
 				log.Debug().Str("UpdateCommand", sequenceUpdateCmd).Send()
@@ -215,8 +210,8 @@ var _ = Describe("PlPgSql Functions", func() {
 				var queryBalance float64
 				var sequenceNum int
 
-				expectedBalances := []float64{170, 145, 105, 35}
-				expectedSequenceNums := []int{4, 3, 2, 1}
+				expectedBalances := []float64{170, 0, 0, 35}
+				expectedSequenceNums := []int{4, 0, 0, 1}
 
 				for _, idx := range []int{0, 3} {
 					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIds[idx])
