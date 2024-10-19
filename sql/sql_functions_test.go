@@ -30,7 +30,7 @@ import (
 )
 
 type updateCmd struct {
-	Id          string `json:"id"`
+	ID          string `json:"id"`
 	SequenceNum int    `json:"sequence_num"`
 	TxDate      string `json:"tx_date"`
 }
@@ -85,10 +85,24 @@ var _ = Describe("PlPgSql Functions", func() {
 		dbConnAdmin.Close(ctx)
 	})
 
+	When("There are no transactions in the database", func() {
+		It("should not error when recalc_balance_history is called", func() {
+			accountId := 0
+
+			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
+			Expect(err).To(BeNil())
+
+			rows, err := dbConn.Query(ctx, `SELECT recalc_balance_history($1)`, accountId)
+			Expect(err).To(BeNil())
+
+			rows.Close()
+		})
+	})
+
 	When("Transaction sequence numbers are updated in a database with a single transaction", func() {
 		It("should have the same balance", func() {
 			// insert test data
-			trxId, err := uuid.NewV7()
+			trxID, err := uuid.NewV7()
 			Expect(err).To(BeNil())
 
 			accountId := 0
@@ -99,11 +113,11 @@ var _ = Describe("PlPgSql Functions", func() {
 			_, err = dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
 			Expect(err).To(BeNil())
 
-			_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxId.String(), accountId, 0, trxDate, payee, amount, amount)
+			_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxID.String(), accountId, 0, trxDate, payee, amount, amount)
 			Expect(err).To(BeNil())
 
 			// update sequence number
-			sequenceUpdateCmd := fmt.Sprintf(`[{"id": "%s", "sequence_num": 5, "tx_date": "2024-09-27"}]`, trxId.String())
+			sequenceUpdateCmd := fmt.Sprintf(`[{"id": "%s", "sequence_num": 5, "tx_date": "2024-09-27"}]`, trxID.String())
 			rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, sequenceUpdateCmd, accountId)
 			Expect(err).To(BeNil())
 
@@ -115,7 +129,7 @@ var _ = Describe("PlPgSql Functions", func() {
 			var queryBalance float64
 			var sequenceNum int
 
-			row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxId.String())
+			row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxID.String())
 			err = row.Scan(&queryAmount, &queryBalance, &sequenceNum)
 			Expect(err).To(BeNil())
 
@@ -127,36 +141,36 @@ var _ = Describe("PlPgSql Functions", func() {
 
 	Context("having multiple transactions on the same date", func() {
 		var (
-			accountId int
+			accountID int
 			amounts   []float64
 			balance   float64
 			trxDate   string
-			trxIds    []string
+			trxIDs    []string
 		)
 
 		BeforeEach(func() {
-			accountId = 0
+			accountID = 0
 			trxDate = "2024-09-27"
 			payee := "payee"
 			balance = 0.0
 
 			amounts = []float64{25, 40, 70, 35}
-			trxIds = make([]string, 4)
+			trxIDs = make([]string, 4)
 
-			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
+			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountID)
 			Expect(err).To(BeNil())
 
 			for idx, seq := range []int{1, 2, 3, 4} {
 				trxId, err := uuid.NewV7()
 				Expect(err).To(BeNil())
 
-				trxIds[idx] = trxId.String()
+				trxIDs[idx] = trxId.String()
 
 				amount := amounts[idx]
 				balance += amount
 
-				_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxId.String(), accountId, seq, trxDate, payee, amount, balance)
-				log.Debug().Str("txId", trxIds[idx]).Int("sequence", seq).Float64("amount", amount).Float64("balance", balance).Send()
+				_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxId.String(), accountID, seq, trxDate, payee, amount, balance)
+				log.Debug().Str("txId", trxIDs[idx]).Int("sequence", seq).Float64("amount", amount).Float64("balance", balance).Send()
 				Expect(err).To(BeNil())
 			}
 		})
@@ -171,20 +185,20 @@ var _ = Describe("PlPgSql Functions", func() {
 				sequenceUpdateCmds := make([]updateCmd, 4)
 				seq := []int{4, 3, 2, 1}
 
-				for idx, id := range trxIds {
+				for idx, id := range trxIDs {
 					sequenceUpdateCmds[idx] = updateCmd{
-						Id:          id,
+						ID:          id,
 						SequenceNum: seq[idx],
 						TxDate:      trxDate,
 					}
 				}
 
-				seqCmdJson, err := json.Marshal(sequenceUpdateCmds)
+				seqCmdJSON, err := json.Marshal(sequenceUpdateCmds)
 				Expect(err).To(BeNil())
 
-				log.Debug().Str("UpdateCommand", string(seqCmdJson)).Send()
+				log.Debug().Str("UpdateCommand", string(seqCmdJSON)).Send()
 
-				rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, string(seqCmdJson), accountId)
+				rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, string(seqCmdJSON), accountID)
 				Expect(err).To(BeNil())
 
 				rows.Close()
@@ -199,11 +213,11 @@ var _ = Describe("PlPgSql Functions", func() {
 				expectedSequenceNums := []int{4, 3, 2, 1}
 
 				for idx := range 4 {
-					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIds[idx])
+					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIDs[idx])
 					err = row.Scan(&queryAmount, &queryBalance, &sequenceNum)
 					Expect(err).To(BeNil())
 
-					log.Debug().Str("id", trxIds[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
+					log.Debug().Str("id", trxIDs[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
 
 					Expect(queryAmount).To(BeNumerically("~", amounts[idx]))
 					Expect(queryBalance).To(BeNumerically("~", expectedBalances[idx]))
@@ -215,10 +229,10 @@ var _ = Describe("PlPgSql Functions", func() {
 		When("first sequence becomes last sequence", func() {
 			It("should update the balance", func() {
 				sequenceUpdateCmd := fmt.Sprintf(`[{"id": "%s", "sequence_num": 1, "tx_date": "%s"}, {"id": "%s", "sequence_num": 4, "tx_date": "%s"}]`,
-					trxIds[3], trxDate, trxIds[0], trxDate)
+					trxIDs[3], trxDate, trxIDs[0], trxDate)
 				log.Debug().Str("UpdateCommand", sequenceUpdateCmd).Send()
 
-				rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, sequenceUpdateCmd, accountId)
+				rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, sequenceUpdateCmd, accountID)
 				Expect(err).To(BeNil())
 
 				rows.Close()
@@ -233,11 +247,11 @@ var _ = Describe("PlPgSql Functions", func() {
 				expectedSequenceNums := []int{4, 0, 0, 1}
 
 				for _, idx := range []int{0, 3} {
-					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIds[idx])
+					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIDs[idx])
 					err = row.Scan(&queryAmount, &queryBalance, &sequenceNum)
 					Expect(err).To(BeNil())
 
-					log.Debug().Str("id", trxIds[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
+					log.Debug().Str("id", trxIDs[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
 
 					Expect(queryAmount).To(BeNumerically("~", amounts[idx]))
 					Expect(queryBalance).To(BeNumerically("~", expectedBalances[idx]))
@@ -253,7 +267,7 @@ var _ = Describe("PlPgSql Functions", func() {
 			amounts   []float64
 			balance   float64
 			dates     []string
-			trxIds    []string
+			trxIDs    []string
 		)
 
 		BeforeEach(func() {
@@ -265,7 +279,7 @@ var _ = Describe("PlPgSql Functions", func() {
 				"2024-09-28", "2024-09-28", "2024-09-28", "2024-09-29",
 				"2024-09-29", "2024-09-29"}
 			amounts = []float64{25, 40, 70, 35, 22, 15, 12, 90, 101}
-			trxIds = make([]string, 9)
+			trxIDs = make([]string, 9)
 
 			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
 			Expect(err).To(BeNil())
@@ -274,15 +288,84 @@ var _ = Describe("PlPgSql Functions", func() {
 				trxId, err := uuid.NewV7()
 				Expect(err).To(BeNil())
 
-				trxIds[idx] = trxId.String()
+				trxIDs[idx] = trxId.String()
 
 				amount := amounts[idx]
 				balance += amount
 
 				_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxId.String(), accountId, seq, dates[idx], payee, amount, balance)
-				log.Debug().Str("txId", trxIds[idx]).Int("sequence", seq).Float64("amount", amount).Float64("balance", balance).Send()
+				log.Debug().Str("txId", trxIDs[idx]).Int("sequence", seq).Float64("amount", amount).Float64("balance", balance).Send()
 				Expect(err).To(BeNil())
 			}
+		})
+
+		When("the balance is recalculated", func() {
+			It("should have the correct balance", func() {
+				rows, err := dbConn.Query(ctx, `SELECT recalc_balance_history($1)`, accountId)
+				Expect(err).To(BeNil())
+				rows.Close()
+
+				rows, err = dbConn.Query(ctx, `SELECT balance::numeric FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num`, accountId)
+				Expect(err).To(BeNil())
+
+				balances := []float64{25, 65, 135, 170, 192, 207, 219, 309, 410}
+				actualBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				Expect(actualBalances).To(HaveLen(len(balances)))
+
+				for idx, balance := range balances {
+					Expect(balance).To(BeNumerically("~", balances[idx]))
+				}
+			})
+		})
+
+		When("inserting a transaction before all others", func() {
+			It("should update all balances", func() {
+				txID := uuid.New().String()
+
+				rows, err := dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					''::text, -- source_id
+					0::bigint, -- sequence num
+					'2024-06-01'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					5.50::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+
+				// get balances
+				rows, err = dbConn.Query(ctx, "SELECT balance::numeric FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				Expect(err).To(BeNil())
+
+				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				expectedBalances := []float64{5.50, 30.50, 70.50, 140.50, 175.50, 197.50, 212.50, 224.50, 314.50, 415.50}
+				Expect(dbBalances).To(HaveLen(len(expectedBalances)))
+
+				for idx, balance := range dbBalances {
+					Expect(balance).To(BeNumerically("~", expectedBalances[idx]))
+				}
+			})
 		})
 
 		When("all sequence numbers are shuffled", func() {
@@ -301,9 +384,9 @@ var _ = Describe("PlPgSql Functions", func() {
 				expectedSequenceNums := []int{9, 8, 7, 6, 5, 4, 3, 2, 1}
 				sequenceUpdateCmds := make([]updateCmd, 9)
 
-				for idx, id := range trxIds {
+				for idx, id := range trxIDs {
 					sequenceUpdateCmds[idx] = updateCmd{
-						Id:          id,
+						ID:          id,
 						SequenceNum: expectedSequenceNums[idx],
 						TxDate:      dates[idx],
 					}
@@ -328,11 +411,11 @@ var _ = Describe("PlPgSql Functions", func() {
 				expectedBalances := []float64{135, 110, 70, 207, 172, 150, 410, 398, 308}
 
 				for idx := range 4 {
-					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIds[idx])
+					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxIDs[idx])
 					err = row.Scan(&queryAmount, &queryBalance, &sequenceNum)
 					Expect(err).To(BeNil())
 
-					log.Debug().Str("id", trxIds[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
+					log.Debug().Str("id", trxIDs[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
 
 					Expect(queryAmount).To(BeNumerically("~", amounts[idx]))
 					Expect(queryBalance).To(BeNumerically("~", expectedBalances[idx]))
@@ -359,21 +442,21 @@ var _ = Describe("PlPgSql Functions", func() {
 
 				seqUpdates := []updateCmd{
 					{
-						Id:          trxIds[0],
+						ID:          trxIDs[0],
 						SequenceNum: 9,
 						TxDate:      dates[0],
 					},
 					{
-						Id:          trxIds[8],
+						ID:          trxIDs[8],
 						SequenceNum: 1,
 						TxDate:      dates[8],
 					},
 				}
 
-				sequenceUpdateCmdJson, err := json.Marshal(seqUpdates)
+				sequenceUpdateCmdJSON, err := json.Marshal(seqUpdates)
 				Expect(err).To(BeNil())
 
-				sequenceUpdateCmd := string(sequenceUpdateCmdJson)
+				sequenceUpdateCmd := string(sequenceUpdateCmdJSON)
 				log.Debug().Str("UpdateCommand", sequenceUpdateCmd).Send()
 
 				rows, err := dbConn.Query(ctx, `SELECT update_transaction_seq_nums($1, $2)`, sequenceUpdateCmd, accountId)
@@ -387,12 +470,12 @@ var _ = Describe("PlPgSql Functions", func() {
 				var queryBalance float64
 				var sequenceNum int
 
-				for idx, trxId := range trxIds {
-					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxId)
+				for idx, trxID := range trxIDs {
+					row := dbConn.QueryRow(ctx, `SELECT amount::numeric, balance::numeric, sequence_num FROM transactions WHERE id=$1`, trxID)
 					err = row.Scan(&queryAmount, &queryBalance, &sequenceNum)
 					Expect(err).To(BeNil())
 
-					log.Debug().Str("id", trxIds[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
+					log.Debug().Str("id", trxIDs[idx]).Float64("amount", queryAmount).Float64("balance", queryBalance).Int("seq", sequenceNum).Msg("new transaction values")
 
 					Expect(queryAmount).To(BeNumerically("~", amounts[idx]))
 					Expect(queryBalance).To(BeNumerically("~", expectedBalances[idx]))

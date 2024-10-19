@@ -38,6 +38,7 @@ func generateRandomName(n int) string {
 
 	s := make([]rune, n)
 	s[0] = letters[r.Intn(len(letters))]
+
 	for ii := range n - 1 {
 		s[ii+1] = lettersAndNumbers[r.Intn(len(lettersAndNumbers))]
 	}

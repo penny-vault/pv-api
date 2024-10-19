@@ -36,6 +36,7 @@ var (
 
 func TestSql(t *testing.T) {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: GinkgoWriter})
+
 	RegisterFailHandler(Fail)
 
 	RegisterFailHandler(Fail)

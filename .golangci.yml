@@ -4,19 +4,20 @@ run:
 
 linters:
   enable:
-    - megacheck
-    - govet
+    - err113
     - goconst
     - gocritic
     - gocyclo
-    - goerr113
+    - godox
     - goheader
     - gofmt
     - goimports
-    - revive
+    - gosec
     - misspell
+    - revive
+    - sqlclosecheck
+    - wsl
   disable:
-    - scopelint # Obsolete, using exportloopref instead
     - durationcheck
     - exhaustive
     - contextcheck
@@ -34,8 +35,7 @@ linters-settings:
     ignore-words:
       - strat
   gocyclo:
-    # slowly dial down to 15
-    min-complexity: 20
+    min-complexity: 15
   goheader:
     template: |-
       Copyright {{year-range}}
@@ -60,11 +60,6 @@ issues:
         - gocyclo
         - errorlint
         - goerr113
-    - path: backblaze/backblaze\.go
-      text: "G401:" # Backblaze uses sha1 for file integrity check
-      linters:
-        - gosec
-    - path: backblaze/backblaze\.go
-      text: "G505:" # Backblaze uses sha1 for file integrity check
-      linters:
+        - revive
+        - goconst
         - gosec

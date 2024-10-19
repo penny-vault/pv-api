@@ -20,7 +20,10 @@ import (
 	"errors"
 
 	"github.com/golang-migrate/migrate/v4"
+
+	// import pgx v5 driver
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	"github.com/rs/zerolog/log"
@@ -84,7 +87,7 @@ func (db *DatabaseSchema) Down() error {
 func (db *DatabaseSchema) Version() (uint, bool, error) {
 	version, dirty, err := db.migration.Version()
 	if err != nil {
-		log.Error().Err(err).Msg("could not retreive database schema version")
+		log.Error().Err(err).Msg("could not retrieve database schema version")
 		return 0, true, err
 	}
 
