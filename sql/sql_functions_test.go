@@ -329,6 +329,54 @@ var _ = Describe("PlPgSql Functions", func() {
 			})
 		})
 
+		When("inserting a transaction after all others", func() {
+			It("should only update the balance of the new transaction", func() {
+				txID := uuid.New().String()
+
+				rows, err := dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					''::text, -- source_id
+					0::bigint, -- sequence num
+					'2024-10-01'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					5.50::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+
+				// get balances
+				rows, err = dbConn.Query(ctx, "SELECT COALESCE(balance::numeric, 0) FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				Expect(err).To(BeNil())
+
+				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				expectedBalances := []float64{25, 65, 135, 170, 192, 207, 219, 309, 410, 415.50}
+				Expect(dbBalances).To(HaveLen(len(expectedBalances)))
+
+				for idx, balance := range dbBalances {
+					Expect(balance).To(BeNumerically("~", expectedBalances[idx]))
+				}
+			})
+		})
+
 		When("inserting a transaction before all others", func() {
 			It("should update all balances", func() {
 				txID := uuid.New().String()
