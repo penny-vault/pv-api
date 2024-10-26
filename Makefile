@@ -6,7 +6,7 @@ lint:
 	golangci-lint run
 
 test:
-	ginkgo run -race -cover --parallel=4 .../
+	ginkgo run -race -cover ./...
 
 clean:
 	go clean

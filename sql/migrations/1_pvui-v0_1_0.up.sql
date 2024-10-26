@@ -468,17 +468,18 @@ BEGIN
 
   PERFORM pg_advisory_lock(in_account_id);
 
-  SELECT tx_date, sequence_num INTO orig_tx_date, orig_sequence_num FROM transactions WHERE id=tx_id;
-
-  IF not found THEN
-    orig_tx_date := in_tx_date;
-  END IF;
-
   IF in_sequence_num IS NULL THEN
     SELECT nextval('transactions_sequence_num_seq'::regclass) INTO in_sequence_num;
   END IF;
 
-  -- Moving transaction forward in time; get balance of previous transaction
+  SELECT tx_date, sequence_num INTO orig_tx_date, orig_sequence_num FROM transactions WHERE id=tx_id;
+
+  IF not found THEN
+    orig_tx_date := in_tx_date;
+    orig_sequence_num := in_sequence_num;
+  END IF;
+
+  -- If the transaction is moving forward in time get balance of previous transaction
   is_moving_forward := false;
   IF (orig_tx_date < in_tx_date) OR (orig_tx_date = in_tx_date AND orig_sequence_num < in_sequence_num) THEN
     dirty_date := orig_tx_date;
@@ -567,7 +568,7 @@ BEGIN
     END IF;
   END IF;
 
-  FOR trx IN (SELECT t.id, t.tx_date, t.sequence_num, t.amount FROM transactions t WHERE t.account_id=in_account_id AND t.tx_date >= dirty_date IS NULL ORDER BY t.tx_date, t.sequence_num) LOOP
+  FOR trx IN (SELECT t.id, t.tx_date, t.sequence_num, t.amount FROM transactions t WHERE t.account_id=in_account_id AND t.tx_date >= dirty_date ORDER BY t.tx_date, t.sequence_num) LOOP
     IF is_moving_forward THEN
       IF trx.tx_date = dirty_date AND trx.sequence_num < orig_sequence_num THEN
         CONTINUE;

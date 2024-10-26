@@ -26,6 +26,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/penny-vault/pv-api/sql"
 )
 
@@ -70,7 +71,15 @@ var _ = Describe("PlPgSql Functions", func() {
 
 		// Create a connection to the temp database
 		pgxConnStr = fmt.Sprintf("postgres://%s@%s:%s/%s", dbUser, dbHost, dbPort, dbName)
-		dbConn, err = pgx.Connect(ctx, pgxConnStr)
+
+		config, err := pgx.ParseConfig(pgxConnStr)
+		Expect(err).To(BeNil())
+
+		config.OnNotice = func(c *pgconn.PgConn, n *pgconn.Notice) {
+			log.Debug().Str("Notice", n.Message).Send()
+		}
+
+		dbConn, err = pgx.ConnectConfig(ctx, config)
 		Expect(err).To(BeNil())
 	})
 
@@ -353,7 +362,7 @@ var _ = Describe("PlPgSql Functions", func() {
 				rows.Close()
 
 				// get balances
-				rows, err = dbConn.Query(ctx, "SELECT balance::numeric FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				rows, err = dbConn.Query(ctx, "SELECT COALESCE(balance::numeric, 0) FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
 				Expect(err).To(BeNil())
 
 				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
