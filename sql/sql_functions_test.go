@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -98,7 +99,7 @@ var _ = Describe("PlPgSql Functions", func() {
 		It("should not error when recalc_balance_history is called", func() {
 			accountId := 0
 
-			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
+			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'my-account', 'bank');`, accountId)
 			Expect(err).To(BeNil())
 
 			rows, err := dbConn.Query(ctx, `SELECT recalc_balance_history($1)`, accountId)
@@ -119,7 +120,7 @@ var _ = Describe("PlPgSql Functions", func() {
 			payee := "payee"
 			amount := 500
 
-			_, err = dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
+			_, err = dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'my-account', 'bank');`, accountId)
 			Expect(err).To(BeNil())
 
 			_, err = dbConn.Exec(ctx, `INSERT INTO transactions ("id", "account_id", "sequence_num", "tx_date", "payee", "amount", "balance") VALUES ($1, $2, $3, $4, $5, $6, $7)`, trxID.String(), accountId, 0, trxDate, payee, amount, amount)
@@ -166,7 +167,7 @@ var _ = Describe("PlPgSql Functions", func() {
 			amounts = []float64{25, 40, 70, 35}
 			trxIDs = make([]string, 4)
 
-			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountID)
+			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'my-account', 'bank');`, accountID)
 			Expect(err).To(BeNil())
 
 			for idx, seq := range []int{1, 2, 3, 4} {
@@ -290,7 +291,7 @@ var _ = Describe("PlPgSql Functions", func() {
 			amounts = []float64{25, 40, 70, 35, 22, 15, 12, 90, 101}
 			trxIDs = make([]string, 9)
 
-			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'account', 'bank');`, accountId)
+			_, err := dbConn.Exec(ctx, `INSERT INTO accounts ("id", "name", "account_type") VALUES ($1, 'my-account', 'bank');`, accountId)
 			Expect(err).To(BeNil())
 
 			for idx, seq := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
@@ -326,6 +327,205 @@ var _ = Describe("PlPgSql Functions", func() {
 				for idx, balance := range balances {
 					Expect(balance).To(BeNumerically("~", balances[idx]))
 				}
+			})
+		})
+
+		When("inserting a transaction in the middle of existing transactions", func() {
+			It("should only update the balance of the new transaction", func() {
+				txID := uuid.New().String()
+
+				// put a transaction at the end
+				rows, err := dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					''::text, -- source_id
+					10::bigint, -- sequence num
+					'2024-10-10'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					5.50::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+
+				// place a transaction in-between
+				txID = uuid.New().String()
+
+				rows, err = dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					'1'::text, -- source_id
+					11::bigint, -- sequence num
+					'2024-10-02'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					10.25::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+
+				// get balances
+				rows, err = dbConn.Query(ctx, "SELECT COALESCE(balance::numeric, 0) FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				Expect(err).To(BeNil())
+
+				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				expectedBalances := []float64{25, 65, 135, 170, 192, 207, 219, 309, 410, 420.25, 425.75}
+				Expect(dbBalances).To(HaveLen(len(expectedBalances)))
+
+				for idx, balance := range dbBalances {
+					Expect(balance).To(BeNumerically("~", expectedBalances[idx]))
+				}
+			})
+		})
+
+		When("inserting a transaction as the last transaction on a date with existing transactions", func() {
+			It("should only update the balance of the new transaction", func() {
+				txID := uuid.New().String()
+
+				rows, err := dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					''::text, -- source_id
+					20::bigint, -- sequence num
+					'2024-09-29'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					10::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+
+				// get balances
+				rows, err = dbConn.Query(ctx, "SELECT COALESCE(balance::numeric, 0) FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				Expect(err).To(BeNil())
+
+				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				expectedBalances := []float64{25, 65, 135, 170, 192, 207, 219, 309, 410, 420}
+				Expect(dbBalances).To(HaveLen(len(expectedBalances)))
+
+				for idx, balance := range dbBalances {
+					Expect(balance).To(BeNumerically("~", expectedBalances[idx]))
+				}
+			})
+		})
+
+		When("inserting a transaction as the first transaction on a date with existing transactions", func() {
+
+			BeforeEach(func() {
+				txID := uuid.New().String()
+
+				rows, err := dbConn.Query(ctx, `SELECT insert_transaction(
+					$1::uuid, -- transaction id
+					$2::bigint, -- account id
+					''::text, -- source
+					''::text, -- source_id
+					0::bigint, -- sequence num
+					'2024-09-29'::date, -- tx date
+					'payee'::text, -- payee
+					'[{"category": "Uncategorized"}]'::jsonb, -- category
+					'{}'::text[], -- tags
+					null::jsonb, -- justification
+					false, -- reviewed
+					false, -- cleared
+					10::money, -- amount
+					null::text, -- memo
+					'{}'::uuid[], -- related
+					0::numeric(9, 2), -- commission
+					null::text, -- composite figi
+					0::numeric(15, 5), -- num shares
+					0::numeric(15, 5), -- price per share
+					null::text, -- ticker
+					null::tax_disposition, -- tax treatment
+					0::numeric(12, 5) -- gain loss
+				)`, txID, accountId)
+				Expect(err).To(BeNil())
+
+				rows.Close()
+			})
+
+			It("should only update the balance of the new transaction", func() {
+				rows, err := dbConn.Query(ctx, "SELECT COALESCE(balance::numeric, 0) FROM transactions WHERE account_id=$1 ORDER BY tx_date, sequence_num", accountId)
+				Expect(err).To(BeNil())
+
+				dbBalances, err := pgx.CollectRows(rows, pgx.RowTo[float64])
+				Expect(err).To(BeNil())
+
+				expectedBalances := []float64{25, 65, 135, 170, 192, 207, 217, 229, 319, 420}
+				Expect(dbBalances).To(HaveLen(len(expectedBalances)))
+
+				for idx, balance := range dbBalances {
+					Expect(balance).To(BeNumerically("~", expectedBalances[idx]))
+				}
+			})
+
+			It("should update the networth entry for the account", func() {
+				var (
+					measurementDate time.Time
+					accountsJSON    string
+				)
+
+				err := dbConn.
+					QueryRow(ctx, "SELECT measurement_date, accounts FROM networth ORDER BY measurement_date").
+					Scan(&measurementDate, &accountsJSON)
+				Expect(err).To(BeNil())
+
+				Expect(measurementDate).To(BeTemporally("~", time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC), time.Millisecond))
+
+				accountValues := make(map[string]string)
+				err = json.Unmarshal([]byte(accountsJSON), &accountValues)
+				Expect(err).To(BeNil())
+
+				Expect(accountValues).To(HaveLen(1))
+				Expect(accountValues).To(HaveKeyWithValue("my-account", "$319.00"))
 			})
 		})
 
