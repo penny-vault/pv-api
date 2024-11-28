@@ -47,6 +47,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - run: ginkgo run -r --coverprofile=coverage.txt --covermode=atomic
       - name: Upload results to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
