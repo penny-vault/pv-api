@@ -8,6 +8,8 @@ jobs:
     timeout-minutes: 15
     env:
       PGHOST: localhost
+      PVAPI_PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
+      PVAPI_PLAID_SECRET: ${{ secrets.PLAID_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
