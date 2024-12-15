@@ -50,8 +50,6 @@ var versionCmd = &cobra.Command{
 // BuildVersionString creates a version string. This is what you see when
 // running "import-fred version".
 func BuildVersionString() string {
-	version := "v" + pkginfo.Version
-
 	osArch := runtime.GOOS + "/" + runtime.GOARCH
 	goVersion := runtime.Version()
 
@@ -65,7 +63,7 @@ func BuildVersionString() string {
 Build Date: %s
 Commit: %s
 Built with: %s`,
-		pkginfo.ProgramName, version, osArch, date, pkginfo.CommitHash, goVersion)
+		pkginfo.ProgramName, pkginfo.Version, osArch, date, pkginfo.CommitHash, goVersion)
 
 	return versionString
 }
