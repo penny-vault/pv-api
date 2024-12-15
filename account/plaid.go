@@ -62,18 +62,13 @@ func PlaidLinkToken(userKey interface{}) fiber.Handler {
 		)
 
 		request.SetProducts([]plaid.Products{plaid.PRODUCTS_TRANSACTIONS})
-		/*
-			request.SetLinkCustomizationName("default")
-					request.SetRedirectUri(ctx.BaseURL() + "/api/v1/accounts/")
-					request.SetWebhook(ctx.BaseURL() + "/api/v1/plaid/hook")
-				log.Info().Str("RedirectURI", ctx.BaseURL()+"/api/v1/accounts/").Send()
 
-				request.SetAccountFilters(plaid.LinkTokenAccountFilters{
-					Depository: &plaid.DepositoryFilter{
-						AccountSubtypes: []plaid.DepositoryAccountSubtype{plaid.DEPOSITORYACCOUNTSUBTYPE_CHECKING, plaid.DEPOSITORYACCOUNTSUBTYPE_SAVINGS},
-					},
-				})
-		*/
+		baseUrl := ctx.BaseURL()
+		if baseUrl == "http://" {
+			baseUrl = "https://test.pennyvault.app"
+		}
+
+		request.SetWebhook(baseUrl + "/api/v1/plaid/hook")
 
 		resp, _, err := client.PlaidApi.LinkTokenCreate(ctx.UserContext()).LinkTokenCreateRequest(*request).Execute()
 		if err != nil {
