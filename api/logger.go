@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/penny-vault/pv-api/types"
 	"github.com/rs/zerolog/log"
 )
 
@@ -43,6 +45,10 @@ func loggingMiddleware() fiber.Handler {
 		// Set latency start time
 		start = time.Now()
 
+		// set trace id
+		c.Locals(types.TraceIdKey{}, c.Get("X-Trace-Id", uuid.Must(uuid.NewV7()).String()))
+		c.Response().Header.Set("X-Trace-Id", c.Locals(types.TraceIdKey{}).(string))
+
 		// Handle request, store err for logging
 		chainErr := c.Next()
 
@@ -56,8 +62,15 @@ func loggingMiddleware() fiber.Handler {
 		// Set latency stop time
 		stop = time.Now()
 
+		userId, ok := c.Locals(types.UserKey{}).(string)
+		if !ok {
+			userId = "anonymous"
+		}
+
 		subLog := log.With().
 			Int("StatusCode", c.Response().StatusCode()).
+			Str("TraceID", c.Locals(types.TraceIdKey{}).(string)).
+			Str("UserID", userId).
 			Dur("Latency", stop.Sub(start).Round(time.Millisecond)).
 			Str("IP", c.IP()).
 			Str("Method", c.Method()).
@@ -71,7 +84,6 @@ func loggingMiddleware() fiber.Handler {
 			Int("NumBytesReceived", len(c.Request().Body())).
 			Int("NumBytesSent", len(c.Response().Body())).
 			Str("Route", c.Route().Path).
-			Bytes("RequestBody", c.Body()).
 			Str("QueryStringParams", c.Request().URI().QueryArgs().String()).Logger()
 
 		code := c.Response().StatusCode()

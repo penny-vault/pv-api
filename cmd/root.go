@@ -128,5 +128,5 @@ func initConfig() {
 	}
 
 	setupLogging(conf.Log)
-	log.Info().Str("ConfigFile", viper.ConfigFileUsed()).Msg("Loaded config file")
+	log.Info().Str("ConfigFile", viper.ConfigFileUsed()).Msg("loaded config file")
 }

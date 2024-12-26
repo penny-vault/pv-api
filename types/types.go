@@ -13,18 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package types
 
-import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/penny-vault/pv-api/account"
-)
-
-func setupRoutes(app *fiber.App) {
-	api := app.Group("api")
-	v1 := api.Group("v1")
-
-	plaid := v1.Group("plaid")
-	plaid.Post("link", hasAuth(), hasRole("plaid"), account.PlaidLinkToken)
-	plaid.Post("item", hasAuth(), hasRole("plaid"), account.PlaidExchangeToken)
-}
+type JwtKey struct{}
+type UserKey struct{}
+type TraceIdKey struct{}

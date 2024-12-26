@@ -21,6 +21,11 @@ type linkTokenResponse struct {
 	Token string `json:"token"`
 }
 
+// the following is a test credential that has been generated only
+// for the purpose of testing thus there is no risk including it
+// here
+var token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IlpMZUtHV2RZRHBEYXR4SV9LV2l3ckozYmlqM0U4b08yd3lKZmFmV2ozUW89IiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJqdGkiOiIyMzQxNDM1IiwibmJmIjoxNzM0MjM2MzM2LCJleHAiOjMyNTAyMjM3NTM2LCJpYXQiOjE3MzQyMzYzMzYsImlzcyI6InBlbm55dmF1bHQiLCJhdWQiOiJwZW5ueXZhdWx0In0.PHfXZTe72KsKHWIKL75XFaC5ebzHpANi9t7NgNIIJVUZf9FrteLBIVK3pScrqrwzlJLTOqO52K-wrpDy02rbIEgVk2lm5zbSahUHTj8z32b033NTade4a_JHkSLwWIllrPtyMKe6BwRdcsrq3YPZjW0GgTwHRxysUqkNt33XqJGcPxOvnuYUeSYJwUdCk47EBLnu531nBIY6VtPHknVV-pBxcXlaN-wMK4SayBYI6S7ya_Jw6-gQZunKFim13ulbrxQhrKpswIrITJA5ku6IQ-QBJwvmPKXucUFF-1wgPihAMiNySo1SIZ86Ou_zyQHM-axwq76PZmD_5oPJAExDHg"
+
 var _ = Describe("Plaid", func() {
 	var (
 		app         *fiber.App
@@ -71,6 +76,11 @@ var _ = Describe("Plaid", func() {
 			Environment: "sandbox",
 		}
 
+		// Make sure the following are configured - otherwise the test
+		// is gauranteed to fail
+		Expect(plaidConfig.ClientID).ToNot(Equal(""), "Plaid ClientID must be set in environment as PVAPI_PLAID_CLIENT_ID")
+		Expect(plaidConfig.Secret).ToNot(Equal(""), "Plaid Secret must be set in environment as PVAPI_PLAID_SECRET")
+
 		account.SetupPlaid(plaidConfig)
 
 		app = api.CreateFiberApp(context.Background(), config)
@@ -78,17 +88,7 @@ var _ = Describe("Plaid", func() {
 
 	When("a link token is created", func() {
 		It("should return the link token", func() {
-			// Make sure the following are configured - otherwise the test
-			// is gauranteed to fail
-			Expect(plaidConfig.ClientID).ToNot(Equal(""), "Plaid ClientID must be set in environment as PVAPI_PLAID_CLIENT_ID")
-			Expect(plaidConfig.Secret).ToNot(Equal(""), "Plaid Secret must be set in environment as PVAPI_PLAID_SECRET")
-
-			// the following is a test credential that has been generated only
-			// for the purpose of testing thus there is no risk including it
-			// here
-			token := "eyJhbGciOiJSUzI1NiIsImtpZCI6IlpMZUtHV2RZRHBEYXR4SV9LV2l3ckozYmlqM0U4b08yd3lKZmFmV2ozUW89IiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJqdGkiOiIyMzQxNDM1IiwibmJmIjoxNzM0MjM2MzM2LCJleHAiOjMyNTAyMjM3NTM2LCJpYXQiOjE3MzQyMzYzMzYsImlzcyI6InBlbm55dmF1bHQiLCJhdWQiOiJwZW5ueXZhdWx0In0.PHfXZTe72KsKHWIKL75XFaC5ebzHpANi9t7NgNIIJVUZf9FrteLBIVK3pScrqrwzlJLTOqO52K-wrpDy02rbIEgVk2lm5zbSahUHTj8z32b033NTade4a_JHkSLwWIllrPtyMKe6BwRdcsrq3YPZjW0GgTwHRxysUqkNt33XqJGcPxOvnuYUeSYJwUdCk47EBLnu531nBIY6VtPHknVV-pBxcXlaN-wMK4SayBYI6S7ya_Jw6-gQZunKFim13ulbrxQhrKpswIrITJA5ku6IQ-QBJwvmPKXucUFF-1wgPihAMiNySo1SIZ86Ou_zyQHM-axwq76PZmD_5oPJAExDHg"
-
-			req, err := http.NewRequest("POST", "/api/v1/accounts/plaid_link_token", nil)
+			req, err := http.NewRequest("POST", "/api/v1/plaid/link", nil)
 			Expect(err).To(BeNil())
 
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))

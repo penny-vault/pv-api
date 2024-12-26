@@ -64,7 +64,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TABLE IF NOT EXISTS accounts (
   id           BIGSERIAL PRIMARY KEY,
+  reference_id TEXT,
   user_id      TEXT DEFAULT current_user,
+
+  credentials  JSONB,
+
   name         TEXT NOT NULL CHECK (LENGTH(TRIM(BOTH user_id)) > 0),
   account_type TEXT NOT NULL,
   attributes   JSONB,
@@ -80,7 +84,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   close_date   TIMESTAMP,
   separate     BOOLEAN DEFAULT false,
 
-  created      TIMESTAMP NOT NULL DEFAULT now()
+  created      TIMESTAMP NOT NULL DEFAULT now(),
+
+  UNIQUE (user_id, name),
+  UNIQUE (user_id, reference_id)
 );
 
 ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;

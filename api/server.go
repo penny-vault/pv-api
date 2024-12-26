@@ -18,8 +18,10 @@ package api
 import (
 	"context"
 
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/penny-vault/pv-api/sql"
 )
 
 type Config struct {
@@ -34,7 +36,13 @@ var serverConfig Config
 // CreateFiberApp configures the fiber server instance and returns a new app
 func CreateFiberApp(ctx context.Context, conf Config) *fiber.App {
 	// Create new Fiber instance
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		JSONEncoder: json.Marshal,
+		JSONDecoder: json.Unmarshal,
+	})
+
+	// create the database pool
+	sql.Instance(ctx)
 
 	// set server config
 	serverConfig = conf

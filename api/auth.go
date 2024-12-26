@@ -23,6 +23,7 @@ import (
 	"github.com/lestrrat-go/httprc/v3"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/penny-vault/pv-api/types"
 	"github.com/rs/zerolog/log"
 )
 
@@ -30,9 +31,6 @@ var (
 	jwkCache *jwk.Cache
 	jwksUrl  string
 )
-
-type jwtKey struct{}
-type userKey struct{}
 
 func configureJWKCache(ctx context.Context, conf Config) {
 	// Get JWK and keep it up-to-date
@@ -60,8 +58,8 @@ func configureJWKCache(ctx context.Context, conf Config) {
 // a 403 error
 func hasRole(role string) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
-		subject := c.Locals(userKey{}).(string)
-		token := c.Locals(jwtKey{}).(string)
+		subject := c.Locals(types.UserKey{}).(string)
+		token := c.Locals(types.JwtKey{}).(string)
 		userInfo := LookupUserInfo(subject, token)
 
 		if _, containsRole := userInfo.Roles[role]; containsRole {
@@ -97,15 +95,19 @@ func hasAuth() fiber.Handler {
 
 		ctx, cancel := context.WithCancel(c.UserContext())
 		defer cancel()
+
 		keySet, err := jwkCache.Lookup(ctx, jwksUrl)
+		if err != nil {
+			log.Panic().Err(err).Str("jwks_url", jwksUrl).Msg("failed to lookup jwks url")
+		}
 
 		token, err := jwt.Parse([]byte(authToken), jwt.WithKeySet(keySet))
 		if err == nil {
 			// Store user information in the locals context
-			c.Locals(jwtKey{}, authToken)
+			c.Locals(types.JwtKey{}, authToken)
 
 			subject, _ := token.Subject()
-			c.Locals(userKey{}, subject)
+			c.Locals(types.UserKey{}, subject)
 
 			return c.Next()
 		}
