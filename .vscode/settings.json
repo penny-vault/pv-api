@@ -1,3 +1,7 @@
 {
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "editor.fontFamily": "'Fira Code iScript',Menlo, Monaco, 'Courier New', monospace",
+    "editor.fontSize": 12,
+    "editor.cursorStyle": "line",
+    "editor.formatOnPaste": true
 }
