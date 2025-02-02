@@ -27,4 +27,5 @@ func setupRoutes(app *fiber.App) {
 	plaid := v1.Group("plaid")
 	plaid.Post("link", hasAuth(), hasRole("plaid"), account.PlaidLinkToken)
 	plaid.Post("item", hasAuth(), hasRole("plaid"), account.PlaidExchangeToken)
+	plaid.Post("sync", hasAuth(), hasRole("plaid"), account.PlaidSync)
 }

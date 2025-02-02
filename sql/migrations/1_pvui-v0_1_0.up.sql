@@ -58,6 +58,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE EXTENSION IF NOT EXISTS "unaccent";
+
+CREATE OR REPLACE FUNCTION slugify("value" TEXT)
+RETURNS TEXT AS $$
+  -- removes accents (diacritic signs) from a given string --
+  WITH "unaccented" AS (
+    SELECT unaccent("value") AS "value"
+  ),
+  -- lowercases the string
+  "lowercase" AS (
+    SELECT lower("value") AS "value"
+    FROM "unaccented"
+  ),
+  -- replaces anything that's not a letter, number, hyphen('-'), or underscore('_') with a hyphen('-')
+  "hyphenated" AS (
+    SELECT regexp_replace("value", '[^a-z0-9\\-_]+', '-', 'gi') AS "value"
+    FROM "lowercase"
+  ),
+  -- trims hyphens('-') if they exist on the head or tail of the string
+  "trimmed" AS (
+    SELECT regexp_replace(regexp_replace("value", '\\-+$', ''), '^\\-', '') AS "value"
+    FROM "hyphenated"
+  )
+  SELECT "value" FROM "trimmed";
+$$ LANGUAGE SQL STRICT IMMUTABLE;
+
 -- accounts
 -- information about inidividual bank / brokerage accounts
 -- can be a checking account, 401(k), house, etc.
@@ -113,6 +139,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   sequence_num    BIGSERIAL NOT NULL,
   tx_date         DATE NOT NULL,
   payee           TEXT NOT NULL,
+  payee_slug      TEXT GENERATED ALWAYS AS (slugify(payee)) STORED,
   category        JSONB DEFAULT '[{"category": "Uncategorized"}]'::jsonb,
   tags            TEXT[],
   reviewed        BOOLEAN DEFAULT 'f',
@@ -192,10 +219,12 @@ GRANT select, insert, update, delete ON tags TO pvuser;
 
 -- categories
 CREATE TABLE IF NOT EXISTS categories (
-  user_id   TEXT DEFAULT current_user,
-  name      TEXT NOT NULL,
-  icon      TEXT,
-  blacklist BOOLEAN,
+  user_id     TEXT DEFAULT current_user,
+  name        TEXT NOT NULL,
+  slug        TEXT GENERATED ALWAYS AS (slugify(name)) STORED,
+  description TEXT NOT NULL,
+  icon        TEXT,
+  blacklist   BOOLEAN,
   PRIMARY KEY (user_id, name)
 );
 
@@ -210,6 +239,7 @@ GRANT select, insert, update, delete ON categories TO pvuser;
 -- payees
 CREATE TABLE IF NOT EXISTS payees (
   user_id          TEXT DEFAULT current_user,
+  slug             TEXT GENERATED ALWAYS AS (slugify(name)) STORED,
   name             TEXT NOT NULL,
   icon             TEXT,
   renaming_rules   TEXT[],

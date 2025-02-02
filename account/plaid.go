@@ -16,14 +16,39 @@
 package account
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"time"
+
+	_ "embed"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/penny-vault/pv-api/sql"
 	"github.com/penny-vault/pv-api/types"
 	"github.com/plaid/plaid-go/v31/plaid"
 	"github.com/rs/zerolog/log"
 )
+
+//go:embed categories.toml
+var categoriesTOML []byte
+var categories []Category
+var categoryMapper map[string]Category
+
+func init() {
+	categories = make([]Category, 0)
+	categoryMapper = make(map[string]Category)
+
+	err := toml.Unmarshal(categoriesTOML, &categories)
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not load standard categories")
+	}
+
+	for _, category := range categories {
+		categoryMapper[category.Secondary] = category
+	}
+}
 
 type StatusResponse struct {
 	Status  int    `json:"status"`
@@ -239,4 +264,348 @@ func PlaidLinkToken(ctx *fiber.Ctx) error {
 		Status: 201,
 		Token:  linkToken,
 	})
+}
+
+// PlaidSync interacts with the Plaid API to retrieve the latest transactions for an item
+func PlaidSync(ctx *fiber.Ctx) error {
+	traceId := ctx.Locals(types.TraceIdKey{}).(string)
+	myLogger := log.With().Str("TraceID", traceId).Logger()
+
+	// Get the account ID map for the user
+	accounts, err := GetAccounts(ctx.UserContext(), ctx.Locals(types.UserKey{}).(string))
+	if err != nil {
+		myLogger.Error().Err(err).Msg("error getting account id map")
+		return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
+			Status:  503,
+			Message: "error getting account id map",
+			TraceID: traceId,
+		})
+	}
+
+	accountIdMap := make(map[string]int64, len(accounts))
+	for _, account := range accounts {
+		accountIdMap[account.ReferenceID] = account.ID
+	}
+
+	// sync each account with a unique item id
+	completedItems := make(map[string]bool)
+	for _, account := range accounts {
+		if account.AccessToken == "" {
+			continue
+		}
+
+		if _, ok := completedItems[account.ItemID]; !ok {
+			completedItems[account.ItemID] = true
+
+			// Sync transactions
+			added, modified, removed, cursor, err := SyncTransactions(ctx.UserContext(), account.AccessToken, accountIdMap)
+			if err != nil {
+				myLogger.Error().Err(err).Msg("error syncing transactions")
+				return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
+					Status:  503,
+					Message: "error syncing transactions",
+					TraceID: traceId,
+				})
+			}
+
+			err = UpdateDBWithTransactionsFromPlaid(ctx.UserContext(), account, added, modified, removed, cursor)
+			if err != nil {
+				myLogger.Error().Err(err).Msg("error updating database with transactions")
+				return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
+					Status:  503,
+					Message: "error updating database with transactions",
+					TraceID: traceId,
+				})
+			}
+		}
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(StatusResponse{
+		Status:  201,
+		Message: "success",
+		TraceID: traceId,
+	})
+}
+
+// UpdateDBWithTransactionsFromPlaid updates the database with the transactions from Plaid
+func UpdateDBWithTransactionsFromPlaid(ctx context.Context, account Account, added []*Transaction, modified []*Transaction, removed []plaid.RemovedTransaction, cursor string) error {
+	dbTransaction, err := sql.TrxForUser(ctx, account.UserID)
+	if err != nil {
+		log.Error().Err(err).Msg("error starting database transaction")
+		return err
+	}
+
+	// save the cursor to all accounts with the same item id
+	/*
+		_, err = dbTransaction.Exec(ctx, `UPDATE accounts SET credentials = credentials || jsonb_build_object('cursor', $1) WHERE credentials->>item_id = $2`, cursor, account.ItemID)
+		if err != nil {
+			log.Error().Err(err).Msg("error updating cursor in database")
+			return err
+		}
+	*/
+
+	// insert new transactions
+	for _, trx := range added {
+		// Use following pg/sql function to insert a new transaction
+		// 	CREATE OR REPLACE FUNCTION insert_transaction(
+		//   in_id              UUID, -- Use NULL to insert a new transaction
+		//   in_account_id      BIGINT,
+		//   in_source          TEXT,
+		//   in_source_id       TEXT,
+		//   in_sequence_num    BIGINT,
+		//   in_tx_date         DATE,
+		//   in_payee           TEXT,
+		//   in_category        JSONB,
+		//   in_tags            TEXT[],
+		//   in_justification   JSONB,
+		//   in_reviewed        BOOLEAN,
+		//   in_cleared         BOOLEAN,
+		//   in_amount          MONEY,
+		//   in_memo            TEXT,
+		//   in_related         UUID[],
+		//   in_commission      NUMERIC(9, 2),
+		//   in_composite_figi  TEXT,
+		//   in_num_shares      NUMERIC(15, 5),
+		//   in_price_per_share NUMERIC(15, 5),
+		//   in_ticker          TEXT,
+		//   in_tax_treatment   tax_disposition,
+		//   in_gain_loss       NUMERIC(12, 5)
+		// )
+
+		_, err = dbTransaction.Exec(ctx, `SELECT insert_transaction(
+			NULL,  -- in_id
+			$1,    -- in_account_id
+			$2,    -- in_source
+			$3,    -- in_source_id
+			NULL,  -- in_sequence_num
+			$4,    -- in_tx_date
+			$5,    -- in_payee
+			$6,    -- in_category
+			NULL,  -- in_tags
+			NULL,  -- in_justification
+			false, -- in_reviewed
+			false, -- in_cleared
+			$7,    -- in_amount
+			$8,    -- in_memo
+			NULL,  -- in_related
+			NULL,  -- in_commission
+			NULL,  -- in_composite_figi
+			NULL,  -- in_num_shares
+			NULL,  -- in_price_per_share
+			NULL,  -- in_ticker
+			NULL,  -- in_tax_treatment
+			NULL   -- in_gain_loss
+		)`,
+			trx.AccountID, // 1
+			trx.Source,    // 2
+			trx.SourceID,  // 3
+			trx.TxDate,    // 4
+			trx.Payee,     // 5
+			trx.Category,  // 6
+			trx.Amount,    // 7
+			trx.Memo,      // 8
+		)
+
+		if err != nil {
+			log.Error().Err(err).Msg("error inserting transaction into database")
+
+			err2 := dbTransaction.Rollback(ctx)
+			if err2 != nil {
+				// rollback failed
+				log.Fatal().Err(err2).Msg("rollback transaction failed -- must be in bad state. exiting.")
+			}
+
+			return err
+		}
+	}
+
+	// remove transactions
+	for _, deleteTx := range removed {
+		_, err := dbTransaction.Exec(ctx, "DELETE FROM transactions WHERE reference_id = $1 AND source_id = $2", deleteTx.GetAccountId(), deleteTx.GetTransactionId())
+		if err != nil {
+			log.Error().Err(err).Msg("could not delete transaction from database")
+
+			err2 := dbTransaction.Rollback(ctx)
+			if err2 != nil {
+				// rollback failed
+				log.Fatal().Err(err2).Msg("rollback transaction failed -- must be in bad state. exiting.")
+			}
+
+			return err
+		}
+	}
+
+	if err := dbTransaction.Commit(ctx); err != nil {
+		log.Error().Err(err).Msg("could not commit transactions to database")
+
+		err2 := dbTransaction.Rollback(ctx)
+		if err2 != nil {
+			// rollback failed
+			log.Fatal().Err(err2).Msg("rollback transaction failed -- must be in bad state. exiting.")
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// SyncTransactions interacts with the Plaid API to retrieve the latest transactions for an item
+func SyncTransactions(ctx context.Context, accessToken string, accountIdMap map[string]int64, cursor ...string) ([]*Transaction, []*Transaction, []plaid.RemovedTransaction, string, error) {
+	var added []plaid.Transaction
+	var modified []plaid.Transaction
+	var removed []plaid.RemovedTransaction // Removed transaction ids
+
+	hasMore := true
+	includePersonalFinanceCategory := true
+
+	client := plaid.NewAPIClient(plaidConfiguration)
+
+	var myCursor *string = nil
+
+	if len(cursor) > 0 {
+		myCursor = &cursor[0]
+	}
+
+	// Iterate through each page of new transaction updates for item
+	for hasMore {
+		request := plaid.NewTransactionsSyncRequest(accessToken)
+		request.SetOptions(plaid.TransactionsSyncRequestOptions{
+			IncludePersonalFinanceCategory: &includePersonalFinanceCategory,
+		})
+
+		if myCursor != nil {
+			request.SetCursor(*myCursor)
+		}
+
+		resp, _, err := client.PlaidApi.TransactionsSync(ctx).TransactionsSyncRequest(*request).Execute()
+		if err != nil {
+			// let upstream decide how to log and handle this error
+			return nil, nil, nil, "", err
+		}
+
+		// Add this page of results
+		added = append(added, resp.GetAdded()...)
+		modified = append(modified, resp.GetModified()...)
+		removed = append(removed, resp.GetRemoved()...)
+
+		hasMore = resp.GetHasMore()
+
+		// Update cursor to the next cursor
+		nextCursor := resp.GetNextCursor()
+		myCursor = &nextCursor
+	}
+
+	// convert into penny vault types
+	addedTransactions := make([]*Transaction, 0, len(added))
+	for _, trx := range added {
+		pvTrx := convertPlaidTransactionToPV(trx)
+		pvTrx.AccountID = accountIdMap[trx.GetAccountId()]
+		addedTransactions = append(addedTransactions, pvTrx)
+	}
+
+	modifiedTransactions := make([]*Transaction, 0, len(modified))
+	for _, trx := range modified {
+		pvTrx := convertPlaidTransactionToPV(trx)
+		pvTrx.AccountID = accountIdMap[trx.GetAccountId()]
+
+		// lookup existing ID based on the source ID
+		var err error
+		pvTrx.ID, err = lookupIDFromSourceID(ctx, pvTrx)
+		if err != nil {
+			// could not find the original transaction, added it to added
+			pvTrx.ID = ""
+			addedTransactions = append(addedTransactions, pvTrx)
+			continue
+		}
+
+		modifiedTransactions = append(modifiedTransactions, pvTrx)
+	}
+
+	return addedTransactions, modifiedTransactions, removed, *myCursor, nil
+}
+
+func lookupIDFromSourceID(ctx context.Context, trx *Transaction) (string, error) {
+	dbTx, err := sql.TrxForUser(ctx, trx.UserID)
+	if err != nil {
+		log.Error().Err(err).Msg("could not lookup transaction ID")
+		return "", err
+	}
+
+	var myID string
+	dbTx.QueryRow(ctx, "SELECT id FROM transaction WHERE account_id = $1 AND source_id = $2 LIMIT 1", trx.AccountID, trx.SourceID).Scan(&myID)
+
+	if err := dbTx.Commit(ctx); err != nil {
+		log.Error().Err(err).Msg("error committing transaction")
+
+		err2 := dbTx.Rollback(ctx)
+		if err2 != nil {
+			log.Panic().Msg("cannot rollback transaction")
+			return "", err2
+		}
+	}
+
+	return myID, nil
+}
+
+// convertPlaidTransactionToPV takes a plaid transaction and reformats it into the form necessary for penny vault
+func convertPlaidTransactionToPV(trx plaid.Transaction) *Transaction {
+	category := Category{
+		Name: trx.GetPersonalFinanceCategory().Detailed,
+	}
+
+	// lookup the category name and convert it into a native PV category
+	if nativeCategory, ok := categoryMapper[category.Name]; ok {
+		category.Name = nativeCategory.Name
+	} else {
+		log.Warn().Str("CategoryName", category.Name).Msg("plaid returned an un-recognized category")
+	}
+
+	var date time.Time
+	var err error
+
+	if trx.GetAuthorizedDate() != "" {
+		date, err = time.Parse("2006-01-02", trx.GetAuthorizedDate())
+		if err != nil {
+			// couldn't parse the date just move on
+			date = time.Time{}
+		}
+	}
+
+	if date.Equal(time.Time{}) && trx.GetDate() != "" {
+		date, err = time.Parse("2006-01-02", trx.GetDate())
+		if err != nil {
+			// couldn't parse the date just move on
+			date = time.Time{}
+		}
+	}
+
+	memo := trx.GetCheckNumber()
+	if memo != "" {
+		memo = fmt.Sprintf("Check number: %s", memo)
+	}
+
+	plaidLoc := trx.GetLocation()
+	location := Location{
+		Lat:         plaidLoc.GetLat(),
+		Lon:         plaidLoc.GetLon(),
+		Address:     plaidLoc.GetAddress(),
+		City:        plaidLoc.GetCity(),
+		Country:     plaidLoc.GetCountry(),
+		Region:      plaidLoc.GetRegion(),
+		PostalCode:  plaidLoc.GetPostalCode(),
+		StoreNumber: plaidLoc.GetStoreNumber(),
+	}
+
+	return &Transaction{
+		Amount:   trx.Amount,
+		TxDate:   date,
+		Memo:     memo,
+		Payee:    trx.GetMerchantName(),
+		Location: location,
+		Icon:     trx.GetLogoUrl(),
+		Category: []Category{category},
+		SourceID: trx.TransactionId,
+		Source:   "Downloaded",
+	}
 }
