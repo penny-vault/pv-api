@@ -29,7 +29,7 @@ import (
 
 var (
 	jwkCache *jwk.Cache
-	jwksUrl  string
+	jwksURL  string
 )
 
 func configureJWKCache(ctx context.Context, conf Config) {
@@ -42,15 +42,15 @@ func configureJWKCache(ctx context.Context, conf Config) {
 		log.Panic().Err(err).Msg("failed to create JWK cache")
 	}
 
-	jwksUrl = conf.JwksUrl
+	jwksURL = conf.JwksURL
 
-	if jwksUrl == "" {
+	if jwksURL == "" {
 		log.Panic().Msg("jwks url must not be blank")
 	}
 
 	// Tell *jwk.Cache that we only want to refresh this JWKS periodically.
-	if err := jwkCache.Register(ctx, conf.JwksUrl); err != nil {
-		log.Panic().Err(err).Str("jwks_url", conf.JwksUrl).Msg("failed to register jwks url with jwk caching service")
+	if err := jwkCache.Register(ctx, conf.JwksURL); err != nil {
+		log.Panic().Err(err).Str("jwks_url", conf.JwksURL).Msg("failed to register jwks url with jwk caching service")
 	}
 }
 
@@ -60,7 +60,7 @@ func hasRole(role string) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		subject := c.Locals(types.UserKey{}).(string)
 		token := c.Locals(types.JwtKey{}).(string)
-		userInfo := LookupUserInfo(subject, token)
+		userInfo := LookupUserInfo(c.UserContext(), subject, token)
 
 		if _, containsRole := userInfo.Roles[role]; containsRole {
 			return c.Next()
@@ -96,9 +96,9 @@ func hasAuth() fiber.Handler {
 		ctx, cancel := context.WithCancel(c.UserContext())
 		defer cancel()
 
-		keySet, err := jwkCache.Lookup(ctx, jwksUrl)
+		keySet, err := jwkCache.Lookup(ctx, jwksURL)
 		if err != nil {
-			log.Panic().Err(err).Str("jwks_url", jwksUrl).Msg("failed to lookup jwks url")
+			log.Panic().Err(err).Str("jwks_url", jwksURL).Msg("failed to lookup jwks url")
 		}
 
 		token, err := jwt.Parse([]byte(authToken), jwt.WithKeySet(keySet))

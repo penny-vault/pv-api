@@ -16,7 +16,6 @@ linters:
     - misspell
     - revive
     - sqlclosecheck
-    - wsl
   disable:
     - durationcheck
     - exhaustive

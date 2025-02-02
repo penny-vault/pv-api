@@ -1,3 +1,18 @@
+// Copyright 2021-2025
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package account_test
 
 import (
@@ -34,16 +49,16 @@ var _ = Describe("Plaid", func() {
 
 	BeforeEach(func() {
 		config := api.Config{
-			JwksUrl:     "http://testhost/jwks",
-			UserInfoUrl: "http://testhost/userinfo",
+			JwksURL:     "http://testhost/jwks",
+			UserInfoURL: "http://testhost/userinfo",
 		}
 
 		httpmock.RegisterNoResponder(httpmock.InitialTransport.RoundTrip)
 
-		httpmock.RegisterResponder("GET", config.JwksUrl,
+		httpmock.RegisterResponder("GET", config.JwksURL,
 			httpmock.NewStringResponder(200, `{"use":"sig","kty":"RSA","kid":"ZLeKGWdYDpDatxI_KWiwrJ3bij3E8oO2wyJfafWj3Qo=","alg":"RS256","n":"rTdFQTjoCtXQ-t02rRhOtncx7JZD7cc73ZK1lqXd4zuWkAUaStDyKDHfNzJBFdYrHZgl8lh7WY9mNrMcVbbVvWXPQvXadpv7gSxnLaH5SFcIoAZGQgAM7pDm4kR_fywdVAkaXtQ7tvudfjtxYhXQGMNbr74W_w2_mRrWbVtbmWf7OSzT1ZBZ42zZ5ejibAD-K27KYnMp9uC6aS9yX7wIO6NRswS2nkq8Bj-uD7yE7CMkM2kXHj_iu7B21tikmZ0D0FOpoJoVNlGoWCdmbzsZ44Npdl5H-QZKmy2oJx5kUsDVeVh8Ve1elCIXlbm14ti38vR7nPcUOhRDhT5TxJvbSQ","e":"AQAB"}`))
 
-		httpmock.RegisterResponder("GET", config.UserInfoUrl,
+		httpmock.RegisterResponder("GET", config.UserInfoURL,
 			httpmock.NewStringResponder(200, `{
     "email": "test@user.com",
     "email_verified": true,
@@ -68,7 +83,8 @@ var _ = Describe("Plaid", func() {
     }
 }`))
 
-		godotenv.Load("../.env")
+		err := godotenv.Load("../.env")
+		Expect(err).To(BeNil())
 
 		plaidConfig = account.PlaidConfig{
 			ClientID:    os.Getenv("PVAPI_PLAID_CLIENT_ID"),
@@ -76,8 +92,7 @@ var _ = Describe("Plaid", func() {
 			Environment: "sandbox",
 		}
 
-		// Make sure the following are configured - otherwise the test
-		// is gauranteed to fail
+		// Make sure the following are configured - otherwise the test is guaranteed to fail
 		Expect(plaidConfig.ClientID).ToNot(Equal(""), "Plaid ClientID must be set in environment as PVAPI_PLAID_CLIENT_ID")
 		Expect(plaidConfig.Secret).ToNot(Equal(""), "Plaid Secret must be set in environment as PVAPI_PLAID_SECRET")
 

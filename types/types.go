@@ -17,4 +17,4 @@ package types
 
 type JwtKey struct{}
 type UserKey struct{}
-type TraceIdKey struct{}
+type TraceIDKey struct{}

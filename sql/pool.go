@@ -40,10 +40,10 @@ var (
 func Instance(ctx context.Context) *pgxpool.Pool {
 	once.Do(func() {
 		openTransactions = make(map[string]string)
-		dbUrl := viper.GetString("db.url")
+		dbURL := viper.GetString("db.url")
 
 		var err error
-		pool, err = pgxpool.New(ctx, dbUrl)
+		pool, err = pgxpool.New(ctx, dbURL)
 		if err != nil {
 			log.Panic().Err(err).Msg("could not create postgresql pool")
 		}

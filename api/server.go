@@ -27,8 +27,8 @@ import (
 type Config struct {
 	AllowOrigins string `mapstructure:"allow_origins"`
 	Port         int
-	UserInfoUrl  string `mapstructure:"user_info_url"`
-	JwksUrl      string `mapstructure:"jwks_url"`
+	UserInfoURL  string `mapstructure:"user_info_url"`
+	JwksURL      string `mapstructure:"jwks_url"`
 }
 
 var serverConfig Config

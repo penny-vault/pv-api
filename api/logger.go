@@ -46,8 +46,8 @@ func loggingMiddleware() fiber.Handler {
 		start = time.Now()
 
 		// set trace id
-		c.Locals(types.TraceIdKey{}, c.Get("X-Trace-Id", uuid.Must(uuid.NewV7()).String()))
-		c.Response().Header.Set("X-Trace-Id", c.Locals(types.TraceIdKey{}).(string))
+		c.Locals(types.TraceIDKey{}, c.Get("X-Trace-Id", uuid.Must(uuid.NewV7()).String()))
+		c.Response().Header.Set("X-Trace-Id", c.Locals(types.TraceIDKey{}).(string))
 
 		// Handle request, store err for logging
 		chainErr := c.Next()
@@ -62,15 +62,15 @@ func loggingMiddleware() fiber.Handler {
 		// Set latency stop time
 		stop = time.Now()
 
-		userId, ok := c.Locals(types.UserKey{}).(string)
+		userID, ok := c.Locals(types.UserKey{}).(string)
 		if !ok {
-			userId = "anonymous"
+			userID = "anonymous"
 		}
 
 		subLog := log.With().
 			Int("StatusCode", c.Response().StatusCode()).
-			Str("TraceID", c.Locals(types.TraceIdKey{}).(string)).
-			Str("UserID", userId).
+			Str("TraceID", c.Locals(types.TraceIDKey{}).(string)).
+			Str("UserID", userID).
 			Dur("Latency", stop.Sub(start).Round(time.Millisecond)).
 			Str("IP", c.IP()).
 			Str("Method", c.Method()).

@@ -16,6 +16,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,26 +45,26 @@ type UserInfo struct {
 
 // LookupUserInfo reads user info from redis or loads it from the userinfo
 // endpoint
-func LookupUserInfo(subject string, token string) UserInfo {
-	if serverConfig.UserInfoUrl == "" {
+func LookupUserInfo(ctx context.Context, subject string, token string) UserInfo {
+	if serverConfig.UserInfoURL == "" {
 		log.Panic().Msg("userInfoUrl not initialized. Call CreateFiberApp before calling LookupUserInfo and ensure that server.user_info_url is set in your settings file")
 	}
 
 	var userInfo UserInfo
 
-	if userInfoJson, ok := cache.Get(subject); ok {
-		err := json.Unmarshal([]byte(userInfoJson), &userInfo)
+	if userInfoJSON, ok := cache.Get(subject); ok {
+		err := json.Unmarshal([]byte(userInfoJSON), &userInfo)
 		if err != nil {
-			log.Error().Err(err).Msg("problem")
+			log.Error().Err(err).Msg("problem unmarshalling user info from cache")
 		}
 
 		return userInfo
 	}
 
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", serverConfig.UserInfoUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", serverConfig.UserInfoURL, nil)
 	if err != nil {
-		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoUrl).Msg("parsing user info json failed")
+		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoURL).Msg("creating new http request failed")
 	}
 
 	req.Header.Set("authorization", fmt.Sprintf("Bearer %s", token))
@@ -71,22 +72,22 @@ func LookupUserInfo(subject string, token string) UserInfo {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoUrl).Msg("requesting userinfo failed")
+		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoURL).Msg("requesting userinfo failed")
 	}
 
 	defer resp.Body.Close()
 
-	bodyJson, err := io.ReadAll(resp.Body)
+	bodyJSON, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoUrl).Msg("reading user info body failed")
+		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoURL).Msg("reading user info body failed")
 	}
 
-	err = json.Unmarshal(bodyJson, &userInfo)
+	err = json.Unmarshal(bodyJSON, &userInfo)
 	if err != nil {
-		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoUrl).Msg("parsing user info json failed")
+		log.Error().Err(err).Str("user_info_url", serverConfig.UserInfoURL).Msg("parsing user info json failed")
 	}
 
-	cache.Set(subject, string(bodyJson))
+	cache.Set(subject, string(bodyJSON))
 
 	return userInfo
 }

@@ -23,14 +23,14 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func GetAccounts(ctx context.Context, userId string) ([]Account, error) {
-	tx, err := sql.TrxForUser(ctx, userId)
+func GetAccounts(ctx context.Context, userID string) ([]Account, error) {
+	tx, err := sql.TrxForUser(ctx, userID)
 	if err != nil {
 		log.Error().Err(err).Msg("error starting database transaction")
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, "SELECT id, COALESCE(reference_id, '') AS reference_id, user_id, COALESCE(name, '') AS name, COALESCE(credentials->>'access_token', '') AS access_token, COALESCE(credentials->>'cursor', '') AS cursor, COALESCE(credentials->>'item_id', '') AS item_id FROM accounts WHERE user_id = $1", userId)
+	rows, err := tx.Query(ctx, "SELECT id, COALESCE(reference_id, '') AS reference_id, user_id, COALESCE(name, '') AS name, COALESCE(credentials->>'access_token', '') AS access_token, COALESCE(credentials->>'cursor', '') AS cursor, COALESCE(credentials->>'item_id', '') AS item_id FROM accounts WHERE user_id = $1", userID)
 	if err != nil {
 		log.Error().Err(err).Msg("database error when retrieving accounts")
 		if err := tx.Rollback(ctx); err != nil {

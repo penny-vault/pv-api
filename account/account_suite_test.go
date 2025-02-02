@@ -26,13 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var (
-	dbUser      string
-	dbHost      string
-	dbPort      string
-	adminDbName string
-)
-
 func TestAccount(t *testing.T) {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: GinkgoWriter})
 

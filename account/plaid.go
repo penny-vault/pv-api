@@ -91,8 +91,8 @@ func SetupPlaid(config PlaidConfig) {
 // and stores the resulting item_id and access_token in the users database.
 // For further details see: https://plaid.com/docs/api/items/#itempublic_tokenexchange
 func PlaidExchangeToken(ctx *fiber.Ctx) error {
-	traceId := ctx.Locals(types.TraceIdKey{}).(string)
-	myLogger := log.With().Str("TraceID", traceId).Logger()
+	traceID := ctx.Locals(types.TraceIDKey{}).(string)
+	myLogger := log.With().Str("TraceID", traceID).Logger()
 
 	client := plaid.NewAPIClient(plaidConfiguration)
 
@@ -125,7 +125,7 @@ func PlaidExchangeToken(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(StatusResponse{
 			Status:  400,
 			Message: err.Error(),
-			TraceID: traceId,
+			TraceID: traceID,
 		})
 	}
 
@@ -139,7 +139,7 @@ func PlaidExchangeToken(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 			Status:  503, // database error
 			Message: "error creating database connection for user",
-			TraceID: traceId,
+			TraceID: traceID,
 		})
 	}
 
@@ -160,11 +160,11 @@ func PlaidExchangeToken(ctx *fiber.Ctx) error {
 			return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 				Status:  503, // database error
 				Message: "error marshalling credentials",
-				TraceID: traceId,
+				TraceID: traceID,
 			})
 		}
 
-		accountType := "Unknown"
+		var accountType string
 		switch account.Type {
 		case "depository":
 			accountType = "Banking"
@@ -201,7 +201,7 @@ func PlaidExchangeToken(ctx *fiber.Ctx) error {
 			return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 				Status:  503, // database error
 				Message: "error inserting account into database",
-				TraceID: traceId,
+				TraceID: traceID,
 			})
 		}
 	}
@@ -212,22 +212,22 @@ func PlaidExchangeToken(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusCreated).JSON(StatusResponse{
 			Status:  503,
 			Message: "database transaction commit failed",
-			TraceID: traceId,
+			TraceID: traceID,
 		})
 	}
 
 	return ctx.Status(fiber.StatusCreated).JSON(StatusResponse{
 		Status:  201,
 		Message: "success",
-		TraceID: traceId,
+		TraceID: traceID,
 	})
 }
 
 // PlaidLinkToken interacts with the Plaid API to generate a new link token.
 // For further details see: https://plaid.com/docs/api/link/#linktokencreate
 func PlaidLinkToken(ctx *fiber.Ctx) error {
-	traceId := ctx.Locals(types.TraceIdKey{}).(string)
-	myLogger := log.With().Str("TraceID", traceId).Logger()
+	traceID := ctx.Locals(types.TraceIDKey{}).(string)
+	myLogger := log.With().Str("TraceID", traceID).Logger()
 
 	client := plaid.NewAPIClient(plaidConfiguration)
 
@@ -244,12 +244,12 @@ func PlaidLinkToken(ctx *fiber.Ctx) error {
 
 	request.SetProducts([]plaid.Products{plaid.PRODUCTS_TRANSACTIONS})
 
-	baseUrl := ctx.BaseURL()
-	if baseUrl == "http://" {
-		baseUrl = "https://test.pennyvault.app"
+	baseURL := ctx.BaseURL()
+	if baseURL == "http://" {
+		baseURL = "https://test.pennyvault.app"
 	}
 
-	request.SetWebhook(baseUrl + "/api/v1/plaid/hook")
+	request.SetWebhook(baseURL + "/api/v1/plaid/hook")
 
 	resp, _, err := client.PlaidApi.LinkTokenCreate(ctx.UserContext()).LinkTokenCreateRequest(*request).Execute()
 	if err != nil {
@@ -257,7 +257,7 @@ func PlaidLinkToken(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(StatusResponse{
 			Status:  400,
 			Message: err.Error(),
-			TraceID: traceId,
+			TraceID: traceID,
 		})
 	}
 
@@ -274,8 +274,8 @@ func PlaidLinkToken(ctx *fiber.Ctx) error {
 
 // PlaidSync interacts with the Plaid API to retrieve the latest transactions for an item
 func PlaidSync(ctx *fiber.Ctx) error {
-	traceId := ctx.Locals(types.TraceIdKey{}).(string)
-	myLogger := log.With().Str("TraceID", traceId).Logger()
+	traceID := ctx.Locals(types.TraceIDKey{}).(string)
+	myLogger := log.With().Str("TraceID", traceID).Logger()
 
 	// Get the account ID map for the user
 	accounts, err := GetAccounts(ctx.UserContext(), ctx.Locals(types.UserKey{}).(string))
@@ -284,13 +284,13 @@ func PlaidSync(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 			Status:  503,
 			Message: "error getting account id map",
-			TraceID: traceId,
+			TraceID: traceID,
 		})
 	}
 
-	accountIdMap := make(map[string]int64, len(accounts))
+	accountIDMap := make(map[string]int64, len(accounts))
 	for _, account := range accounts {
-		accountIdMap[account.ReferenceID] = account.ID
+		accountIDMap[account.ReferenceID] = account.ID
 	}
 
 	// sync each account with a unique item id
@@ -304,13 +304,13 @@ func PlaidSync(ctx *fiber.Ctx) error {
 			completedItems[account.ItemID] = true
 
 			// Sync transactions
-			added, modified, removed, cursor, err := SyncTransactions(ctx.UserContext(), account.AccessToken, accountIdMap)
+			added, modified, removed, cursor, err := SyncTransactions(ctx.UserContext(), account.AccessToken, accountIDMap)
 			if err != nil {
 				myLogger.Error().Err(err).Msg("error syncing transactions")
 				return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 					Status:  503,
 					Message: "error syncing transactions",
-					TraceID: traceId,
+					TraceID: traceID,
 				})
 			}
 
@@ -320,7 +320,7 @@ func PlaidSync(ctx *fiber.Ctx) error {
 				return ctx.Status(fiber.StatusInternalServerError).JSON(StatusResponse{
 					Status:  503,
 					Message: "error updating database with transactions",
-					TraceID: traceId,
+					TraceID: traceID,
 				})
 			}
 		}
@@ -329,7 +329,7 @@ func PlaidSync(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(StatusResponse{
 		Status:  201,
 		Message: "success",
-		TraceID: traceId,
+		TraceID: traceID,
 	})
 }
 
@@ -342,13 +342,11 @@ func UpdateDBWithTransactionsFromPlaid(ctx context.Context, account Account, add
 	}
 
 	// save the cursor to all accounts with the same item id
-	/*
-		_, err = dbTransaction.Exec(ctx, `UPDATE accounts SET credentials = credentials || jsonb_build_object('cursor', $1) WHERE credentials->>item_id = $2`, cursor, account.ItemID)
-		if err != nil {
-			log.Error().Err(err).Msg("error updating cursor in database")
-			return err
-		}
-	*/
+	_, err = dbTransaction.Exec(ctx, `UPDATE accounts SET credentials = credentials || jsonb_build_object('cursor', $1) WHERE credentials->>item_id = $2`, cursor, account.ItemID)
+	if err != nil {
+		log.Error().Err(err).Msg("error updating cursor in database")
+		return err
+	}
 
 	// insert new transactions
 	for _, trx := range added {
@@ -425,6 +423,66 @@ func UpdateDBWithTransactionsFromPlaid(ctx context.Context, account Account, add
 		}
 	}
 
+	// update trnasactions that have been modified
+	for _, trx := range modified {
+		// look up the transaction ID based on the source ID
+		var myID string
+		var sequenceNum int64
+
+		err := dbTransaction.QueryRow(ctx, "SELECT id, sequence_num FROM transactions WHERE account_id = $1 AND source_id = $2 LIMIT 1", trx.AccountID, trx.SourceID).Scan(&myID, &sequenceNum)
+		if err != nil {
+			log.Error().Err(err).Msg("could not find transaction in database")
+		}
+
+		_, err = dbTransaction.Exec(ctx, `SELECT insert_transaction(
+			$1,    -- in_id
+			$2,    -- in_account_id
+			$3,    -- in_source
+			$4,    -- in_source_id
+			$5,    -- in_sequence_num
+			$6,    -- in_tx_date
+			$7,    -- in_payee
+			$8,    -- in_category
+			NULL,  -- in_tags
+			NULL,  -- in_justification
+			false, -- in_reviewed
+			false, -- in_cleared
+			$9,    -- in_amount
+			$10,   -- in_memo
+			NULL,  -- in_related
+			NULL,  -- in_commission
+			NULL,  -- in_composite_figi
+			NULL,  -- in_num_shares
+			NULL,  -- in_price_per_share
+			NULL,  -- in_ticker
+			NULL,  -- in_tax_treatment
+			NULL   -- in_gain_loss
+		)`,
+			myID,          // 1
+			trx.AccountID, // 2
+			trx.Source,    // 3
+			trx.SourceID,  // 4
+			sequenceNum,   // 5
+			trx.TxDate,    // 6
+			trx.Payee,     // 7
+			trx.Category,  // 8
+			trx.Amount,    // 9
+			trx.Memo,      // 10
+		)
+
+		if err != nil {
+			log.Error().Err(err).Str("id", myID).Msg("error updating transaction in database")
+
+			err2 := dbTransaction.Rollback(ctx)
+			if err2 != nil {
+				// rollback failed
+				log.Fatal().Err(err2).Msg("rollback transaction failed -- must be in bad state. exiting.")
+			}
+
+			return err
+		}
+	}
+
 	// remove transactions
 	for _, deleteTx := range removed {
 		_, err := dbTransaction.Exec(ctx, "DELETE FROM transactions WHERE reference_id = $1 AND source_id = $2", deleteTx.GetAccountId(), deleteTx.GetTransactionId())
@@ -457,7 +515,7 @@ func UpdateDBWithTransactionsFromPlaid(ctx context.Context, account Account, add
 }
 
 // SyncTransactions interacts with the Plaid API to retrieve the latest transactions for an item
-func SyncTransactions(ctx context.Context, accessToken string, accountIdMap map[string]int64, cursor ...string) ([]*Transaction, []*Transaction, []plaid.RemovedTransaction, string, error) {
+func SyncTransactions(ctx context.Context, accessToken string, accountIDMap map[string]int64, cursor ...string) ([]*Transaction, []*Transaction, []plaid.RemovedTransaction, string, error) {
 	var added []plaid.Transaction
 	var modified []plaid.Transaction
 	var removed []plaid.RemovedTransaction // Removed transaction ids
@@ -467,8 +525,7 @@ func SyncTransactions(ctx context.Context, accessToken string, accountIdMap map[
 
 	client := plaid.NewAPIClient(plaidConfiguration)
 
-	var myCursor *string = nil
-
+	var myCursor *string
 	if len(cursor) > 0 {
 		myCursor = &cursor[0]
 	}
@@ -506,14 +563,14 @@ func SyncTransactions(ctx context.Context, accessToken string, accountIdMap map[
 	addedTransactions := make([]*Transaction, 0, len(added))
 	for _, trx := range added {
 		pvTrx := convertPlaidTransactionToPV(trx)
-		pvTrx.AccountID = accountIdMap[trx.GetAccountId()]
+		pvTrx.AccountID = accountIDMap[trx.GetAccountId()]
 		addedTransactions = append(addedTransactions, pvTrx)
 	}
 
 	modifiedTransactions := make([]*Transaction, 0, len(modified))
 	for _, trx := range modified {
 		pvTrx := convertPlaidTransactionToPV(trx)
-		pvTrx.AccountID = accountIdMap[trx.GetAccountId()]
+		pvTrx.AccountID = accountIDMap[trx.GetAccountId()]
 
 		// lookup existing ID based on the source ID
 		var err error
@@ -539,7 +596,11 @@ func lookupIDFromSourceID(ctx context.Context, trx *Transaction) (string, error)
 	}
 
 	var myID string
-	dbTx.QueryRow(ctx, "SELECT id FROM transaction WHERE account_id = $1 AND source_id = $2 LIMIT 1", trx.AccountID, trx.SourceID).Scan(&myID)
+	err = dbTx.QueryRow(ctx, "SELECT id FROM transaction WHERE account_id = $1 AND source_id = $2 LIMIT 1", trx.AccountID, trx.SourceID).Scan(&myID)
+	if err != nil {
+		log.Error().Err(err).Msg("SQL query loading transaction ID failed")
+		return "", err
+	}
 
 	if err := dbTx.Commit(ctx); err != nil {
 		log.Error().Err(err).Msg("error committing transaction")

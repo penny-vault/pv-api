@@ -35,7 +35,7 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   "pv-api",
 	Short: "Run the pv-api HTTP service",
-	Run: func(_ *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		ctx := context.Background()
 		account.SetupPlaid(conf.Plaid)
 		app := api.CreateFiberApp(ctx, conf.Server)
