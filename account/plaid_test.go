@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/penny-vault/pv-api/account"
 	"github.com/penny-vault/pv-api/api"
+	"github.com/rs/zerolog/log"
 )
 
 type linkTokenResponse struct {
@@ -51,6 +52,11 @@ var _ = Describe("Plaid", func() {
 		config := api.Config{
 			JwksURL:     "http://testhost/jwks",
 			UserInfoURL: "http://testhost/userinfo",
+		}
+
+		err := godotenv.Load("../.env")
+		if err != nil {
+			log.Info().Msg("using Plaid credentials from environment")
 		}
 
 		httpmock.RegisterNoResponder(httpmock.InitialTransport.RoundTrip)
@@ -82,9 +88,6 @@ var _ = Describe("Plaid", func() {
         }
     }
 }`))
-
-		err := godotenv.Load("../.env")
-		Expect(err).To(BeNil())
 
 		plaidConfig = account.PlaidConfig{
 			ClientID:    os.Getenv("PVAPI_PLAID_CLIENT_ID"),
