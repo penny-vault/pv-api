@@ -37,14 +37,20 @@ var categories []Category
 var categoryMapper map[string]Category
 
 func init() {
-	categories = make([]Category, 0)
 	categoryMapper = make(map[string]Category)
 
-	err := toml.Unmarshal(categoriesTOML, &categories)
+	categoryTmp := struct {
+		Category []Category `toml:"category"`
+	}{
+		Category: []Category{},
+	}
+
+	err := toml.Unmarshal(categoriesTOML, &categoryTmp)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not load standard categories")
 	}
 
+	categories = categoryTmp.Category
 	for _, category := range categories {
 		categoryMapper[category.Secondary] = category
 	}
