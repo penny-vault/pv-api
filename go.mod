@@ -3,7 +3,7 @@ module github.com/penny-vault/pv-api
 go 1.23.1
 
 require (
-	github.com/bytedance/sonic v1.12.8
+	github.com/bytedance/sonic v1.13.0
 	github.com/goccy/go-json v0.10.5
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/golang-migrate/migrate/v4 v4.18.2
