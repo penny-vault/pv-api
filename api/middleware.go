@@ -44,18 +44,20 @@ func requestIDMiddleware() fiber.Handler {
 }
 
 // timerMiddleware records the handler duration on a Server-Timing header.
+// Per RFC 8942, the `dur` parameter is a bare decimal in milliseconds.
 func timerMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		start := time.Now()
 		err := c.Next()
 		elapsed := time.Since(start)
-		c.Append("Server-Timing", fmt.Sprintf("app;dur=%s", elapsed))
+		ms := float64(elapsed.Nanoseconds()) / 1e6
+		c.Append("Server-Timing", fmt.Sprintf("app;dur=%.3f", ms))
 		return err
 	}
 }
 
 // loggerMiddleware emits one zerolog line per request, annotated with
-// the request id, status, method, and path.
+// the request id, status, method, path, and handler duration.
 func loggerMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		start := time.Now()
