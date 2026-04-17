@@ -26,7 +26,10 @@ import (
 )
 
 func TestApi(t *testing.T) {
+	prev := log.Logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: GinkgoWriter})
+	defer func() { log.Logger = prev }()
+
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Api Suite")
 }

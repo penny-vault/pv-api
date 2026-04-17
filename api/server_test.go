@@ -32,13 +32,13 @@ var _ = Describe("NewApp", func() {
 		req := httptest.NewRequest("GET", "/healthz", nil)
 
 		resp, err := app.Test(req)
-		Expect(err).To(BeNil())
+		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
 
 		Expect(resp.StatusCode).To(Equal(200))
 
 		body, err := io.ReadAll(resp.Body)
-		Expect(err).To(BeNil())
+		Expect(err).NotTo(HaveOccurred())
 		Expect(string(body)).To(Equal("ok"))
 	})
 })
