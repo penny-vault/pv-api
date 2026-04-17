@@ -29,3 +29,9 @@ pvapi.toml
 
 # worktrees
 .worktrees/
+
+# build artifacts
+coverprofile.out
+test-report.xml
+*.sqlite
+test.ofx
