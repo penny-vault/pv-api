@@ -465,9 +465,9 @@ EOF
 
 ---
 
-## Task 3: Tidy `go.mod` and pin Fiber v3
+## Task 3: Tidy `go.mod`, pin Fiber v3, bump sonic
 
-**Purpose:** Drop dependencies the deleted code pulled in, and add Fiber v3 so Task 4/5 can use it.
+**Purpose:** Drop dependencies the deleted code pulled in, add Fiber v3 so Task 4/5 can use it, and bump `bytedance/sonic` — pvapi 3.0's JSON codec of choice — to a version compatible with the current Go toolchain.
 
 **Files:**
 - Modify: `go.mod`
@@ -480,7 +480,6 @@ Run:
 ```bash
 go get github.com/gofiber/fiber/v2@none
 go get github.com/plaid/plaid-go/v31@none
-go get github.com/bytedance/sonic@none
 go get github.com/goccy/go-json@none
 go get github.com/lestrrat-go/jwx/v3@none
 go get github.com/lestrrat-go/httprc/v3@none
@@ -490,11 +489,18 @@ go get github.com/tidwall/tinylru@none
 
 Any dependency that returns "module not found in go.mod" is fine — it was already pruned when its caller was deleted. Proceed regardless.
 
-- [ ] **Step 2: Add Fiber v3**
+**Note:** `github.com/bytedance/sonic` stays — pvapi 3.0 wires it into Fiber as the JSON encoder/decoder (Task 4). The old pinned version (v1.12.8) has a linker incompatibility with modern Go toolchains (`invalid reference to encoding/json.unquoteBytes`); bumping it fixes the build.
 
-Run: `go get github.com/gofiber/fiber/v3@latest`
+- [ ] **Step 2: Bump sonic and add Fiber v3**
 
-Expected: go.mod gains `github.com/gofiber/fiber/v3 vX.Y.Z` in its `require` block. Note the exact version line you see (we will reference it in Task 4).
+Run:
+
+```bash
+go get github.com/bytedance/sonic@latest
+go get github.com/gofiber/fiber/v3@latest
+```
+
+Expected: go.mod now lists `github.com/bytedance/sonic vX.Y.Z` (v1.13.x or newer) and `github.com/gofiber/fiber/v3 vX.Y.Z` in the `require` block.
 
 - [ ] **Step 3: Tidy the module graph**
 
@@ -504,19 +510,21 @@ Expected: no errors. `go.sum` may shrink substantially.
 - [ ] **Step 4: Verify everything still builds**
 
 Run: `go build ./...`
-Expected: no errors.
+Expected: no errors. The sonic linker failure present on the baseline is gone now that sonic is up-to-date.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add go.mod go.sum
 git commit -m "$(cat <<'EOF'
-pin Fiber v3 and drop 2.x-only dependencies
+pin Fiber v3, bump sonic, drop 2.x-only dependencies
 
-Removes Fiber v2, plaid-go, bytedance/sonic, goccy/go-json, the
-lestrrat JWX stack, jarcoal/httpmock, and tinylru (all no longer
-imported). Adds Fiber v3 so the new HTTP layer can be built against
-it. JWX and httpmock will be re-added in Plan 2 when auth lands.
+Removes Fiber v2, plaid-go, goccy/go-json, the lestrrat JWX stack,
+jarcoal/httpmock, and tinylru (all no longer imported). Adds Fiber
+v3 and bumps bytedance/sonic to a release compatible with the
+current Go toolchain; sonic will be wired into Fiber as the JSON
+codec in the next commit. JWX and httpmock will be re-added in
+Plan 2 when auth lands.
 EOF
 )"
 ```
@@ -630,7 +638,7 @@ Expected: FAIL — `api.NewApp undefined` (or `api.Config undefined`). This is t
 
 - [ ] **Step 4: Create `api/server.go` with the minimal Fiber v3 app**
 
-Create `api/server.go`:
+Create `api/server.go`. The JSON encoder/decoder is pointed at `bytedance/sonic` — pvapi 3.0 standardizes on it for performance.
 
 ```go
 // Copyright 2021-2026
@@ -651,6 +659,7 @@ Create `api/server.go`:
 package api
 
 import (
+	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -663,7 +672,10 @@ type Config struct {
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
 // The caller is responsible for calling app.Listen.
 func NewApp(_ Config) *fiber.App {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		JSONEncoder: sonic.Marshal,
+		JSONDecoder: sonic.Unmarshal,
+	})
 
 	registerRoutes(app)
 
@@ -923,12 +935,28 @@ func loggerMiddleware() fiber.Handler {
 
 - [ ] **Step 4: Wire middleware into `NewApp` (order matters)**
 
-Replace the body of `NewApp` in `api/server.go` with the version below (keep the file's imports; add `"github.com/gofiber/fiber/v3/middleware/cors"`):
+Replace the contents of `api/server.go` with:
 
 ```go
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package api
 
 import (
+	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 )
@@ -942,7 +970,10 @@ type Config struct {
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
 // The caller is responsible for calling app.Listen.
 func NewApp(conf Config) *fiber.App {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		JSONEncoder: sonic.Marshal,
+		JSONDecoder: sonic.Unmarshal,
+	})
 
 	// Order: request-id first (so all later middleware + handlers see it),
 	// then timer (so it measures everything inside), then CORS, then logger.
