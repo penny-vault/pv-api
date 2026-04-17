@@ -1,64 +1,72 @@
+version: "2"
+
 run:
   timeout: 15m
   tests: true
 
 linters:
+  default: none
   enable:
     - err113
+    - errcheck
+    - errorlint
     - goconst
     - gocritic
     - gocyclo
     - godox
     - goheader
-    - gofmt
-    - goimports
     - gosec
+    - govet
+    - ineffassign
     - misspell
     - revive
     - sqlclosecheck
-  disable:
-    - durationcheck
-    - exhaustive
-    - contextcheck
-  presets:
-    - bugs
+    - staticcheck
     - unused
-  fast: false
+  settings:
+    gocyclo:
+      min-complexity: 15
+    misspell:
+      ignore-rules:
+        - strat
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+    goheader:
+      values:
+        regexp:
+          year-range: '20\d\d(-20\d\d)?'
+      template: |-
+        Copyright {{year-range}}
+        SPDX-License-Identifier: Apache-2.0
 
-linters-settings:
-  exhaustive:
-    default-signifies-exhaustive: true
-  nestif:
-    min-complexity: 6
-  misspell:
-    ignore-words:
-      - strat
-  gocyclo:
-    min-complexity: 15
-  goheader:
-    template: |-
-      Copyright {{year-range}}
-      SPDX-License-Identifier: Apache-2.0
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
 
-      Licensed under the Apache License, Version 2.0 (the "License");
-      you may not use this file except in compliance with the License.
-      You may obtain a copy of the License at
+        http://www.apache.org/licenses/LICENSE-2.0
 
-      http://www.apache.org/licenses/LICENSE-2.0
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errorlint
+          - err113
+          - errcheck
+          - revive
+          - goconst
+          - gosec
 
-      Unless required by applicable law or agreed to in writing, software
-      distributed under the License is distributed on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-      See the License for the specific language governing permissions and
-      limitations under the License.
-issues:
-  exclude-rules:
-    # Exclude some linters from running on tests files.
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errorlint
-        - goerr113
-        - revive
-        - goconst
-        - gosec
+formatters:
+  enable:
+    - gofmt
+    - goimports
