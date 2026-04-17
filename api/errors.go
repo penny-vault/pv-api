@@ -72,6 +72,8 @@ func WriteProblem(c fiber.Ctx, err error) error {
 
 func classify(err error) (int, string) {
 	switch {
+	case errors.Is(err, ErrInvalidToken):
+		return fiber.StatusUnauthorized, "Unauthorized"
 	case errors.Is(err, ErrNotFound):
 		return fiber.StatusNotFound, "Not Found"
 	case errors.Is(err, ErrConflict):

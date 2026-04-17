@@ -17,3 +17,7 @@ package types
 
 // RequestIDKey is the Fiber locals key used to carry a per-request UUID.
 type RequestIDKey struct{}
+
+// AuthSubjectKey is the Fiber locals key for the authenticated user's
+// subject (Auth0 `sub` claim).
+type AuthSubjectKey struct{}
