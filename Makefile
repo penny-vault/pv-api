@@ -17,3 +17,6 @@ test:
 
 clean:
 	go clean
+
+gen:
+	go generate ./openapi/...

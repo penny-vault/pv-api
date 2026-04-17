@@ -55,6 +55,8 @@ linters:
         See the License for the specific language governing permissions and
         limitations under the License.
   exclusions:
+    paths:
+      - openapi/openapi.gen.go
     rules:
       - path: _test\.go
         linters:
