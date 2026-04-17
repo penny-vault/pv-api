@@ -41,18 +41,22 @@ type AuthConfig struct {
 // WriteProblem.
 var ErrInvalidToken = errors.New("invalid or expired token")
 
+// ErrAuthConfigIncomplete is returned by NewAuthMiddleware when any
+// required AuthConfig field is empty.
+var ErrAuthConfigIncomplete = errors.New("auth config incomplete")
+
 // NewAuthMiddleware builds a Fiber v3 handler that verifies the
 // Authorization: Bearer <jwt> header on every request and stores the
 // subject on types.AuthSubjectKey. ctx controls the JWK cache lifecycle.
 func NewAuthMiddleware(ctx context.Context, conf AuthConfig) (fiber.Handler, error) {
 	if conf.JWKSURL == "" {
-		return nil, errors.New("AuthConfig.JWKSURL must not be empty")
+		return nil, fmt.Errorf("%w: JWKSURL must not be empty", ErrAuthConfigIncomplete)
 	}
 	if conf.Audience == "" {
-		return nil, errors.New("AuthConfig.Audience must not be empty")
+		return nil, fmt.Errorf("%w: Audience must not be empty", ErrAuthConfigIncomplete)
 	}
 	if conf.Issuer == "" {
-		return nil, errors.New("AuthConfig.Issuer must not be empty")
+		return nil, fmt.Errorf("%w: Issuer must not be empty", ErrAuthConfigIncomplete)
 	}
 
 	cache, err := jwk.NewCache(ctx, httprc.NewClient())
@@ -81,7 +85,7 @@ func NewAuthMiddleware(ctx context.Context, conf AuthConfig) (fiber.Handler, err
 			jwt.WithValidate(true),
 		)
 		if err != nil {
-			return WriteProblem(c, fmt.Errorf("%w: %v", ErrInvalidToken, err))
+			return WriteProblem(c, fmt.Errorf("%w: %w", ErrInvalidToken, err))
 		}
 
 		sub, ok := parsed.Subject()
