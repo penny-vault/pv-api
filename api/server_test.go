@@ -16,29 +16,60 @@
 package api_test
 
 import (
+	"context"
 	"io"
 	"net/http/httptest"
+	"time"
 
+	"github.com/gofiber/fiber/v3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/api/apitesting"
 )
 
 var _ = Describe("NewApp", func() {
+	newApp := func() *fiber.App {
+		app, err := api.NewApp(context.Background(), api.Config{
+			Auth: api.AuthConfig{
+				JWKSURL:  testJWKS.URL,
+				Audience: apitesting.Audience,
+				Issuer:   apitesting.Issuer,
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		return app
+	}
+
 	It("responds 200 on GET /healthz with body 'ok'", func() {
-		app := api.NewApp(api.Config{})
-
-		req := httptest.NewRequest("GET", "/healthz", nil)
-
-		resp, err := app.Test(req)
+		app := newApp()
+		resp, err := app.Test(httptest.NewRequest("GET", "/healthz", nil))
 		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
-
 		Expect(resp.StatusCode).To(Equal(200))
-
 		body, err := io.ReadAll(resp.Body)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(body)).To(Equal("ok"))
+	})
+
+	It("rejects a request to /portfolios without a JWT", func() {
+		app := newApp()
+		resp, err := app.Test(httptest.NewRequest("GET", "/portfolios", nil))
+		Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		Expect(resp.StatusCode).To(Equal(401))
+	})
+
+	It("returns 501 on /portfolios with a valid JWT", func() {
+		app := newApp()
+		tok, err := testJWKS.Mint("user-1", time.Hour)
+		Expect(err).NotTo(HaveOccurred())
+		req := httptest.NewRequest("GET", "/portfolios", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		Expect(resp.StatusCode).To(Equal(501))
 	})
 })

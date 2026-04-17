@@ -34,6 +34,9 @@ func init() {
 
 	serverCmd.Flags().Int("server-port", 3000, "port to bind the HTTP server to")
 	serverCmd.Flags().String("server-allow-origins", "http://localhost:9000", "single CORS origin to allow; empty disables CORS")
+	serverCmd.Flags().String("auth0-jwks-url", "", "Auth0 JWKS URL for JWT verification")
+	serverCmd.Flags().String("auth0-audience", "", "Auth0 API audience")
+	serverCmd.Flags().String("auth0-issuer", "", "Auth0 issuer URL")
 	bindPFlagsToViper(serverCmd)
 }
 
@@ -44,10 +47,18 @@ var serverCmd = &cobra.Command{
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		app := api.NewApp(api.Config{
+		app, err := api.NewApp(ctx, api.Config{
 			Port:         conf.Server.Port,
 			AllowOrigins: conf.Server.AllowOrigins,
+			Auth: api.AuthConfig{
+				JWKSURL:  conf.Auth0.JWKSURL,
+				Audience: conf.Auth0.Audience,
+				Issuer:   conf.Auth0.Issuer,
+			},
 		})
+		if err != nil {
+			return fmt.Errorf("build app: %w", err)
+		}
 
 		errCh := make(chan error, 1)
 		addr := fmt.Sprintf(":%d", conf.Server.Port)

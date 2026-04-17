@@ -16,27 +16,30 @@
 package api
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
-// Config holds HTTP-layer configuration. Populated from cmd.serverConf.
+// Config holds HTTP-layer configuration.
 type Config struct {
 	Port         int
 	AllowOrigins string
+	Auth         AuthConfig
 }
 
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
-// The caller is responsible for calling app.Listen.
-func NewApp(conf Config) *fiber.App {
+// /healthz is public; every other route is mounted under the auth middleware.
+// ctx controls the JWK cache lifecycle.
+func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	app := fiber.New(fiber.Config{
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
 	})
 
-	// Order: request-id first (so all later middleware + handlers see it),
-	// then timer (so it measures everything inside), then CORS, then logger.
 	app.Use(requestIDMiddleware())
 	app.Use(timerMiddleware())
 
@@ -48,11 +51,17 @@ func NewApp(conf Config) *fiber.App {
 
 	app.Use(loggerMiddleware())
 
-	registerRoutes(app)
-
-	return app
-}
-
-func registerRoutes(app *fiber.App) {
+	// Public routes.
 	app.Get("/healthz", Healthz)
+
+	// Protected routes.
+	auth, err := NewAuthMiddleware(ctx, conf.Auth)
+	if err != nil {
+		return nil, fmt.Errorf("build auth middleware: %w", err)
+	}
+	protected := app.Group("", auth)
+	RegisterPortfolioRoutes(protected)
+	RegisterStrategyRoutes(protected)
+
+	return app, nil
 }

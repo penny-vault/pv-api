@@ -17,18 +17,33 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"net/http/httptest"
 
+	"github.com/gofiber/fiber/v3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/api/apitesting"
 )
 
 var _ = Describe("Middleware", func() {
-	var app = api.NewApp(api.Config{})
+	var app *fiber.App
+
+	BeforeEach(func() {
+		var err error
+		app, err = api.NewApp(context.Background(), api.Config{
+			Auth: api.AuthConfig{
+				JWKSURL:  testJWKS.URL,
+				Audience: apitesting.Audience,
+				Issuer:   apitesting.Issuer,
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	It("sets an X-Request-Id response header", func() {
 		req := httptest.NewRequest("GET", "/healthz", nil)

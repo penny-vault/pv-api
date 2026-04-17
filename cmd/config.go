@@ -15,17 +15,25 @@
 
 package cmd
 
-// Config is the top-level pvapi configuration shape. New sections are added as
-// later plans land (auth0, runner, strategy, scheduler, ...).
+// Config is the top-level pvapi configuration shape. New sections are added
+// as later plans land (runner, strategy, scheduler, ...).
 type Config struct {
 	Log    logConf
 	Server serverConf
+	Auth0  auth0Conf
 }
 
 // serverConf holds HTTP server settings.
 type serverConf struct {
 	Port         int
 	AllowOrigins string `mapstructure:"allow_origins"`
+}
+
+// auth0Conf configures the JWT-verification middleware.
+type auth0Conf struct {
+	JWKSURL  string `mapstructure:"jwks_url"`
+	Audience string
+	Issuer   string
 }
 
 var conf Config
