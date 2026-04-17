@@ -552,10 +552,10 @@ rm -f sql/migration_test.go sql/sql_suite_test.go
 
 ```bash
 go build ./...
-go test ./...
+ginkgo run -r
 ```
 
-Expected: both succeed. `go test ./...` reports `[no test files]` for the `sql` package; other packages (if any have tests yet) run their suites.
+Expected: both succeed. `ginkgo run -r` walks every package; packages without specs are skipped silently.
 
 - [ ] **Step 3: Commit**
 
@@ -660,7 +660,7 @@ var _ = Describe("NewApp", func() {
 
 		req := httptest.NewRequest("GET", "/healthz", nil)
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req)
 		Expect(err).To(BeNil())
 		defer resp.Body.Close()
 
@@ -831,7 +831,7 @@ var _ = Describe("Middleware", func() {
 
 	It("sets an X-Request-Id response header", func() {
 		req := httptest.NewRequest("GET", "/healthz", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req)
 		Expect(err).To(BeNil())
 		defer resp.Body.Close()
 
@@ -841,7 +841,7 @@ var _ = Describe("Middleware", func() {
 	It("honors an inbound X-Request-Id", func() {
 		req := httptest.NewRequest("GET", "/healthz", nil)
 		req.Header.Set("X-Request-Id", "test-request-id-42")
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req)
 		Expect(err).To(BeNil())
 		defer resp.Body.Close()
 
@@ -850,7 +850,7 @@ var _ = Describe("Middleware", func() {
 
 	It("sets a Server-Timing header", func() {
 		req := httptest.NewRequest("GET", "/healthz", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req)
 		Expect(err).To(BeNil())
 		defer resp.Body.Close()
 
@@ -865,7 +865,7 @@ var _ = Describe("Middleware", func() {
 
 		req := httptest.NewRequest("GET", "/healthz", nil)
 		req.Header.Set("X-Request-Id", "log-line-test")
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req)
 		Expect(err).To(BeNil())
 		defer resp.Body.Close()
 
