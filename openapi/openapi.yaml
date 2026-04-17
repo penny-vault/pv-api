@@ -20,6 +20,8 @@ security:
 tags:
   - name: Portfolios
     description: Portfolios belonging to the authenticated user
+  - name: Strategies
+    description: Strategy registry and unofficial strategy registration
 
 paths:
   /portfolios:
@@ -41,6 +43,31 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Portfolios]
+      operationId: createPortfolio
+      summary: Create a new portfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioCreateRequest'
+      responses:
+        '201':
+          description: Portfolio created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portfolio'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /portfolios/{slug}:
     get:
@@ -60,6 +87,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Portfolio'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [Portfolios]
+      operationId: updatePortfolio
+      summary: Update portfolio name, schedule, or parameters
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioUpdateRequest'
+      responses:
+        '200':
+          description: Portfolio updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portfolio'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Portfolios]
+      operationId: deletePortfolio
+      summary: Delete a portfolio and its snapshot
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '204':
+          description: Deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -113,6 +182,153 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/runs:
+    get:
+      tags: [Portfolios]
+      operationId: listPortfolioRuns
+      summary: Run history for a portfolio
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Array of runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BacktestRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Portfolios]
+      operationId: triggerPortfolioRun
+      summary: Trigger a one-shot backtest for the portfolio
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '202':
+          description: Run accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/runs/{runId}:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioRun
+      summary: Detail for a single run
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: runId
+          in: path
+          required: true
+          description: Run UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /strategies:
+    get:
+      tags: [Strategies]
+      operationId: listStrategies
+      summary: List strategies in the registry
+      parameters:
+        - name: include
+          in: query
+          required: false
+          description: Set to `unofficial` to include the caller's registered unofficial strategies.
+          schema:
+            type: string
+            enum: [unofficial]
+      responses:
+        '200':
+          description: Array of strategies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Strategy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Strategies]
+      operationId: registerUnofficialStrategy
+      summary: Register an unofficial strategy by GitHub clone URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrategyRegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /strategies/{shortCode}:
+    get:
+      tags: [Strategies]
+      operationId: getStrategy
+      summary: Strategy detail
+      parameters:
+        - name: shortCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -146,6 +362,18 @@ components:
             $ref: '#/components/schemas/Problem'
     ServerError:
       description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: The target resource already exists or conflicts with an existing row.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: The request body was well-formed but failed validation.
       content:
         application/problem+json:
           schema:
@@ -463,3 +691,133 @@ components:
           type: number
           format: double
           description: Annualized risk-free rate at this date (e.g. 3-month T-Bill). Optional.
+
+    PortfolioMode:
+      type: string
+      enum: [one_shot, continuous]
+
+    PortfolioStatus:
+      type: string
+      enum: [pending, running, ready, failed]
+
+    RunStatus:
+      type: string
+      enum: [queued, running, success, failed]
+
+    PortfolioCreateRequest:
+      type: object
+      required: [name, strategyCode, parameters, mode]
+      properties:
+        name:
+          type: string
+          description: User-visible display name.
+        strategyCode:
+          type: string
+          description: Strategy short code (from `describe` output).
+        strategyVer:
+          type: string
+          description: Specific version to pin; omit for latest installed.
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Values validated against the strategy's declared parameters.
+        benchmark:
+          type: string
+          default: 'SPY'
+        mode:
+          $ref: '#/components/schemas/PortfolioMode'
+        schedule:
+          type: string
+          description: tradecron string, required iff mode=continuous (e.g. `@monthend`).
+        runNow:
+          type: boolean
+          description: If true, kick the first run immediately after create.
+          default: false
+
+    PortfolioUpdateRequest:
+      type: object
+      description: All fields optional; only provided fields are updated.
+      properties:
+        name:
+          type: string
+        schedule:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+
+    BacktestRun:
+      type: object
+      required: [id, portfolioSlug, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        portfolioSlug:
+          type: string
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    StrategyRegisterRequest:
+      type: object
+      required: [cloneUrl]
+      properties:
+        cloneUrl:
+          type: string
+          format: uri
+          description: HTTPS clone URL for the strategy repository.
+
+    Strategy:
+      type: object
+      required: [shortCode, repoOwner, repoName, isOfficial]
+      properties:
+        shortCode:
+          type: string
+        repoOwner:
+          type: string
+        repoName:
+          type: string
+        cloneUrl:
+          type: string
+          format: uri
+        isOfficial:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+        stars:
+          type: integer
+          nullable: true
+        installedVer:
+          type: string
+          nullable: true
+        cagr:
+          type: number
+          format: double
+          nullable: true
+        maxDrawDown:
+          type: number
+          format: double
+          nullable: true
+        sharpe:
+          type: number
+          format: double
+          nullable: true
