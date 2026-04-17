@@ -18,6 +18,7 @@ package api
 import (
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 // Config holds HTTP-layer configuration. Populated from cmd.serverConf.
@@ -28,11 +29,24 @@ type Config struct {
 
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
 // The caller is responsible for calling app.Listen.
-func NewApp(_ Config) *fiber.App {
+func NewApp(conf Config) *fiber.App {
 	app := fiber.New(fiber.Config{
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
 	})
+
+	// Order: request-id first (so all later middleware + handlers see it),
+	// then timer (so it measures everything inside), then CORS, then logger.
+	app.Use(requestIDMiddleware())
+	app.Use(timerMiddleware())
+
+	if conf.AllowOrigins != "" {
+		app.Use(cors.New(cors.Config{
+			AllowOrigins: []string{conf.AllowOrigins},
+		}))
+	}
+
+	app.Use(loggerMiddleware())
 
 	registerRoutes(app)
 
