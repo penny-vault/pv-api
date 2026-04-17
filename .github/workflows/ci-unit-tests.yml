@@ -6,53 +6,41 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      PGHOST: localhost
-      PVAPI_PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
-      PVAPI_PLAID_SECRET: ${{ secrets.PLAID_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-      - name: Add PostgreSQL binaries to PATH
-        shell: bash
+
+      - name: Build
+        run: go build ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Test
         run: |
-            echo "$(pg_config --bindir)" >> $GITHUB_PATH
-      - name: Start preinstalled PostgreSQL
-        shell: bash
-        run: |
-          echo "Initializing database cluster..."
+          go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          ginkgo run -r --race --junit-report test-report.xml
 
-          export PGHOST="${RUNNER_TEMP}/postgres"
-          export PGDATA="$PGHOST/pgdata"
-          mkdir -p "$PGDATA"
-
-          # initdb requires file for password in non-interactive mode
-          export PWFILE="$RUNNER_TEMP/pwfile"
-          echo "postgres" > "$PWFILE"
-          initdb --pgdata="$PGDATA" --username="postgres" --pwfile="$PWFILE"
-
-          echo "Starting PostgreSQL..."
-          echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-          pg_ctl start
-
-          # create the default user and database
-          createuser -U postgres -s runner
-          createdb -U runner runner
-      - run: go install github.com/onsi/ginkgo/v2/ginkgo@latest && ginkgo run -r --race --junit-report test-report.xml
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v5
-        if: success() || failure() # always run even if the previous step fails
+        if: success() || failure()
         with:
           report_paths: 'test-report.xml'
+
+      - name: Coverage
+        run: ginkgo run -r --coverprofile=coverage.txt --covermode=atomic
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-      - run: ginkgo run -r --coverprofile=coverage.txt --covermode=atomic
-      - name: Upload results to Codecov
-        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
