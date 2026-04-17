@@ -1,4 +1,4 @@
-// Copyright 2021-2025
+// Copyright 2021-2026
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,5 @@
 
 package types
 
-type JwtKey struct{}
-type UserKey struct{}
-type TraceIDKey struct{}
+// RequestIDKey is the Fiber locals key used to carry a per-request UUID.
+type RequestIDKey struct{}

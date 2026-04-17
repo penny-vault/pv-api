@@ -1,4 +1,4 @@
-// Copyright 2021-2025
+// Copyright 2021-2026
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +15,17 @@
 
 package cmd
 
-import (
-	"github.com/penny-vault/pv-api/account"
-	"github.com/penny-vault/pv-api/api"
-)
-
+// Config is the top-level pvapi configuration shape. New sections are added as
+// later plans land (auth0, runner, strategy, scheduler, ...).
 type Config struct {
 	Log    logConf
-	Plaid  account.PlaidConfig
-	Server api.Config
+	Server serverConf
+}
+
+// serverConf holds HTTP server settings.
+type serverConf struct {
+	Port         int
+	AllowOrigins string `mapstructure:"allow_origins"`
 }
 
 var conf Config
