@@ -23,7 +23,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/penny-vault/pv-api/api/apitesting"
 )
+
+var testJWKS *apitesting.JWKS
 
 func TestApi(t *testing.T) {
 	prev := log.Logger
@@ -33,3 +37,15 @@ func TestApi(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Api Suite")
 }
+
+var _ = BeforeSuite(func() {
+	j, err := apitesting.NewJWKS()
+	Expect(err).NotTo(HaveOccurred())
+	testJWKS = j
+})
+
+var _ = AfterSuite(func() {
+	if testJWKS != nil {
+		testJWKS.Close()
+	}
+})
