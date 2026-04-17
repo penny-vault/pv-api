@@ -52,6 +52,12 @@ func Instance(ctx context.Context) *pgxpool.Pool {
 			log.Panic().Stack().Err(err).Msg("could not ping database server")
 		}
 
+		// on the first access to the database make sure that the schema is up-to-date
+		migrate := NewDatabaseSchema(CreateConnStrFromPool(pool))
+		if err := migrate.Up(); err != nil {
+			log.Panic().Err(err).Msg("could not migrate database")
+		}
+
 		log.Info().Str("Database", pool.Config().ConnConfig.Database).Str("DbHost", pool.Config().ConnConfig.Host).Msg("connected to database")
 	})
 

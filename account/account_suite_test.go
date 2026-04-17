@@ -16,11 +16,15 @@
 package account_test
 
 import (
+	"fmt"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -38,6 +42,36 @@ func TestAccount(t *testing.T) {
 var _ = BeforeSuite(func() {
 	// block all HTTP requests
 	httpmock.Activate()
+
+	dbUser := os.Getenv("PVAPI_TEST_DB_USER")
+	if dbUser == "" {
+		log.Debug().Msg("defaulting dbUser to 'postgres'")
+		dbUser = "postgres"
+	}
+
+	dbHost := os.Getenv("PVAPI_TEST_DB_HOST")
+	if dbHost == "" {
+		log.Debug().Msg("defaulting dbHost to 'localhost'")
+		dbHost = "localhost"
+	}
+
+	dbPort := os.Getenv("PVAPI_TEST_DB_PORT")
+	if dbPort == "" {
+		dbPort = "5432"
+	}
+
+	// double check that dbPort is an integer
+	_, err := strconv.Atoi(dbPort)
+	Expect(err).To(BeNil())
+
+	dbName := os.Getenv("PVAPI_TEST_DB_DBNAME")
+	if dbName == "" {
+		log.Debug().Msg("defaulting db name to 'pvtest'")
+		dbName = "pvtest"
+	}
+
+	// set viper configuration
+	viper.Set("db.url", fmt.Sprintf("postgresql://%s@%s:%s/%s", dbUser, dbHost, dbPort, dbName))
 })
 
 var _ = BeforeEach(func() {

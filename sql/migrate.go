@@ -18,8 +18,10 @@ package sql
 import (
 	"embed"
 	"errors"
+	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	// import pgx v5 driver
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -34,6 +36,16 @@ var fs embed.FS
 
 type DatabaseSchema struct {
 	migration *migrate.Migrate
+}
+
+// CreateConnStrFromPool creates a connection string from the provided pool connection
+func CreateConnStrFromPool(pool *pgxpool.Pool) string {
+	config := pool.Config().ConnConfig
+	if config.Password != "" {
+		return fmt.Sprintf("pgx5://%s:%s@%s:%d/%s", config.User, config.Password, config.Host, config.Port, config.Database)
+	}
+
+	return fmt.Sprintf("pgx5://%s@%s:%d/%s", config.User, config.Host, config.Port, config.Database)
 }
 
 // NewDatabaseSchema creates a new migration source from the embedded file

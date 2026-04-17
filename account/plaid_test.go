@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/penny-vault/pv-api/account"
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/sql"
 	"github.com/rs/zerolog/log"
 )
 
@@ -49,6 +50,8 @@ var _ = Describe("Plaid", func() {
 	)
 
 	BeforeEach(func() {
+		ctx := context.Background()
+
 		config := api.Config{
 			JwksURL:     "http://testhost/jwks",
 			UserInfoURL: "http://testhost/userinfo",
@@ -59,6 +62,18 @@ var _ = Describe("Plaid", func() {
 			log.Info().Msg("using Plaid credentials from environment")
 		}
 
+		// clean the database before each run
+		pool := sql.Instance(ctx)
+		migrate := sql.NewDatabaseSchema(sql.CreateConnStrFromPool(pool))
+		if err := migrate.Down(); err != nil {
+			log.Panic().Err(err).Msg("could not migrate database schema down")
+		}
+
+		if err := migrate.Up(); err != nil {
+			log.Panic().Err(err).Msg("could not migrate database schema down")
+		}
+
+		// register http mock responders
 		httpmock.RegisterNoResponder(httpmock.InitialTransport.RoundTrip)
 
 		httpmock.RegisterResponder("GET", config.JwksURL,
