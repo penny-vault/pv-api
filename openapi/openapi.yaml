@@ -1,0 +1,465 @@
+openapi: 3.1.0
+info:
+  title: Penny Vault API
+  version: 3.0.0
+  description: REST API for the Penny Vault portfolio and strategy application.
+  contact:
+    name: Penny Vault
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.pennyvault.com/v3
+    description: Production
+  - url: http://localhost:3000/v3
+    description: Local dev
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Portfolios
+    description: Portfolios belonging to the authenticated user
+
+paths:
+  /portfolios:
+    get:
+      tags: [Portfolios]
+      operationId: listPortfolios
+      summary: List the authenticated user's portfolios
+      description: Returns a light list view — one row per portfolio, suitable for a dashboard/landing.
+      responses:
+        '200':
+          description: Array of portfolios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolio
+      summary: Get a single portfolio with full summary data
+      description: |
+        Returns everything the Portfolio Summary screen needs **except** the
+        time-series measurements (those are at `/portfolios/{slug}/measurements`
+        because they can be large and are cached separately).
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Portfolio detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portfolio'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/measurements:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioMeasurements
+      summary: Time-series portfolio + benchmark values
+      description: |
+        Daily measurements. Optionally filter by date range; when omitted,
+        returns the full series from inception to today.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: from
+          in: query
+          description: ISO date (YYYY-MM-DD). Inclusive.
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: ISO date (YYYY-MM-DD). Inclusive.
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: resolution
+          in: query
+          description: Downsample target. `daily` (default) or `weekly`/`monthly` for coarser series.
+          required: false
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+      responses:
+        '200':
+          description: Time-series measurements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioMeasurements'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Auth0-issued JWT in the `Authorization: Bearer <token>` header."
+
+  parameters:
+    PortfolioSlug:
+      name: slug
+      in: path
+      required: true
+      description: Portfolio slug, e.g. `adm-aggressive-gm59`.
+      schema:
+        type: string
+        pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: The requested resource does not exist or is not visible to the caller.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    # ============ Error ============
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details.
+      required: [title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI identifying the problem type.
+          default: 'about:blank'
+        title:
+          type: string
+          description: Short, human-readable summary.
+        status:
+          type: integer
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri
+          description: URI reference that identifies the specific occurrence.
+
+    # ============ Enumerations ============
+    MetricFormat:
+      type: string
+      enum: [number, percent]
+      description: How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
+
+    ReturnRowKind:
+      type: string
+      enum: [portfolio, benchmark, portfolio-tax, benchmark-tax]
+      description: Which line in the trailing returns table.
+
+    # ============ Portfolio list ============
+    PortfolioListItem:
+      type: object
+      description: Light metadata for the dashboard/list view.
+      required: [id, name, benchmark, inceptionDate, currentValue, ytdReturn, maxDrawDown, lastUpdated]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: 'Adaptive Momentum — Growth Sleeve'
+        benchmark:
+          type: string
+          example: 'S&P 500 TR'
+        inceptionDate:
+          type: string
+          format: date
+          example: '2015-01-02'
+        currentValue:
+          type: number
+          format: double
+          example: 310760.55
+        ytdReturn:
+          type: number
+          format: double
+          description: Decimal percent (0.0714 = 7.14%).
+          example: 0.0714
+        maxDrawDown:
+          type: number
+          format: double
+          description: Decimal percent, negative.
+          example: -0.3387
+        lastUpdated:
+          type: string
+          format: date-time
+
+    # ============ Portfolio detail ============
+    Portfolio:
+      type: object
+      required:
+        - id
+        - name
+        - benchmark
+        - inceptionDate
+        - currentAssets
+        - lastUpdated
+        - summary
+        - drawdowns
+        - metrics
+        - trailingReturns
+        - allocation
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        benchmark:
+          type: string
+          description: Benchmark label, e.g. `S&P 500 TR`.
+        inceptionDate:
+          type: string
+          format: date
+        currentAssets:
+          type: array
+          description: Tickers currently held (excluding cash).
+          items:
+            type: string
+          example: ['VTI', 'VEA', 'BND']
+        lastUpdated:
+          type: string
+          format: date-time
+        summary:
+          $ref: '#/components/schemas/PortfolioSummary'
+        drawdowns:
+          type: array
+          description: Ordered by depth (deepest first).
+          items:
+            $ref: '#/components/schemas/Drawdown'
+        metrics:
+          type: array
+          description: Trailing statistics for the Risk & style metrics panel.
+          items:
+            $ref: '#/components/schemas/PortfolioMetric'
+        trailingReturns:
+          type: array
+          description: Rows for the trailing returns table.
+          items:
+            $ref: '#/components/schemas/TrailingReturnRow'
+        allocation:
+          type: array
+          description: Current holdings with weight (sum ≈ 1.0).
+          items:
+            $ref: '#/components/schemas/AllocationRow'
+
+    PortfolioSummary:
+      type: object
+      description: Top-line numbers for the KPI strip.
+      required:
+        - currentValue
+        - ytdReturn
+        - oneYearReturn
+        - cagrSinceInception
+        - maxDrawDown
+        - sharpe
+        - sortino
+        - beta
+        - alpha
+        - stdDev
+        - taxCostRatio
+      properties:
+        currentValue:
+          type: number
+          format: double
+        ytdReturn:
+          type: number
+          format: double
+        oneYearReturn:
+          type: number
+          format: double
+        cagrSinceInception:
+          type: number
+          format: double
+        maxDrawDown:
+          type: number
+          format: double
+        sharpe:
+          type: number
+          format: double
+        sortino:
+          type: number
+          format: double
+        beta:
+          type: number
+          format: double
+        alpha:
+          type: number
+          format: double
+        stdDev:
+          type: number
+          format: double
+        ulcerIndex:
+          type: number
+          format: double
+        taxCostRatio:
+          type: number
+          format: double
+
+    Drawdown:
+      type: object
+      required: [start, trough, depth]
+      properties:
+        start:
+          type: string
+          format: date
+          description: Peak date when the drawdown began.
+        trough:
+          type: string
+          format: date
+          description: Date of the deepest point.
+        recovery:
+          type: string
+          format: date
+          nullable: true
+          description: Date equity returned to the prior peak. Null if unrecovered.
+        depth:
+          type: number
+          format: double
+          description: Decimal percent, negative (e.g. -0.1670 = −16.70%).
+        days:
+          type: integer
+          description: Trading days from start to recovery (or end of series if unrecovered).
+
+    PortfolioMetric:
+      type: object
+      required: [label, value, format]
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+          format: double
+        format:
+          $ref: '#/components/schemas/MetricFormat'
+
+    TrailingReturnRow:
+      type: object
+      required: [title, kind, ytd, oneYear, threeYear, fiveYear, tenYear, sinceInception]
+      properties:
+        title:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ReturnRowKind'
+        ytd:
+          type: number
+          format: double
+        oneYear:
+          type: number
+          format: double
+        threeYear:
+          type: number
+          format: double
+        fiveYear:
+          type: number
+          format: double
+        tenYear:
+          type: number
+          format: double
+        sinceInception:
+          type: number
+          format: double
+
+    AllocationRow:
+      type: object
+      required: [ticker, name, weight]
+      properties:
+        ticker:
+          type: string
+          example: 'VTI'
+        name:
+          type: string
+          example: 'Vanguard Total Stock Market'
+        weight:
+          type: number
+          format: double
+          description: Fraction of portfolio (0.58 = 58%).
+        value:
+          type: number
+          format: double
+          description: Current market value in USD.
+        dayChange:
+          type: number
+          format: double
+          description: Decimal percent since previous close.
+
+    # ============ Measurements (time series) ============
+    PortfolioMeasurements:
+      type: object
+      required: [portfolioSlug, from, to, points]
+      properties:
+        portfolioSlug:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        resolution:
+          type: string
+          enum: [daily, weekly, monthly]
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementPoint'
+
+    MeasurementPoint:
+      type: object
+      required: [date, portfolioValue, benchmarkValue]
+      properties:
+        date:
+          type: string
+          format: date
+        portfolioValue:
+          type: number
+          format: double
+        benchmarkValue:
+          type: number
+          format: double
+          description: Normalized to start at the portfolio's opening value.
+        riskFreeRate:
+          type: number
+          format: double
+          description: Annualized risk-free rate at this date (e.g. 3-month T-Bill). Optional.
