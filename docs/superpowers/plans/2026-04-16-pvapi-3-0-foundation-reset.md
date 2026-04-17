@@ -63,6 +63,12 @@ api/middleware_test.go                    (unit tests for the three middlewares)
 cmd/server.go                             (Cobra `server` subcommand that runs the Fiber app + handles shutdown)
 ```
 
+**Deleted (added in Task 3.5 per no-real-DB-tests directive)**
+```
+sql/migration_test.go                     (exercised a live Postgres)
+sql/sql_suite_test.go                     (ginkgo wiring for the above)
+```
+
 **Kept unchanged**
 ```
 pkginfo/package.go
@@ -71,9 +77,6 @@ jwk-test-pub.json                         (reused by Plan 2's auth tests)
 .golangci.yml
 LICENSE
 CHANGELOG.md
-sql/migration_test.go                     (generic up/down test — still works against the placeholder migration)
-sql/sql_suite_test.go                     (ginkgo suite scaffolding for sql package)
-account/account_suite_test.go             (deleted with rest of account/)
 ```
 
 ---
@@ -525,6 +528,45 @@ v3 and bumps bytedance/sonic to a release compatible with the
 current Go toolchain; sonic will be wired into Fiber as the JSON
 codec in the next commit. JWX and httpmock will be re-added in
 Plan 2 when auth lands.
+EOF
+)"
+```
+
+---
+
+## Task 3.5: Drop the real-DB test suite
+
+**Purpose:** Per directive, pvapi does not run tests against a live database and does not adopt a DB-mocking library. Delete `sql/migration_test.go` and `sql/sql_suite_test.go`; `sql/` has no tests going forward.
+
+**Files:**
+- Delete: `sql/migration_test.go`
+- Delete: `sql/sql_suite_test.go`
+
+- [ ] **Step 1: Delete the sql test files**
+
+```bash
+rm -f sql/migration_test.go sql/sql_suite_test.go
+```
+
+- [ ] **Step 2: Verify build and default test run**
+
+```bash
+go build ./...
+go test ./...
+```
+
+Expected: both succeed. `go test ./...` reports `[no test files]` for the `sql` package; other packages (if any have tests yet) run their suites.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add -A
+git commit -m "$(cat <<'EOF'
+drop real-Postgres tests from sql/
+
+Per directive, pvapi does not run tests against a live database and
+does not adopt a DB-mocking library. SQL correctness is covered by
+code review and whatever runtime exercises the pool at server start.
 EOF
 )"
 ```
@@ -1152,7 +1194,7 @@ EOF
 
 ## Task 7: CI workflow cleanup
 
-**Purpose:** The current CI workflow exports Plaid credentials as env vars. Nothing consumes them any more; remove them. Also add lint and build steps so the pipeline fails early on basic breakage.
+**Purpose:** Strip the 2.x CI workflow to what pvapi 3.0 actually needs. No Postgres provisioning — tests never hit a live database. Keep build, lint, and test; keep Codecov upload.
 
 **Files:**
 - Modify: `.github/workflows/ci-unit-tests.yml`
@@ -1170,40 +1212,11 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      PGHOST: localhost
-      PVAPI_TEST_DB_USER: runner
-      PVAPI_TEST_DB_HOST: localhost
-      PVAPI_TEST_DB_PORT: "5432"
-      PVAPI_TEST_DB_ADMIN_DBNAME: runner
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-
-      - name: Add PostgreSQL binaries to PATH
-        shell: bash
-        run: echo "$(pg_config --bindir)" >> $GITHUB_PATH
-
-      - name: Start preinstalled PostgreSQL
-        shell: bash
-        run: |
-          echo "Initializing database cluster..."
-          export PGHOST="${RUNNER_TEMP}/postgres"
-          export PGDATA="$PGHOST/pgdata"
-          mkdir -p "$PGDATA"
-
-          export PWFILE="$RUNNER_TEMP/pwfile"
-          echo "postgres" > "$PWFILE"
-          initdb --pgdata="$PGDATA" --username="postgres" --pwfile="$PWFILE"
-
-          echo "Starting PostgreSQL..."
-          echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-          pg_ctl start
-
-          createuser -U postgres -s runner
-          createdb -U runner runner
 
       - name: Build
         run: go build ./...
@@ -1246,9 +1259,9 @@ git add .github/workflows/ci-unit-tests.yml
 git commit -m "$(cat <<'EOF'
 trim CI workflow for pvapi 3.0
 
-Removes Plaid credential env vars (no consumer in 3.0) and adds an
-explicit build and lint job so the pipeline fails fast on basic
-breakage. Exposes PVAPI_TEST_DB_* variables the sql suite now reads.
+Drops Postgres provisioning and Plaid credential env vars — pvapi 3.0
+tests do not hit a live database. Keeps build, lint, ginkgo test,
+coverage, and Codecov upload.
 EOF
 )"
 ```
@@ -1324,22 +1337,17 @@ Expected: `pvapi` binary produced; no errors.
 Run: `make lint`
 Expected: no errors. `go vet` passes; `golangci-lint` reports clean (only the linters configured in `.golangci.yml`).
 
-- [ ] **Step 3: Full test run (requires local Postgres)**
+- [ ] **Step 3: Full test run (no external services)**
 
 Run:
 
 ```bash
-PVAPI_TEST_DB_USER=${USER} \
-PVAPI_TEST_DB_HOST=localhost \
-PVAPI_TEST_DB_PORT=5432 \
-PVAPI_TEST_DB_ADMIN_DBNAME=postgres \
 ginkgo run -r --race
 ```
 
 Expected:
-- `Sql Suite` runs the migration specs (3 It blocks) against the placeholder migration.
-- `Api Suite` runs the healthz + middleware specs (5 It blocks).
-- All specs pass. No `0 Passed, 0 Failed, 0 Pending` — if a suite reports zero specs, the suite did not wire up correctly.
+- `Api Suite` runs the healthz + middleware specs (5 It blocks). All pass.
+- `sql` package reports `[no test files]`; that is expected — Task 3.5 removed the real-DB specs. No `0 Passed, 0 Failed, 0 Pending` for api — if the api suite reports zero specs, the suite did not wire up correctly.
 
 - [ ] **Step 4: Live smoke**
 

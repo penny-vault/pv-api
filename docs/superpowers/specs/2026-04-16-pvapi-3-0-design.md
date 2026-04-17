@@ -521,18 +521,23 @@ stderr at `error` on non-zero exit.
 
 - Ginkgo/Gomega per package, following the existing `*_suite_test.go`
   pattern.
-- `sql/` suite runs against a real Postgres (CI is already set up for this,
-  see `.github/workflows/ci-unit-tests.yml`). Each `BeforeEach` migrates
-  down+up; no mocked DB.
+- **Tests never touch a live database** and the project does not adopt a
+  database-mocking library. `sql/` is covered only by compile-time
+  checks and whatever end-to-end verification the runtime exercises (the
+  pool is wired up at server start; auto-migrate runs on first access).
+  Any SQL correctness work happens via code review, not unit tests.
 - `strategy/` suite uses a checked-in fake strategy repository under
   `testdata/` to exercise clone/build/describe without hitting GitHub. Hit
   GitHub once per PR via a single smoke test that can be skipped locally.
 - `backtest/` suite uses a stub `Runner` that copies a checked-in SQLite
   fixture to `OutPath`. A `//go:build integration` file exercises
   `HostRunner` against the fake strategy end-to-end.
-- `api/` suite boots the Fiber app against the test Postgres, mints test
+- `api/` suite boots the Fiber app in-process (no database), mints test
   JWTs using the repo's existing `jwk-test-priv.json`/`jwk-test-pub.json`,
-  and hits endpoints. `httpmock` for any outbound GitHub traffic.
+  and hits endpoints. `httpmock` for any outbound GitHub traffic. Handlers
+  that need the pool receive it through an interface that tests stub with
+  a no-op; DB-reachability failures are surfaced at server start, not at
+  test time.
 - No hard coverage threshold; every handler and service method has at
   least one happy-path test.
 
