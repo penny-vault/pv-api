@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/exp/rand"
+	"math/rand/v2"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/penny-vault/pv-api/sql"
@@ -31,16 +31,17 @@ import (
 
 // generateRandomName returns a string suitable to use in postgresql
 func generateRandomName(n int) string {
-	r := rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+	seed := uint64(time.Now().UnixNano())
+	r := rand.New(rand.NewPCG(seed, seed>>32))
 
 	letters := []rune("abcdefghijklmnopqrstuvwxyz")
 	lettersAndNumbers := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 	s := make([]rune, n)
-	s[0] = letters[r.Intn(len(letters))]
+	s[0] = letters[r.IntN(len(letters))]
 
 	for ii := range n - 1 {
-		s[ii+1] = lettersAndNumbers[r.Intn(len(lettersAndNumbers))]
+		s[ii+1] = lettersAndNumbers[r.IntN(len(lettersAndNumbers))]
 	}
 
 	return string(s)
