@@ -17,13 +17,12 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
@@ -55,7 +54,7 @@ var serverCmd = &cobra.Command{
 
 		go func() {
 			log.Info().Str("addr", addr).Msg("server listening")
-			if err := app.Listen(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
 				errCh <- err
 			}
 			close(errCh)
@@ -69,7 +68,7 @@ var serverCmd = &cobra.Command{
 			return nil
 		case <-ctx.Done():
 			log.Info().Msg("shutdown signal received")
-			if err := app.Shutdown(); err != nil {
+			if err := app.ShutdownWithContext(ctx); err != nil {
 				return fmt.Errorf("fiber shutdown: %w", err)
 			}
 			return nil
