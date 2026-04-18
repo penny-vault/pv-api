@@ -1,0 +1,23 @@
+{
+  "total_count": 2,
+  "items": [
+    {
+      "name": "adm",
+      "description": "Accelerating Dual Momentum",
+      "clone_url": "https://github.com/penny-vault/adm.git",
+      "stargazers_count": 42,
+      "updated_at": "2026-04-01T00:00:00Z",
+      "topics": ["pvbt-strategy", "momentum"],
+      "owner": { "login": "penny-vault" }
+    },
+    {
+      "name": "bogus",
+      "description": "An outsider strategy that happens to share the topic",
+      "clone_url": "https://github.com/random-user/bogus.git",
+      "stargazers_count": 3,
+      "updated_at": "2026-04-02T00:00:00Z",
+      "topics": ["pvbt-strategy"],
+      "owner": { "login": "random-user" }
+    }
+  ]
+}

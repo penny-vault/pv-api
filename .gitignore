@@ -26,6 +26,8 @@ go.work.sum
 .env
 pvapi.toml
 *.json
+# allow test fixtures
+!**/testdata/*.json
 
 # worktrees
 .worktrees/
