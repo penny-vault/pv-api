@@ -116,38 +116,48 @@ No cycles.
 
 ### Postgres schema (fresh `1_init` migration)
 
+The schema below shows the final shape after all migrations land. `1_init`
+(Plan 2) creates the tables; `2_add_live_mode` (Plan 4) extends
+`portfolio_mode` with `live`; `3_install_tracking` (Plan 3) adds the two
+install-state columns to `strategies`.
+
 ```sql
 -- strategies: registry of all strategies pvapi knows about
 CREATE TYPE artifact_kind AS ENUM ('binary', 'image');
 
 CREATE TABLE strategies (
-    short_code      TEXT PRIMARY KEY,
-    repo_owner      TEXT NOT NULL,
-    repo_name       TEXT NOT NULL,
-    clone_url       TEXT NOT NULL,
-    is_official     BOOLEAN NOT NULL DEFAULT FALSE,
-    owner_sub       TEXT,              -- Auth0 sub for unofficial; NULL for official
-    description     TEXT,
-    categories      TEXT[],
-    stars           INTEGER,
-    installed_ver   TEXT,
-    installed_at    TIMESTAMPTZ,
-    artifact_kind   artifact_kind,
-    artifact_ref    TEXT,              -- binary path or image ref, per runner mode
-    describe_json   JSONB,             -- full `describe --json` output
-    cagr            DOUBLE PRECISION,  -- computed stats, nullable until first run
-    max_drawdown    DOUBLE PRECISION,
-    sharpe          DOUBLE PRECISION,
-    stats_as_of     TIMESTAMPTZ,
-    discovered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    short_code          TEXT PRIMARY KEY,
+    repo_owner          TEXT NOT NULL,
+    repo_name           TEXT NOT NULL,
+    clone_url           TEXT NOT NULL,
+    is_official         BOOLEAN NOT NULL DEFAULT FALSE,
+    owner_sub           TEXT,              -- Auth0 sub for unofficial; NULL for official
+    description         TEXT,
+    categories          TEXT[],
+    stars               INTEGER,
+    installed_ver       TEXT,              -- last successful install; what the runner executes
+    installed_at        TIMESTAMPTZ,
+    last_attempted_ver  TEXT,              -- most recent install attempt (success OR fail)
+    install_error       TEXT,              -- NULL on success; stderr/error text on failure
+    artifact_kind       artifact_kind,
+    artifact_ref        TEXT,              -- binary path or image ref, per runner mode
+    describe_json       JSONB,             -- full `describe --json` output
+    cagr                DOUBLE PRECISION,  -- computed stats, nullable until first run
+    max_drawdown        DOUBLE PRECISION,
+    sharpe              DOUBLE PRECISION,
+    stats_as_of         TIMESTAMPTZ,
+    discovered_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK ((is_official AND owner_sub IS NULL) OR (NOT is_official AND owner_sub IS NOT NULL))
 );
 CREATE INDEX idx_strategies_official ON strategies(is_official);
 CREATE INDEX idx_strategies_owner ON strategies(owner_sub) WHERE owner_sub IS NOT NULL;
 
 -- portfolios: configuration + cached derived summary
-CREATE TYPE portfolio_mode AS ENUM ('one_shot', 'continuous');
+-- `live` is added in migration 2_add_live_mode but accepted by the POST
+-- handler only when live trading support lands in a future plan; today
+-- POST /portfolios with mode=live returns 422.
+CREATE TYPE portfolio_mode AS ENUM ('one_shot', 'continuous', 'live');
 CREATE TYPE portfolio_status AS ENUM ('pending', 'running', 'ready', 'failed');
 
 CREATE TABLE portfolios (
@@ -244,17 +254,29 @@ All endpoints require `BearerAuth` (Auth0 JWT). Errors are
 
 ### Portfolios
 
+The portfolio surface is split so that portfolio *configuration* (stable,
+always present) is separate from the *latest backtest output* (derived,
+overwritten each successful run). Pending portfolios — ones that have never
+completed a run — respond 200 on the config endpoint and 404 on the derived
+endpoints.
+
 | Method | Path | Purpose |
 |---|---|---|
-| GET    | `/portfolios` | List the caller's portfolios (existing). |
-| POST   | `/portfolios` | Create: strategy + parameters + mode + schedule. Returns 201 with slug. |
-| GET    | `/portfolios/{slug}` | Full detail (existing; path was `/portfolios/{id}`). |
-| PATCH  | `/portfolios/{slug}` | Update name, schedule, or parameters. Changing parameters or pinning a new strategy version triggers a re-run. |
+| GET    | `/portfolios` | List the caller's portfolios. Each item carries config fields plus top-line summary KPIs (`currentValue`, `ytdReturn`, `maxDrawDown`, `lastUpdated`) marked **optional** so pending portfolios appear with `status` only. |
+| POST   | `/portfolios` | Create: strategy + parameters + mode + schedule. Returns 201 with slug. `mode=live` returns 422 until a future live-trading plan ships. |
+| GET    | `/portfolios/{slug}` | **Config only.** Slug, name, strategyCode, strategyVer, parameters, presetName, benchmark, mode, schedule, status, createdAt, updatedAt, lastRunAt, lastError. Always 200 on existing portfolios. |
+| PATCH  | `/portfolios/{slug}` | **`name` only.** Changes to parameters / schedule / benchmark / mode are rejected — the user must DELETE and re-create to keep slug coherent with config. |
 | DELETE | `/portfolios/{slug}` | Delete portfolio row and its snapshot file. |
-| GET    | `/portfolios/{slug}/measurements` | Time series (existing). |
+| GET    | `/portfolios/{slug}/results` | Bundled derived output from the latest successful run: `asOf`, `summary`, `drawdowns`, `metrics`, `trailingReturns`, `allocation`. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/measurements` | Equity-curve time series. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/holdings` | Latest holdings: `{date, items: Holding[], totalMarketValue}` where `Holding = {ticker, figi?, quantity, avgCost, marketValue}`. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/holdings/{date}` | Historical holdings as of ISO `YYYY-MM-DD`. 404 when no snapshot for that date. |
 | POST   | `/portfolios/{slug}/runs` | Trigger a one-shot backtest now. Returns 202 with the new `backtest_runs` row. |
 | GET    | `/portfolios/{slug}/runs` | Run history. |
 | GET    | `/portfolios/{slug}/runs/{runId}` | Single run detail. |
+
+Whether `/results.allocation` stays once `/holdings` exists, or is dropped
+as redundant, is an open question flagged for Plan 4 brainstorming.
 
 ### Strategies
 
@@ -269,11 +291,18 @@ All endpoints require `BearerAuth` (Auth0 JWT). Errors are
 `<short_code>-<preset_or_custom>-<4char>`
 
 - Preset segment is the matched preset name (kebab-case, sanitized) when
-  parameters equal a preset's parameter set. Otherwise `custom`.
-- 4-character suffix is a base32 short hash of
-  `(params_json, mode, schedule, benchmark)`. Deterministic: identical
-  configurations produce identical slugs. A duplicate create for the same
-  user returns `409` pointing at the existing slug.
+  parameters equal a declared preset's parameter set. Otherwise literal
+  `custom`.
+- 4-character suffix is an **FNV-1a 32-bit** hash of
+  `(params_json, mode, schedule, benchmark)`, encoded base32 lowercase
+  (first 20 bits). Go stdlib `hash/fnv`. Not cryptographic — purely a
+  disambiguator for multiple portfolios of the same preset per user.
+- Deterministic: identical configurations produce identical slugs. A
+  duplicate create for the same user returns `409` pointing at the
+  existing slug.
+- **Immutable after create.** The slug is derived once at POST time and
+  never changes, even if PATCH or other mutations alter any input to the
+  hash. This is enforced by restricting PATCH to the `name` field.
 
 ### Conventions
 
@@ -293,12 +322,12 @@ POST /portfolios
 {
   "name":           "ADM aggressive",
   "strategyCode":   "adm",
-  "strategyVer":    "v1.2.0",           // optional; defaults to latest installed
+  "strategyVer":    "v1.2.0",                    // optional; defaults to latest installed
   "parameters":     { ... },
-  "benchmark":      "SPY",              // optional; defaults to strategy describe
-  "mode":           "continuous",       // "one_shot" | "continuous"
-  "schedule":       "@monthend",        // required iff mode=continuous
-  "runNow":         true                // optional; kick the first run immediately
+  "benchmark":      "SPY",                       // optional; defaults to strategy describe
+  "mode":           "continuous",                // "one_shot" | "continuous" | "live"
+  "schedule":       "@monthend",                 // required iff mode=continuous
+  "runNow":         true                         // optional; kick the first run immediately
 }
 ```
 
@@ -306,6 +335,9 @@ POST /portfolios
   and treated as true).
 - `mode=continuous` sets `next_run_at` to the next tradecron boundary; if
   `runNow=true`, also enqueues an immediate first run.
+- `mode=live` is reserved in the enum but **returns 422** from this
+  handler for the entirety of the 3.0 rewrite. Real live trading lands in
+  a separate future project; see "Live trading (future)" below.
 - `strategyVer` that is not installed triggers an install synchronously
   (bounded by a timeout) before the create returns. Official strategies
   already installed are a no-op. Unofficial strategies always install
@@ -326,19 +358,49 @@ POST /portfolios
 ### Registry sync
 
 A background goroutine runs on `strategy.registry_sync_interval` (default
-1 hour). It:
+1 hour). Server startup does **not** block on the first sync — HTTP serves
+immediately; sync runs concurrently.
 
 1. Wraps the pass in a `pg_try_advisory_lock` so concurrent pvapi instances
    do not race (future-proofing).
 2. Calls `pvbt/library.Search` with `owner:penny-vault topic:pvbt-strategy`.
+   If `[github].token` is set, the search is authenticated (≈5000 req/hr
+   per-token); unauthenticated falls back to GitHub's public ~10 req/min.
 3. Reconciles into `strategies`: insert new rows, update volatile fields
    (`stars`, `description`, `categories`, `updated_at`), leave unseen rows
    alone.
-4. For any official strategy not yet installed, enqueues an install.
-5. For installed official strategies, `git ls-remote` for the latest tag;
-   if a newer tag exists, builds the new version into a new directory and
-   atomically flips `strategies.installed_ver`/`artifact_ref` after success.
-   Old artifacts remain available; portfolios pin `strategy_ver`.
+4. For each official strategy, compares the remote head (latest tag or
+   default-branch SHA via `git ls-remote`) to `last_attempted_ver`. If
+   the remote has changed (or we've never tried), enqueues an install.
+   Otherwise no-op — this means a strategy whose install has been failing
+   will not be retried until the upstream repo publishes a new version.
+
+### Install coordinator
+
+Installs are processed by a bounded-concurrency worker pool
+(`strategy.install_concurrency`, default 2) inside the same process.
+Each install:
+
+1. Sets `strategies.last_attempted_ver = <remote ver>` and `install_error
+   = NULL` (tentative — will be overwritten on failure).
+2. `git clone` the repo at the target version into a fresh versioned
+   directory under `strategy.official_dir`.
+3. `go build .` inside the clone.
+4. Runs `<binary> describe --json` and validates the output has a
+   `shortCode` matching the `strategies.short_code`.
+5. On success: atomically updates `strategies` with `installed_ver`,
+   `installed_at`, `artifact_kind = 'binary'`, `artifact_ref = <path>`,
+   `describe_json = <output>`, clears `install_error`. Old versioned
+   directories remain on disk — portfolios that pin an older
+   `strategy_ver` keep working.
+6. On failure: sets `install_error` to the combined stderr + error
+   string. `installed_ver` is not touched, so any currently-running
+   binary stays usable. The sync loop will not retry this version until
+   upstream advances past `last_attempted_ver`.
+
+This reconciliation model unifies upgrade detection and failure retry:
+every sync tick compares remote head to `last_attempted_ver`, and a new
+remote head is the only trigger for another install attempt.
 
 ### Install per runner
 
@@ -468,6 +530,9 @@ issuer       = "https://<tenant>.us.auth0.com/"
 [db]
 url = "postgres://pvapi@db/pvapi"
 
+[github]
+token = ""   # optional; empty = unauthenticated Search (~10 req/min)
+
 [runner]
 mode = "host"   # host | docker | kubernetes
 
@@ -486,6 +551,7 @@ mode = "host"   # host | docker | kubernetes
 
 [strategy]
 registry_sync_interval = "1h"
+install_concurrency    = 2
 official_dir           = "/var/lib/pvapi/strategies/official"
 ephemeral_dir          = "/tmp/pvapi-strategies"
 github_query           = "owner:penny-vault topic:pvbt-strategy"
@@ -604,6 +670,56 @@ Docker and Kubernetes runners use image references and PVCs instead, per
 - `pvapi` 3.0 release will ship an initial `/var/lib/pvapi/` bootstrap on
   first run (creating directories if missing).
 
+## Live trading (future)
+
+`portfolio_mode = 'live'` is reserved in the database enum and the
+OpenAPI `PortfolioMode` enum, but the `POST /portfolios` handler rejects
+it with 422 for the entirety of the 3.0 rewrite. Live trading requires
+broker integration (pvbt supports Alpaca / Schwab / tastytrade),
+market-hours awareness, order reconciliation, and real-money error
+handling — large territory that is out of scope for this rewrite.
+
+When live work begins as its own project, it will brainstorm fresh:
+
+- How does a live portfolio's "results" differ from a backtest's? (Real
+  positions vs simulated allocations; actual fills vs simulated trades.)
+- Does a live portfolio also carry its backtest simulation history for
+  the "how the strategy would have performed" view?
+- New endpoints for live-specific state: `/portfolios/{slug}/orders`,
+  `/portfolios/{slug}/fills`, or a unified `/transactions` that shadows
+  pvbt's per-portfolio SQLite `transactions` table.
+- Broker credential management, per-user.
+- Live runner (analogous to backtest.Runner but placing real orders via
+  pvbt's broker abstraction).
+
+The reserve-the-keyword posture costs one line in the migration
+(`ALTER TYPE portfolio_mode ADD VALUE 'live'`) and avoids an enum
+migration when live work eventually happens.
+
+## Plan sequence
+
+Implementation is broken into plans that each produce working, testable
+software. The sequence (after the foundation / auth plans already
+merged):
+
+| # | Name | Scope summary |
+|---|---|---|
+| 1 | Foundation reset | ✅ merged — Fiber v3 scaffold, /healthz, middleware, server subcommand, migration harness |
+| 2 | Auth + schema + OpenAPI wiring | ✅ merged — Auth0 JWT, real `1_init` schema, OpenAPI contract, oapi-codegen, stub handlers |
+| 3 | Strategy registry (full) | GitHub Search + install lifecycle + describe-backed `/strategies` endpoints + sync goroutine |
+| 4 | Portfolio CRUD slice | `POST/GET/PATCH/DELETE /portfolios`, slug generation, `mode=live` returns 422, `2_add_live_mode` migration |
+| 5 | Backtest runner + snapshot slice | HostRunner, `backtest.Run`, SQLite snapshot reader, real `/results` / `/measurements` / `/holdings` / `/runs` endpoints |
+| 6 | Scheduler + continuous mode | In-process cron, `tradecron.Next`, continuous portfolio re-runs |
+| 7 | Unofficial strategies | `POST /strategies` with owner scoping, ephemeral install at backtest time |
+| 8 | Docker runner | `DockerRunner` + image-based install |
+| 9 | Kubernetes runner | `KubernetesRunner` + Jobs + PVC output + build-and-push |
+| future | Live trading | Broker integration, live execution; `mode=live` flips from 422 to real |
+
+Plan 3 depending on Plans 4 and 5 (portfolios reference strategies) was
+the original plan ordering; it was reordered so the registry lands
+first, avoiding a dev-only seed subcommand that would otherwise be
+needed to satisfy the foreign key.
+
 ## Open items
 
 These are known gaps to be pinned down during implementation, not during
@@ -618,3 +734,7 @@ brainstorming:
   pvapi. Decision deferred; nullable columns for now.
 - **SSE/WebSocket for run progress**: currently polling only. If the UI
   needs live progress, add later.
+- **`/results.allocation` vs `/holdings`**: both expose current
+  holdings at different levels of detail. Open question for Plan 4:
+  keep `allocation` inside `/results` (pie-chart-friendly weights) or
+  drop it since `/holdings` supersedes it.
