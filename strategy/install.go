@@ -19,10 +19,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+)
+
+// Install-related sentinel errors.
+var (
+	ErrInstallMissingFields = errors.New("InstallRequest: all fields required")
+	ErrShortCodeMismatch    = errors.New("describe short_code mismatch")
 )
 
 // InstallRequest describes a single version-pinned install.
@@ -51,11 +58,13 @@ type InstallResult struct {
 // failure.
 func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	if req.ShortCode == "" || req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
-		return nil, fmt.Errorf("InstallRequest: all fields required")
+		return nil, ErrInstallMissingFields
 	}
 
-	// Clone at the specific tag/SHA.
-	cloneCmd := exec.CommandContext(ctx, "git", "clone", "--depth=1",
+	// Clone at the specific tag/SHA. Inputs come from GitHub Search results
+	// (CloneURL) + `git ls-remote` (Version) + internal config (DestDir) —
+	// not direct user input.
+	cloneCmd := exec.CommandContext(ctx, "git", "clone", "--depth=1", //nolint:gosec // args sourced from trusted sync state
 		"--branch", req.Version, req.CloneURL, req.DestDir)
 	var cloneOut bytes.Buffer
 	cloneCmd.Stdout = &cloneOut
@@ -66,7 +75,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 
 	// Build.
 	binPath := filepath.Join(req.DestDir, req.ShortCode+".bin")
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, ".")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, ".") //nolint:gosec // binPath/DestDir are internal paths
 	buildCmd.Dir = req.DestDir
 	var buildOut bytes.Buffer
 	buildCmd.Stdout = &buildOut
@@ -75,8 +84,8 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 		return nil, fmt.Errorf("go build: %w\n%s", err, buildOut.String())
 	}
 
-	// Describe.
-	describeCmd := exec.CommandContext(ctx, binPath, "describe", "--json")
+	// Describe. binPath is an internal path we just wrote above.
+	describeCmd := exec.CommandContext(ctx, binPath, "describe", "--json") //nolint:gosec // binPath is internal
 	var describeOut bytes.Buffer
 	describeCmd.Stdout = &describeOut
 	describeCmd.Stderr = os.Stderr
@@ -92,7 +101,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	}
 
 	if parsed.ShortCode != req.ShortCode {
-		return nil, fmt.Errorf("describe short_code mismatch: want %q, got %q", req.ShortCode, parsed.ShortCode)
+		return nil, fmt.Errorf("%w: want %q, got %q", ErrShortCodeMismatch, req.ShortCode, parsed.ShortCode)
 	}
 
 	return &InstallResult{

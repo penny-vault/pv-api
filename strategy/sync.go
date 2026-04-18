@@ -29,6 +29,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Syncer-related sentinel errors.
+var (
+	ErrRunInterval = errors.New("Syncer.Run requires SyncerOptions.Interval > 0")
+	ErrNoTagsFound = errors.New("no tags found")
+)
+
 // Store is the subset of strategy.db operations the Syncer needs. The
 // production implementation wraps `*pgxpool.Pool`; tests pass an in-memory
 // fake.
@@ -81,7 +87,7 @@ func NewSyncer(store Store, opts SyncerOptions) *Syncer {
 // tick fires immediately (non-blocking — HTTP server starts before Run).
 func (s *Syncer) Run(ctx context.Context) error {
 	if s.opts.Interval <= 0 {
-		return errors.New("Syncer.Run requires SyncerOptions.Interval > 0")
+		return ErrRunInterval
 	}
 	if err := s.Tick(ctx); err != nil {
 		log.Warn().Err(err).Msg("strategy sync tick failed")
@@ -201,9 +207,10 @@ func (s *Syncer) runInstall(ctx context.Context, shortCode, cloneURL, version, d
 // ResolveVerWithGit uses `git ls-remote` to discover the most-recent
 // annotated tag on the given clone URL. Falls back to the default-branch
 // HEAD SHA when no tags are present. Intended as the production
-// implementation of ResolveVerFunc.
+// implementation of ResolveVerFunc. cloneURL comes from GitHub Search
+// results, not direct user input.
 func ResolveVerWithGit(ctx context.Context, cloneURL string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--sort=-v:refname", cloneURL)
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--sort=-v:refname", cloneURL) //nolint:gosec // cloneURL sourced from GitHub Search
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -227,7 +234,7 @@ func ResolveVerWithGit(ctx context.Context, cloneURL string) (string, error) {
 		}
 		return strings.TrimPrefix(ref, "refs/tags/"), nil
 	}
-	return "", fmt.Errorf("no tags found on %s", cloneURL)
+	return "", fmt.Errorf("%w on %s", ErrNoTagsFound, cloneURL)
 }
 
 func strPtr(s string) *string {

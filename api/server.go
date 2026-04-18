@@ -17,6 +17,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -27,6 +28,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/penny-vault/pv-api/strategy"
+)
+
+// Config-validation errors for startRegistrySync.
+var (
+	ErrRegistrySyncInterval = errors.New("RegistryConfig.SyncInterval must be > 0")
+	ErrRegistryOfficialDir  = errors.New("RegistryConfig.OfficialDir must not be empty")
+	ErrRegistryGitHubOwner  = errors.New("RegistryConfig.GitHubOwner must not be empty")
 )
 
 // Config holds HTTP-layer configuration.
@@ -99,13 +107,13 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 // logged but never propagated.
 func startRegistrySync(ctx context.Context, store strategy.Store, conf RegistryConfig) error {
 	if conf.SyncInterval <= 0 {
-		return fmt.Errorf("RegistryConfig.SyncInterval must be > 0")
+		return ErrRegistrySyncInterval
 	}
 	if conf.OfficialDir == "" {
-		return fmt.Errorf("RegistryConfig.OfficialDir must not be empty")
+		return ErrRegistryOfficialDir
 	}
 	if conf.GitHubOwner == "" {
-		return fmt.Errorf("RegistryConfig.GitHubOwner must not be empty")
+		return ErrRegistryGitHubOwner
 	}
 	cacheDir := conf.CacheDir
 	if cacheDir == "" {
