@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/sql"
 )
 
 func init() {
@@ -53,6 +54,8 @@ var serverCmd = &cobra.Command{
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
+		pool := sql.Instance(ctx)
+
 		app, err := api.NewApp(ctx, api.Config{
 			Port:         conf.Server.Port,
 			AllowOrigins: conf.Server.AllowOrigins,
@@ -60,6 +63,14 @@ var serverCmd = &cobra.Command{
 				JWKSURL:  conf.Auth0.JWKSURL,
 				Audience: conf.Auth0.Audience,
 				Issuer:   conf.Auth0.Issuer,
+			},
+			Pool: pool,
+			Registry: api.RegistryConfig{
+				GitHubToken:  conf.GitHub.Token,
+				SyncInterval: conf.Strategy.RegistrySyncInterval,
+				Concurrency:  conf.Strategy.InstallConcurrency,
+				OfficialDir:  conf.Strategy.OfficialDir,
+				GitHubOwner:  "penny-vault",
 			},
 		})
 		if err != nil {
