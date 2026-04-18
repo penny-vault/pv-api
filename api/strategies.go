@@ -17,16 +17,38 @@ package api
 
 import (
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/penny-vault/pv-api/strategy"
 )
 
-// RegisterStrategyRoutes mounts the strategy endpoints on the provided router.
-// All handlers are stubs returning 501 until Plans 5/6 fill them in.
-func RegisterStrategyRoutes(r fiber.Router) {
-	r.Get("/strategies", listStrategies)
-	r.Post("/strategies", registerUnofficialStrategy)
-	r.Get("/strategies/:shortCode", getStrategy)
+// StrategyHandler is the real-handler shim owned by api/. It delegates
+// to strategy.Handler for GET endpoints; POST stays 501 until Plan 7.
+type StrategyHandler struct {
+	inner *strategy.Handler
 }
 
-func listStrategies(c fiber.Ctx) error             { return WriteProblem(c, ErrNotImplemented) }
-func registerUnofficialStrategy(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
-func getStrategy(c fiber.Ctx) error                { return WriteProblem(c, ErrNotImplemented) }
+// NewStrategyHandler builds a StrategyHandler backed by the given read store.
+func NewStrategyHandler(store strategy.ReadStore) *StrategyHandler {
+	return &StrategyHandler{inner: strategy.NewHandler(store)}
+}
+
+// RegisterStrategyRoutes mounts the strategy endpoints on the provided
+// router. The zero-value argument keeps compatibility with Plan 2's stub
+// signature; callers that want real handlers use RegisterStrategyRoutesWith.
+func RegisterStrategyRoutes(r fiber.Router) {
+	r.Get("/strategies", stubListStrategies)
+	r.Post("/strategies", stubRegisterUnofficialStrategy)
+	r.Get("/strategies/:shortCode", stubGetStrategy)
+}
+
+// RegisterStrategyRoutesWith mounts the strategy endpoints, delegating to
+// the given handler for GETs. POST stays 501.
+func RegisterStrategyRoutesWith(r fiber.Router, h *StrategyHandler) {
+	r.Get("/strategies", h.inner.List)
+	r.Post("/strategies", stubRegisterUnofficialStrategy)
+	r.Get("/strategies/:shortCode", h.inner.Get)
+}
+
+func stubListStrategies(c fiber.Ctx) error             { return WriteProblem(c, ErrNotImplemented) }
+func stubRegisterUnofficialStrategy(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
+func stubGetStrategy(c fiber.Ctx) error                { return WriteProblem(c, ErrNotImplemented) }
