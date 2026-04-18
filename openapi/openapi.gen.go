@@ -96,22 +96,46 @@ func (e ReturnRowKind) Valid() bool {
 
 // Defines values for RunStatus.
 const (
-	Failed  RunStatus = "failed"
-	Queued  RunStatus = "queued"
-	Running RunStatus = "running"
-	Success RunStatus = "success"
+	RunStatusFailed  RunStatus = "failed"
+	RunStatusQueued  RunStatus = "queued"
+	RunStatusRunning RunStatus = "running"
+	RunStatusSuccess RunStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the RunStatus enum.
 func (e RunStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case RunStatusFailed:
 		return true
-	case Queued:
+	case RunStatusQueued:
 		return true
-	case Running:
+	case RunStatusRunning:
 		return true
-	case Success:
+	case RunStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StrategyInstallState.
+const (
+	StrategyInstallStateFailed     StrategyInstallState = "failed"
+	StrategyInstallStateInstalling StrategyInstallState = "installing"
+	StrategyInstallStatePending    StrategyInstallState = "pending"
+	StrategyInstallStateReady      StrategyInstallState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the StrategyInstallState enum.
+func (e StrategyInstallState) Valid() bool {
+	switch e {
+	case StrategyInstallStateFailed:
+		return true
+	case StrategyInstallStateInstalling:
+		return true
+	case StrategyInstallStatePending:
+		return true
+	case StrategyInstallStateReady:
 		return true
 	default:
 		return false
@@ -351,18 +375,55 @@ type RunStatus string
 
 // Strategy defines model for Strategy.
 type Strategy struct {
-	Cagr         *float64  `json:"cagr,omitempty"`
-	Categories   *[]string `json:"categories,omitempty"`
-	CloneUrl     *string   `json:"cloneUrl,omitempty"`
-	Description  *string   `json:"description,omitempty"`
-	InstalledVer *string   `json:"installedVer,omitempty"`
-	IsOfficial   bool      `json:"isOfficial"`
-	MaxDrawDown  *float64  `json:"maxDrawDown,omitempty"`
-	RepoName     string    `json:"repoName"`
-	RepoOwner    string    `json:"repoOwner"`
-	Sharpe       *float64  `json:"sharpe,omitempty"`
-	ShortCode    string    `json:"shortCode"`
-	Stars        *int      `json:"stars,omitempty"`
+	Cagr             *float64             `json:"cagr,omitempty"`
+	Categories       *[]string            `json:"categories,omitempty"`
+	CloneUrl         *string              `json:"cloneUrl,omitempty"`
+	Describe         *StrategyDescribe    `json:"describe,omitempty"`
+	Description      *string              `json:"description,omitempty"`
+	InstallError     *string              `json:"installError,omitempty"`
+	InstallState     StrategyInstallState `json:"installState"`
+	InstalledAt      *time.Time           `json:"installedAt,omitempty"`
+	InstalledVer     *string              `json:"installedVer,omitempty"`
+	IsOfficial       bool                 `json:"isOfficial"`
+	LastAttemptedVer *string              `json:"lastAttemptedVer,omitempty"`
+	MaxDrawDown      *float64             `json:"maxDrawDown,omitempty"`
+
+	// OwnerSub Auth0 sub of the registering user; NULL for official strategies.
+	OwnerSub  *string  `json:"ownerSub,omitempty"`
+	RepoName  string   `json:"repoName"`
+	RepoOwner string   `json:"repoOwner"`
+	Sharpe    *float64 `json:"sharpe,omitempty"`
+	ShortCode string   `json:"shortCode"`
+	Stars     *int     `json:"stars,omitempty"`
+}
+
+// StrategyInstallState defines model for Strategy.InstallState.
+type StrategyInstallState string
+
+// StrategyDescribe defines model for StrategyDescribe.
+type StrategyDescribe struct {
+	Benchmark   string              `json:"benchmark"`
+	Description *string             `json:"description,omitempty"`
+	Name        string              `json:"name"`
+	Parameters  []StrategyParameter `json:"parameters"`
+	Presets     *[]StrategyPreset   `json:"presets,omitempty"`
+	Schedule    string              `json:"schedule"`
+	ShortCode   string              `json:"shortCode"`
+}
+
+// StrategyParameter defines model for StrategyParameter.
+type StrategyParameter struct {
+	// Default Default value — may be any JSON-serializable type.
+	Default     interface{} `json:"default,omitempty"`
+	Description *string     `json:"description,omitempty"`
+	Name        string      `json:"name"`
+	Type        string      `json:"type"`
+}
+
+// StrategyPreset defines model for StrategyPreset.
+type StrategyPreset struct {
+	Name       string                 `json:"name"`
+	Parameters map[string]interface{} `json:"parameters"`
 }
 
 // StrategyRegisterRequest defines model for StrategyRegisterRequest.

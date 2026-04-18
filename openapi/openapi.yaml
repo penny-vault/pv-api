@@ -783,7 +783,7 @@ components:
 
     Strategy:
       type: object
-      required: [shortCode, repoOwner, repoName, isOfficial]
+      required: [shortCode, repoOwner, repoName, isOfficial, installState]
       properties:
         shortCode:
           type: string
@@ -796,6 +796,10 @@ components:
           format: uri
         isOfficial:
           type: boolean
+        ownerSub:
+          type: string
+          nullable: true
+          description: Auth0 sub of the registering user; NULL for official strategies.
         description:
           type: string
           nullable: true
@@ -806,9 +810,26 @@ components:
         stars:
           type: integer
           nullable: true
+        installState:
+          type: string
+          enum: [pending, installing, ready, failed]
         installedVer:
           type: string
           nullable: true
+        lastAttemptedVer:
+          type: string
+          nullable: true
+        installError:
+          type: string
+          nullable: true
+        installedAt:
+          type: string
+          format: date-time
+          nullable: true
+        describe:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/StrategyDescribe'
         cagr:
           type: number
           format: double
@@ -821,3 +842,51 @@ components:
           type: number
           format: double
           nullable: true
+
+    StrategyDescribe:
+      type: object
+      required: [shortCode, name, parameters, schedule, benchmark]
+      properties:
+        shortCode:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parameters:
+          type: array
+          items:
+            $ref: '#/components/schemas/StrategyParameter'
+        presets:
+          type: array
+          items:
+            $ref: '#/components/schemas/StrategyPreset'
+        schedule:
+          type: string
+        benchmark:
+          type: string
+
+    StrategyParameter:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        default:
+          description: Default value — may be any JSON-serializable type.
+        description:
+          type: string
+          nullable: true
+
+    StrategyPreset:
+      type: object
+      required: [name, parameters]
+      properties:
+        name:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
