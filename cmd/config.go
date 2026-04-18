@@ -15,12 +15,16 @@
 
 package cmd
 
+import "time"
+
 // Config is the top-level pvapi configuration shape. New sections are added
-// as later plans land (runner, strategy, scheduler, ...).
+// as later plans land (runner, scheduler, ...).
 type Config struct {
-	Log    logConf
-	Server serverConf
-	Auth0  auth0Conf
+	Log      logConf
+	Server   serverConf
+	Auth0    auth0Conf
+	GitHub   githubConf
+	Strategy strategyConf
 }
 
 // serverConf holds HTTP server settings.
@@ -34,6 +38,19 @@ type auth0Conf struct {
 	JWKSURL  string `mapstructure:"jwks_url"`
 	Audience string
 	Issuer   string
+}
+
+// githubConf holds optional GitHub credentials.
+type githubConf struct {
+	Token string
+}
+
+// strategyConf controls the registry sync and install coordinator.
+type strategyConf struct {
+	RegistrySyncInterval time.Duration `mapstructure:"registry_sync_interval"`
+	InstallConcurrency   int           `mapstructure:"install_concurrency"`
+	OfficialDir          string        `mapstructure:"official_dir"`
+	GithubQuery          string        `mapstructure:"github_query"`
 }
 
 var conf Config

@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
@@ -37,6 +38,11 @@ func init() {
 	serverCmd.Flags().String("auth0-jwks-url", "", "Auth0 JWKS URL for JWT verification")
 	serverCmd.Flags().String("auth0-audience", "", "Auth0 API audience")
 	serverCmd.Flags().String("auth0-issuer", "", "Auth0 issuer URL")
+	serverCmd.Flags().String("github-token", "", "GitHub API token; empty uses unauthenticated Search")
+	serverCmd.Flags().Duration("strategy-registry-sync-interval", time.Hour, "how often to poll GitHub for strategy updates")
+	serverCmd.Flags().Int("strategy-install-concurrency", 2, "maximum concurrent strategy installs")
+	serverCmd.Flags().String("strategy-official-dir", "/var/lib/pvapi/strategies/official", "where installed official strategy binaries live")
+	serverCmd.Flags().String("strategy-github-query", "owner:penny-vault topic:pvbt-strategy", "GitHub search query for official strategies (owner filter applied client-side)")
 	bindPFlagsToViper(serverCmd)
 }
 
