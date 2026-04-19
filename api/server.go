@@ -27,6 +27,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/strategy"
 )
 
@@ -86,16 +87,18 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		return nil, fmt.Errorf("build auth middleware: %w", err)
 	}
 	protected := app.Group("", auth)
-	RegisterPortfolioRoutes(protected)
 
 	if conf.Pool != nil {
-		store := strategy.PoolStore{Pool: conf.Pool}
-		RegisterStrategyRoutesWith(protected, NewStrategyHandler(store))
+		portfolioStore := portfolio.PoolStore{Pool: conf.Pool}
+		strategyStore := strategy.PoolStore{Pool: conf.Pool}
+		RegisterPortfolioRoutesWith(protected, NewPortfolioHandler(portfolioStore, strategyStore))
+		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))
 
-		if err := startRegistrySync(ctx, store, conf.Registry); err != nil {
+		if err := startRegistrySync(ctx, strategyStore, conf.Registry); err != nil {
 			return nil, fmt.Errorf("start registry sync: %w", err)
 		}
 	} else {
+		RegisterPortfolioRoutes(protected)
 		RegisterStrategyRoutes(protected)
 	}
 
