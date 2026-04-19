@@ -44,7 +44,7 @@ type Kpis struct {
 
 // Kpis computes the internal KPI struct from the snapshot.
 func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
-	start, _, err := r.readDateWindow(ctx)
+	start, end, err := r.readDateWindow(ctx)
 	if err != nil {
 		return Kpis{}, err
 	}
@@ -63,7 +63,7 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 		return Kpis{}, err
 	}
 
-	years := time.Since(start).Hours() / 24 / 365.25
+	years := end.Sub(start).Hours() / 24 / 365.25
 	cagr := 0.0
 	if startVal > 0 && years > 0 {
 		cagr = math.Pow(curVal/startVal, 1/years) - 1

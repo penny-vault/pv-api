@@ -18,6 +18,7 @@ package backtest
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,9 +46,11 @@ type RunRow struct {
 // orchestrator needs. Declared here to avoid the cycle backtest → portfolio.
 type PortfolioStore interface {
 	GetByID(ctx context.Context, portfolioID uuid.UUID) (PortfolioRow, error)
-	SetRunning(ctx context.Context, portfolioID uuid.UUID) error
-	SetReady(ctx context.Context, portfolioID uuid.UUID, snapshotPath string, kpis SetKpis) error
-	SetFailed(ctx context.Context, portfolioID uuid.UUID, errMsg string) error
+	MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error
+	MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID, snapshotPath string,
+		currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+		inceptionDate time.Time, durationMs int32) error
+	MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID, errMsg string, durationMs int32) error
 }
 
 // PortfolioRow carries the fields the orchestrator reads from a portfolio.
@@ -88,7 +91,7 @@ type Dispatcher struct {
 	wg      sync.WaitGroup
 	ctx     context.Context
 	cancel  context.CancelFunc
-	started bool
+	started atomic.Bool
 }
 
 // NewDispatcher builds a dispatcher. runFn is the orchestration callback;
@@ -106,10 +109,9 @@ func NewDispatcher(cfg Config, runner Runner, runs RunStore, runFn func(ctx cont
 }
 
 func (d *Dispatcher) Start(parent context.Context) {
-	if d.started {
+	if !d.started.CompareAndSwap(false, true) {
 		return
 	}
-	d.started = true
 	d.ctx, d.cancel = context.WithCancel(parent) //nolint:gosec // G118: cancel stored in d.cancel and called by Shutdown
 	for i := 0; i < d.cfg.MaxConcurrency; i++ {
 		d.wg.Add(1)
@@ -132,7 +134,7 @@ func (d *Dispatcher) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UU
 }
 
 func (d *Dispatcher) Shutdown(grace time.Duration) error {
-	if !d.started {
+	if !d.started.Load() {
 		return nil
 	}
 	close(d.tasks)

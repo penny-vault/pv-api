@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -91,17 +92,35 @@ func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID
 	}, nil
 }
 
-func (a backtestPortfolioStoreAdapter) SetRunning(ctx context.Context, id uuid.UUID) error {
-	return a.store.SetRunning(ctx, id)
+func (a backtestPortfolioStoreAdapter) MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error {
+	return a.store.MarkRunningTx(ctx, portfolioID, runID)
 }
 
-func (a backtestPortfolioStoreAdapter) SetReady(ctx context.Context, id uuid.UUID, path string, k backtest.SetKpis) error {
-	return a.store.SetReady(ctx, id, path,
-		k.CurrentValue, k.YtdReturn, k.MaxDrawdown, k.Sharpe, k.Cagr, k.InceptionDate)
+func (a backtestPortfolioStoreAdapter) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	return a.store.MarkReadyTx(ctx, portfolioID, runID, snapshotPath,
+		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)
 }
 
-func (a backtestPortfolioStoreAdapter) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
-	return a.store.SetFailed(ctx, id, errMsg)
+func (a backtestPortfolioStoreAdapter) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	errMsg string, durationMs int32) error {
+	return a.store.MarkFailedTx(ctx, portfolioID, runID, errMsg, durationMs)
+}
+
+// dispatcherAdapter wraps *backtest.Dispatcher and translates backtest.ErrQueueFull
+// to portfolio.ErrQueueFull so the portfolio handler can return 503 without
+// importing the backtest package.
+type dispatcherAdapter struct {
+	bt *backtest.Dispatcher
+}
+
+func (a dispatcherAdapter) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
+	id, err := a.bt.Submit(ctx, portfolioID)
+	if errors.Is(err, backtest.ErrQueueFull) {
+		return uuid.Nil, portfolio.ErrQueueFull
+	}
+	return id, err
 }
 
 func init() {
@@ -185,7 +204,7 @@ var serverCmd = &cobra.Command{
 				OfficialDir:  conf.Strategy.OfficialDir,
 				GitHubOwner:  "penny-vault",
 			},
-			Dispatcher:     dispatcher,
+			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},
 		})
 		if err != nil {

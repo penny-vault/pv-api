@@ -17,11 +17,16 @@ package portfolio
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrQueueFull is returned by Dispatcher.Submit when the backtest worker pool
+// has reached its bounded capacity. Handlers should surface this as 503.
+var ErrQueueFull = errors.New("dispatcher queue full")
 
 // Run represents one row in the backtest_runs table.
 type Run struct {

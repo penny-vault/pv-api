@@ -71,11 +71,8 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return ErrAlreadyRunning
 	}
 
-	if err := o.ps.SetRunning(ctx, portfolioID); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("set running: %w", err))
-	}
-	if err := o.rs.UpdateRunRunning(ctx, runID); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("update run running: %w", err))
+	if err := o.ps.MarkRunningTx(ctx, portfolioID, runID); err != nil {
+		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark running: %w", err))
 	}
 
 	binary, err := o.resolve(row.StrategyCode, row.StrategyVer)
@@ -105,20 +102,10 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return o.fail(ctx, portfolioID, runID, started, err)
 	}
 
-	setKpis := SetKpis{
-		CurrentValue:  kp.CurrentValue,
-		YtdReturn:     kp.YtdReturn,
-		MaxDrawdown:   kp.MaxDrawdown,
-		Sharpe:        kp.Sharpe,
-		Cagr:          kp.Cagr,
-		InceptionDate: kp.InceptionDate,
-	}
-	if err := o.ps.SetReady(ctx, portfolioID, final, setKpis); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("set ready: %w", err))
-	}
-	if err := o.rs.UpdateRunSuccess(ctx, runID, final,
-		durationMs(time.Since(started))); err != nil {
-		return fmt.Errorf("update run success: %w", err)
+	if err := o.ps.MarkReadyTx(ctx, portfolioID, runID, final,
+		kp.CurrentValue, kp.YtdReturn, kp.MaxDrawdown, kp.Sharpe, kp.Cagr,
+		kp.InceptionDate, durationMs(time.Since(started))); err != nil {
+		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark ready: %w", err))
 	}
 	log.Info().Stringer("portfolio_id", portfolioID).Stringer("run_id", runID).Msg("backtest succeeded")
 	return nil
@@ -178,8 +165,7 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 	if len(msg) > 2048 {
 		msg = msg[:2048]
 	}
-	_ = o.ps.SetFailed(ctx, portfolioID, msg)
-	_ = o.rs.UpdateRunFailed(ctx, runID, msg, durationMs(time.Since(started)))
+	_ = o.ps.MarkFailedTx(ctx, portfolioID, runID, msg, durationMs(time.Since(started)))
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return fmt.Errorf("%w: %s", ErrTimedOut, msg)
 	}

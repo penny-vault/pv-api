@@ -609,6 +609,9 @@ func (h *Handler) CreateRun(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "backtest dispatcher not configured")
 	}
 	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
+	if errors.Is(err, ErrQueueFull) {
+		return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable", "backtest queue is full, try again later")
+	}
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}

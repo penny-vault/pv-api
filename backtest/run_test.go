@@ -31,45 +31,50 @@ import (
 )
 
 type fakePortfolioStore struct {
-	row         backtest.PortfolioRow
-	setRunning  bool
-	setReady    bool
-	setFailed   string
-	lastKpis    backtest.SetKpis
-	snapshotOut string
+	row          backtest.PortfolioRow
+	markRunning  bool
+	markReady    bool
+	markFailed   string
+	lastKpis     backtest.SetKpis
+	snapshotOut  string
+	durationMsOk int32
 }
 
 func (f *fakePortfolioStore) GetByID(_ context.Context, _ uuid.UUID) (backtest.PortfolioRow, error) {
 	return f.row, nil
 }
-func (f *fakePortfolioStore) SetRunning(_ context.Context, _ uuid.UUID) error {
-	f.setRunning = true
+func (f *fakePortfolioStore) MarkRunningTx(_ context.Context, _, _ uuid.UUID) error {
+	f.markRunning = true
 	return nil
 }
-func (f *fakePortfolioStore) SetReady(_ context.Context, _ uuid.UUID, path string, k backtest.SetKpis) error {
-	f.setReady = true
+func (f *fakePortfolioStore) MarkReadyTx(_ context.Context, _, _ uuid.UUID, path string,
+	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	f.markReady = true
 	f.snapshotOut = path
-	f.lastKpis = k
+	f.lastKpis = backtest.SetKpis{
+		CurrentValue:  currentValue,
+		YtdReturn:     ytdReturn,
+		MaxDrawdown:   maxDrawdown,
+		Sharpe:        sharpe,
+		Cagr:          cagr,
+		InceptionDate: inceptionDate,
+	}
+	f.durationMsOk = durationMs
 	return nil
 }
-func (f *fakePortfolioStore) SetFailed(_ context.Context, _ uuid.UUID, errMsg string) error {
-	f.setFailed = errMsg
+func (f *fakePortfolioStore) MarkFailedTx(_ context.Context, _, _ uuid.UUID, errMsg string, _ int32) error {
+	f.markFailed = errMsg
 	return nil
 }
 
 type fakeRunStoreFull struct {
 	fakeRunStore
-	updatedRunning bool
-	updatedSuccess string
-	updatedFailed  string
+	updatedFailed string
 }
 
-func (f *fakeRunStoreFull) UpdateRunRunning(_ context.Context, _ uuid.UUID) error {
-	f.updatedRunning = true
-	return nil
-}
-func (f *fakeRunStoreFull) UpdateRunSuccess(_ context.Context, _ uuid.UUID, path string, _ int32) error {
-	f.updatedSuccess = path
+func (f *fakeRunStoreFull) UpdateRunRunning(_ context.Context, _ uuid.UUID) error { return nil }
+func (f *fakeRunStoreFull) UpdateRunSuccess(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
 	return nil
 }
 func (f *fakeRunStoreFull) UpdateRunFailed(_ context.Context, _ uuid.UUID, msg string, _ int32) error {
@@ -99,11 +104,9 @@ var _ = Describe("Run orchestration", func() {
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(ps.setRunning).To(BeTrue())
-		Expect(ps.setReady).To(BeTrue())
-		Expect(ps.setFailed).To(BeEmpty())
-		Expect(rs.updatedRunning).To(BeTrue())
-		Expect(rs.updatedSuccess).NotTo(BeEmpty())
+		Expect(ps.markRunning).To(BeTrue())
+		Expect(ps.markReady).To(BeTrue())
+		Expect(ps.markFailed).To(BeEmpty())
 		Expect(ps.lastKpis.CurrentValue).To(BeNumerically("~", 103000, 0.01))
 
 		Expect(ps.snapshotOut).To(Equal(filepath.Join(snapsDir, ps.row.ID.String()+".sqlite")))
@@ -131,7 +134,6 @@ var _ = Describe("Run orchestration", func() {
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(err).To(HaveOccurred())
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
-		Expect(ps.setFailed).NotTo(BeEmpty())
-		Expect(rs.updatedFailed).NotTo(BeEmpty())
+		Expect(ps.markFailed).NotTo(BeEmpty())
 	})
 })

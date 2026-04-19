@@ -83,7 +83,7 @@ func (w *logWriter) Write(p []byte) (int, error) {
 			break
 		}
 		line := w.buf.String()[:idx]
-		log.Debug().Str("scope", w.scope).Msg(line)
+		log.Info().Str("scope", w.scope).Msg(line)
 		w.buf.Next(idx + 1)
 	}
 	return len(p), nil

@@ -183,6 +183,84 @@ func SetFailed(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, errMsg str
 	return err
 }
 
+// MarkRunningTx atomically marks both the portfolio and its run as running
+// inside a single Postgres transaction.
+func MarkRunningTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uuid.UUID) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	if _, err := tx.Exec(ctx,
+		`UPDATE portfolios SET status='running', updated_at=NOW() WHERE id=$1`, portfolioID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE backtest_runs SET status='running', started_at=NOW() WHERE id=$1`, runID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// MarkReadyTx atomically marks the portfolio as ready and the run as success,
+// writing all KPI columns in the same transaction.
+func MarkReadyTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uuid.UUID,
+	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	const portfolioQ = `
+		UPDATE portfolios SET
+			status='ready',
+			last_run_at=NOW(),
+			last_error=NULL,
+			snapshot_path=$2,
+			current_value=$3,
+			ytd_return=$4,
+			max_drawdown=$5,
+			sharpe=$6,
+			cagr_since_inception=$7,
+			inception_date=COALESCE(inception_date, $8),
+			updated_at=NOW()
+		  WHERE id=$1`
+	if _, err := tx.Exec(ctx, portfolioQ,
+		portfolioID, snapshotPath, currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE backtest_runs SET status='success', finished_at=NOW(),
+		                          snapshot_path=$2, duration_ms=$3
+		  WHERE id=$1`, runID, snapshotPath, durationMs); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// MarkFailedTx atomically marks the portfolio as failed and the run as failed
+// in a single Postgres transaction.
+func MarkFailedTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uuid.UUID,
+	errMsg string, durationMs int32) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	if _, err := tx.Exec(ctx,
+		`UPDATE portfolios SET status='failed', last_error=$2, updated_at=NOW() WHERE id=$1`,
+		portfolioID, errMsg); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE backtest_runs SET status='failed', finished_at=NOW(), error=$2, duration_ms=$3
+		  WHERE id=$1`, runID, errMsg, durationMs); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // MarkAllRunningAsFailed flips every portfolio whose status is 'running' to
 // 'failed' with the supplied reason. Called at startup to clear any portfolios
 // that were left mid-run when the server was previously killed.

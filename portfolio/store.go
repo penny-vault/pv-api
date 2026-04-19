@@ -90,3 +90,22 @@ func (p PoolStore) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) e
 func (p PoolStore) MarkAllRunningAsFailed(ctx context.Context, reason string) (int, error) {
 	return MarkAllRunningAsFailed(ctx, p.Pool, reason)
 }
+
+// MarkRunningTx atomically marks both the portfolio and its run as running.
+func (p PoolStore) MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error {
+	return MarkRunningTx(ctx, p.Pool, portfolioID, runID)
+}
+
+// MarkReadyTx atomically marks the portfolio as ready and the run as success.
+func (p PoolStore) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	return MarkReadyTx(ctx, p.Pool, portfolioID, runID, snapshotPath,
+		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)
+}
+
+// MarkFailedTx atomically marks the portfolio as failed and the run as failed.
+func (p PoolStore) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	errMsg string, durationMs int32) error {
+	return MarkFailedTx(ctx, p.Pool, portfolioID, runID, errMsg, durationMs)
+}
