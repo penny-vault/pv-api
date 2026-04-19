@@ -25,6 +25,8 @@ type Config struct {
 	Auth0    auth0Conf
 	GitHub   githubConf
 	Strategy strategyConf
+	Backtest backtestConf
+	Runner   runnerConf
 }
 
 // serverConf holds HTTP server settings.
@@ -51,6 +53,18 @@ type strategyConf struct {
 	InstallConcurrency   int           `mapstructure:"install_concurrency"`
 	OfficialDir          string        `mapstructure:"official_dir"`
 	GithubQuery          string        `mapstructure:"github_query"`
+}
+
+// backtestConf controls the backtest runtime.
+type backtestConf struct {
+	SnapshotsDir   string        `mapstructure:"snapshots_dir"`
+	MaxConcurrency int           `mapstructure:"max_concurrency"`
+	Timeout        time.Duration `mapstructure:"timeout"`
+}
+
+// runnerConf holds the runner execution-mode setting.
+type runnerConf struct {
+	Mode string `mapstructure:"mode"`
 }
 
 var conf Config

@@ -17,12 +17,15 @@ package portfolio
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Store is the subset of db operations the handler needs.
 type Store interface {
+	RunStore
 	List(ctx context.Context, ownerSub string) ([]Portfolio, error)
 	Get(ctx context.Context, ownerSub, slug string) (Portfolio, error)
 	Insert(ctx context.Context, p Portfolio) error
@@ -33,6 +36,12 @@ type Store interface {
 // PoolStore adapts *pgxpool.Pool to the Store interface.
 type PoolStore struct {
 	Pool *pgxpool.Pool
+	*PoolRunStore
+}
+
+// NewPoolStore constructs a PoolStore backed by pool.
+func NewPoolStore(pool *pgxpool.Pool) *PoolStore {
+	return &PoolStore{Pool: pool, PoolRunStore: NewPoolRunStore(pool)}
 }
 
 func (p PoolStore) List(ctx context.Context, ownerSub string) ([]Portfolio, error) {
@@ -53,4 +62,50 @@ func (p PoolStore) UpdateName(ctx context.Context, ownerSub, slug, name string) 
 
 func (p PoolStore) Delete(ctx context.Context, ownerSub, slug string) error {
 	return Delete(ctx, p.Pool, ownerSub, slug)
+}
+
+// GetByID fetches a portfolio by id without owner scoping (backtest path).
+func (p PoolStore) GetByID(ctx context.Context, id uuid.UUID) (Portfolio, error) {
+	return GetByID(ctx, p.Pool, id)
+}
+
+// SetRunning marks the portfolio as running (called by backtest orchestrator).
+func (p PoolStore) SetRunning(ctx context.Context, id uuid.UUID) error {
+	return SetRunning(ctx, p.Pool, id)
+}
+
+// SetReady marks the portfolio as ready and writes KPI columns (backtest path).
+func (p PoolStore) SetReady(ctx context.Context, id uuid.UUID, snapshotPath string,
+	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64, inceptionDate time.Time) error {
+	return SetReady(ctx, p.Pool, id, snapshotPath, currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate)
+}
+
+// SetFailed marks the portfolio as failed (backtest path).
+func (p PoolStore) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
+	return SetFailed(ctx, p.Pool, id, errMsg)
+}
+
+// MarkAllRunningAsFailed implements backtest.PortfolioSweeper. It flips every
+// portfolio whose status is 'running' to 'failed' at server startup.
+func (p PoolStore) MarkAllRunningAsFailed(ctx context.Context, reason string) (int, error) {
+	return MarkAllRunningAsFailed(ctx, p.Pool, reason)
+}
+
+// MarkRunningTx atomically marks both the portfolio and its run as running.
+func (p PoolStore) MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error {
+	return MarkRunningTx(ctx, p.Pool, portfolioID, runID)
+}
+
+// MarkReadyTx atomically marks the portfolio as ready and the run as success.
+func (p PoolStore) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	return MarkReadyTx(ctx, p.Pool, portfolioID, runID, snapshotPath,
+		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)
+}
+
+// MarkFailedTx atomically marks the portfolio as failed and the run as failed.
+func (p PoolStore) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	errMsg string, durationMs int32) error {
+	return MarkFailedTx(ctx, p.Pool, portfolioID, runID, errMsg, durationMs)
 }

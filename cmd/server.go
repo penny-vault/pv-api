@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -24,12 +25,103 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/backtest"
+	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/sql"
+	"github.com/penny-vault/pv-api/strategy"
 )
+
+// backtestPortfolioStoreAdapter adapts *portfolio.PoolStore to the
+// backtest.PortfolioStore interface. Lives in cmd because it exists
+// purely to bridge package boundaries that we deliberately keep
+// dependency-free in each direction.
+type backtestPortfolioStoreAdapter struct {
+	store *portfolio.PoolStore
+}
+
+// backtestRunStoreAdapter adapts *portfolio.PoolRunStore to the
+// backtest.RunStore interface. CreateRun translates the portfolio.Run
+// return type to backtest.RunRow; the other methods delegate directly.
+type backtestRunStoreAdapter struct {
+	store *portfolio.PoolRunStore
+}
+
+func (a backtestRunStoreAdapter) CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (backtest.RunRow, error) {
+	r, err := a.store.CreateRun(ctx, portfolioID, status)
+	if err != nil {
+		return backtest.RunRow{}, err
+	}
+	return backtest.RunRow{
+		ID:          r.ID,
+		PortfolioID: r.PortfolioID,
+		Status:      r.Status,
+	}, nil
+}
+
+func (a backtestRunStoreAdapter) UpdateRunRunning(ctx context.Context, runID uuid.UUID) error {
+	return a.store.UpdateRunRunning(ctx, runID)
+}
+
+func (a backtestRunStoreAdapter) UpdateRunSuccess(ctx context.Context, runID uuid.UUID, snapshotPath string, durationMs int32) error {
+	return a.store.UpdateRunSuccess(ctx, runID, snapshotPath, durationMs)
+}
+
+func (a backtestRunStoreAdapter) UpdateRunFailed(ctx context.Context, runID uuid.UUID, errMsg string, durationMs int32) error {
+	return a.store.UpdateRunFailed(ctx, runID, errMsg, durationMs)
+}
+
+func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID) (backtest.PortfolioRow, error) {
+	p, err := a.store.GetByID(ctx, id)
+	if err != nil {
+		return backtest.PortfolioRow{}, err
+	}
+	return backtest.PortfolioRow{
+		ID:           p.ID,
+		StrategyCode: p.StrategyCode,
+		StrategyVer:  p.StrategyVer,
+		Parameters:   p.Parameters,
+		Benchmark:    p.Benchmark,
+		Status:       string(p.Status),
+		SnapshotPath: p.SnapshotPath,
+	}, nil
+}
+
+func (a backtestPortfolioStoreAdapter) MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error {
+	return a.store.MarkRunningTx(ctx, portfolioID, runID)
+}
+
+func (a backtestPortfolioStoreAdapter) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	inceptionDate time.Time, durationMs int32) error {
+	return a.store.MarkReadyTx(ctx, portfolioID, runID, snapshotPath,
+		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)
+}
+
+func (a backtestPortfolioStoreAdapter) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID,
+	errMsg string, durationMs int32) error {
+	return a.store.MarkFailedTx(ctx, portfolioID, runID, errMsg, durationMs)
+}
+
+// dispatcherAdapter wraps *backtest.Dispatcher and translates backtest.ErrQueueFull
+// to portfolio.ErrQueueFull so the portfolio handler can return 503 without
+// importing the backtest package.
+type dispatcherAdapter struct {
+	bt *backtest.Dispatcher
+}
+
+func (a dispatcherAdapter) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
+	id, err := a.bt.Submit(ctx, portfolioID)
+	if errors.Is(err, backtest.ErrQueueFull) {
+		return uuid.Nil, portfolio.ErrQueueFull
+	}
+	return id, err
+}
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
@@ -56,6 +148,46 @@ var serverCmd = &cobra.Command{
 
 		pool := sql.Instance(ctx)
 
+		// Build backtest config from viper and apply defaults.
+		btCfg := backtest.Config{
+			SnapshotsDir:   conf.Backtest.SnapshotsDir,
+			MaxConcurrency: conf.Backtest.MaxConcurrency,
+			Timeout:        conf.Backtest.Timeout,
+			RunnerMode:     conf.Runner.Mode,
+		}
+		btCfg.ApplyDefaults()
+		if err := btCfg.Validate(); err != nil {
+			log.Fatal().Err(err).Msg("backtest config")
+		}
+		if err := os.MkdirAll(btCfg.SnapshotsDir, 0o750); err != nil {
+			log.Fatal().Err(err).Msg("mkdir snapshots_dir")
+		}
+
+		portfolioStore := portfolio.NewPoolStore(pool)
+		strategyStore := strategy.PoolStore{Pool: pool}
+
+		resolve := func(code, ver string) (string, error) {
+			s, err := strategyStore.Get(ctx, code)
+			if err != nil {
+				return "", err
+			}
+			if s.ArtifactRef == nil || *s.ArtifactRef == "" {
+				return "", fmt.Errorf("%w: %s", backtest.ErrStrategyNoArtifact, code)
+			}
+			return *s.ArtifactRef, nil
+		}
+
+		runner := &backtest.HostRunner{}
+		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
+		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
+		orch := backtest.NewRunner(btCfg, runner, portfolioAdapter, runAdapter, resolve)
+		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
+		dispatcher.Start(ctx)
+
+		if err := backtest.StartupSweep(ctx, btCfg.SnapshotsDir, portfolioStore); err != nil {
+			log.Warn().Err(err).Msg("startup sweep")
+		}
+
 		app, err := api.NewApp(ctx, api.Config{
 			Port:         conf.Server.Port,
 			AllowOrigins: conf.Server.AllowOrigins,
@@ -72,6 +204,8 @@ var serverCmd = &cobra.Command{
 				OfficialDir:  conf.Strategy.OfficialDir,
 				GitHubOwner:  "penny-vault",
 			},
+			Dispatcher:     dispatcherAdapter{bt: dispatcher},
+			SnapshotOpener: snapshot.Opener{},
 		})
 		if err != nil {
 			return fmt.Errorf("build app: %w", err)
@@ -96,7 +230,10 @@ var serverCmd = &cobra.Command{
 			return nil
 		case <-ctx.Done():
 			log.Info().Msg("shutdown signal received")
-			if err := app.ShutdownWithContext(ctx); err != nil {
+			_ = dispatcher.Shutdown(30 * time.Second)
+			shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutCancel()
+			if err := app.ShutdownWithContext(shutCtx); err != nil {
 				return fmt.Errorf("fiber shutdown: %w", err)
 			}
 			return nil

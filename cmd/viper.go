@@ -1,4 +1,4 @@
-// Copyright 2021-2025
+// Copyright 2021-2026
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,16 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+// setViperDefaults registers package-wide viper defaults. Called once from
+// root.go's init() so they are in place before any config file or env var
+// override runs.
+func setViperDefaults() {
+	viper.SetDefault("backtest.snapshots_dir", "/var/lib/pvapi/snapshots")
+	viper.SetDefault("backtest.max_concurrency", 0)
+	viper.SetDefault("backtest.timeout", "15m")
+	viper.SetDefault("runner.mode", "host")
+}
 
 func bindPFlagsToViper(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(bindPFlag)
