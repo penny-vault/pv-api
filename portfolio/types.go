@@ -59,6 +59,7 @@ type Portfolio struct {
 	Status       Status
 	LastRunAt    *time.Time
 	LastError    *string
+	SnapshotPath *string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

@@ -16,13 +16,18 @@
 package portfolio
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 
+	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
 )
@@ -37,12 +42,19 @@ var ErrNoSubject = errors.New("missing authenticated subject")
 type Handler struct {
 	store      Store
 	strategies strategy.ReadStore
+	opener     SnapshotOpener
+	dispatcher Dispatcher
+}
+
+// Dispatcher is the subset of backtest.Dispatcher the handler needs.
+type Dispatcher interface {
+	Submit(ctx context.Context, portfolioID uuid.UUID) (runID uuid.UUID, err error)
 }
 
 // NewHandler constructs a handler. strategies is used to validate the
 // referenced strategy at create time.
-func NewHandler(store Store, strategies strategy.ReadStore) *Handler {
-	return &Handler{store: store, strategies: strategies}
+func NewHandler(store Store, strategies strategy.ReadStore, opener SnapshotOpener, dispatcher Dispatcher) *Handler {
+	return &Handler{store: store, strategies: strategies, opener: opener, dispatcher: dispatcher}
 }
 
 // List implements GET /portfolios.
@@ -324,3 +336,231 @@ func writeProblem(c fiber.Ctx, status int, title, detail string) error {
 	c.Set(fiber.HeaderContentType, "application/problem+json")
 	return c.Status(status).Send(body)
 }
+
+// GET /portfolios/{slug}/summary
+func (h *Handler) Summary(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Summary(c.Context())
+	})
+}
+
+// readSnapshot is the shared skeleton for all derived-data endpoints.
+func (h *Handler) readSnapshot(c fiber.Ctx, fn func(SnapshotReader) (any, error)) error {
+	sub, err := subject(c)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	}
+	slug := string([]byte(c.Params("slug")))
+	p, err := h.store.Get(c.Context(), sub, slug)
+	if errors.Is(err, ErrNotFound) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if p.Status != StatusReady || p.SnapshotPath == nil || *p.SnapshotPath == "" {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "no successful run")
+	}
+	reader, err := h.opener.Open(*p.SnapshotPath)
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	defer reader.Close()
+	out, err := fn(reader)
+	if errors.Is(err, errNotFoundSentinel) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "not found")
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	return c.JSON(out)
+}
+
+// GET /portfolios/{slug}/drawdowns
+func (h *Handler) Drawdowns(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Drawdowns(c.Context())
+	})
+}
+
+// GET /portfolios/{slug}/statistics
+func (h *Handler) Statistics(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Statistics(c.Context())
+	})
+}
+
+// GET /portfolios/{slug}/trailing-returns
+func (h *Handler) TrailingReturns(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.TrailingReturns(c.Context())
+	})
+}
+
+// GET /portfolios/{slug}/holdings
+func (h *Handler) Holdings(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.CurrentHoldings(c.Context())
+	})
+}
+
+// GET /portfolios/{slug}/holdings/{date}
+func (h *Handler) HoldingsAsOf(c fiber.Ctx) error {
+	dateStr := string([]byte(c.Params("date")))
+	d, perr := time.Parse("2006-01-02", dateStr)
+	if perr != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", "date must be YYYY-MM-DD")
+	}
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		resp, err := r.HoldingsAsOf(c.Context(), d)
+		if errors.Is(err, ErrSnapshotNotFound) {
+			return nil, errNotFoundSentinel
+		}
+		return resp, err
+	})
+}
+
+// GET /portfolios/{slug}/holdings/history
+func (h *Handler) HoldingsHistory(c fiber.Ctx) error {
+	from, to, perr := parseFromTo(c)
+	if perr != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", perr.Error())
+	}
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.HoldingsHistory(c.Context(), from, to)
+	})
+}
+
+// GET /portfolios/{slug}/performance
+func (h *Handler) Performance(c fiber.Ctx) error {
+	from, to, perr := parseFromTo(c)
+	if perr != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", perr.Error())
+	}
+	slug := string([]byte(c.Params("slug")))
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Performance(c.Context(), slug, from, to)
+	})
+}
+
+// GET /portfolios/{slug}/transactions
+func (h *Handler) Transactions(c fiber.Ctx) error {
+	from, to, perr := parseFromTo(c)
+	if perr != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", perr.Error())
+	}
+	var filter SnapshotTxFilter
+	filter.From = from
+	filter.To = to
+	if s := string([]byte(c.Query("type"))); s != "" {
+		filter.Types = strings.Split(s, ",")
+	}
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Transactions(c.Context(), filter)
+	})
+}
+
+// parseFromTo parses optional ?from= and ?to= query params as YYYY-MM-DD.
+func parseFromTo(c fiber.Ctx) (*time.Time, *time.Time, error) {
+	var from, to *time.Time
+	if s := string([]byte(c.Query("from"))); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			return nil, nil, fmt.Errorf("from must be YYYY-MM-DD")
+		}
+		from = &t
+	}
+	if s := string([]byte(c.Query("to"))); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			return nil, nil, fmt.Errorf("to must be YYYY-MM-DD")
+		}
+		to = &t
+	}
+	return from, to, nil
+}
+
+// GET /portfolios/{slug}/runs
+func (h *Handler) ListRuns(c fiber.Ctx) error {
+	sub, err := subject(c)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	}
+	slug := string([]byte(c.Params("slug")))
+	p, err := h.store.Get(c.Context(), sub, slug)
+	if errors.Is(err, ErrNotFound) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	runs, err := h.store.ListRuns(c.Context(), p.ID)
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	out := make([]openapi.BacktestRun, 0, len(runs))
+	for _, r := range runs {
+		out = append(out, toAPIRun(r, slug))
+	}
+	return c.JSON(out)
+}
+
+// GET /portfolios/{slug}/runs/{runId}
+func (h *Handler) GetRun(c fiber.Ctx) error {
+	sub, err := subject(c)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	}
+	slug := string([]byte(c.Params("slug")))
+	p, err := h.store.Get(c.Context(), sub, slug)
+	if errors.Is(err, ErrNotFound) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	runIDStr := string([]byte(c.Params("runId")))
+	runID, perr := uuid.Parse(runIDStr)
+	if perr != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", "runId must be a uuid")
+	}
+	r, err := h.store.GetRun(c.Context(), p.ID, runID)
+	if errors.Is(err, ErrNotFound) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "run not found")
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	return c.JSON(toAPIRun(r, slug))
+}
+
+// toAPIRun converts a domain Run to the OpenAPI shape.
+func toAPIRun(r Run, slug string) openapi.BacktestRun {
+	out := openapi.BacktestRun{
+		Id:            r.ID,
+		PortfolioSlug: slug,
+		Status:        openapi.RunStatus(r.Status),
+	}
+	if r.StartedAt != nil {
+		out.StartedAt = r.StartedAt
+	}
+	if r.FinishedAt != nil {
+		out.FinishedAt = r.FinishedAt
+	}
+	if r.DurationMs != nil {
+		v := int(*r.DurationMs)
+		out.DurationMs = &v
+	}
+	if r.Error != nil {
+		out.Error = r.Error
+	}
+	return out
+}
+
+// CreateRun is a temporary stub — filled in Task 15.
+func (h *Handler) CreateRun(c fiber.Ctx) error {
+	return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "not implemented")
+}
+
+// errNotFoundSentinel is used internally by readSnapshot to signal 404.
+var errNotFoundSentinel = errors.New("not found")

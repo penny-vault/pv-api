@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/strategy"
 )
 
@@ -91,7 +92,8 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	if conf.Pool != nil {
 		portfolioStore := portfolio.NewPoolStore(conf.Pool)
 		strategyStore := strategy.PoolStore{Pool: conf.Pool}
-		RegisterPortfolioRoutesWith(protected, NewPortfolioHandler(portfolioStore, strategyStore))
+		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, snapshot.Opener{}, nil /* dispatcher wired in Task 17 */)
+		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))
 
 		if err := startRegistrySync(ctx, strategyStore, conf.Registry); err != nil {

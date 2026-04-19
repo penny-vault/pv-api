@@ -18,6 +18,7 @@ package portfolio_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"time"
@@ -28,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
@@ -157,7 +159,7 @@ var _ = Describe("portfolio.Handler", func() {
 				DescribeJSON: admDescribeJSON,
 			},
 		}
-		h := portfolio.NewHandler(store, strategies)
+		h := portfolio.NewHandler(store, strategies, nil, nil)
 
 		app = fiber.New()
 		app.Use(func(c fiber.Ctx) error {
@@ -346,5 +348,110 @@ var _ = Describe("portfolio.Handler", func() {
 
 		status, _, _ = request("GET", "/portfolios/"+slug, sub1, nil)
 		Expect(status).To(Equal(404))
+	})
+})
+
+// Minimal fakes for derived-endpoint specs.
+type fakeSnapshotOpener struct {
+	readers map[string]portfolio.SnapshotReader
+}
+
+func (f *fakeSnapshotOpener) Open(path string) (portfolio.SnapshotReader, error) {
+	r, ok := f.readers[path]
+	if !ok {
+		return nil, errors.New("fake opener: unknown path " + path)
+	}
+	return r, nil
+}
+
+type fakeSnapshotReader struct {
+	summary *openapi.PortfolioSummary
+}
+
+func (f *fakeSnapshotReader) Close() error { return nil }
+func (f *fakeSnapshotReader) Summary(_ context.Context) (*openapi.PortfolioSummary, error) {
+	return f.summary, nil
+}
+func (f *fakeSnapshotReader) Drawdowns(_ context.Context) ([]openapi.Drawdown, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) Statistics(_ context.Context) ([]openapi.PortfolioStatistic, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) TrailingReturns(_ context.Context) ([]openapi.TrailingReturnRow, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) CurrentHoldings(_ context.Context) (*openapi.HoldingsResponse, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) HoldingsAsOf(_ context.Context, _ time.Time) (*openapi.HoldingsResponse, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) HoldingsHistory(_ context.Context, _, _ *time.Time) (*openapi.HoldingsHistoryResponse, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) Performance(_ context.Context, _ string, _, _ *time.Time) (*openapi.PortfolioPerformance, error) {
+	return nil, nil
+}
+func (f *fakeSnapshotReader) Transactions(_ context.Context, _ portfolio.SnapshotTxFilter) (*openapi.TransactionsResponse, error) {
+	return nil, nil
+}
+
+var _ = Describe("Handler.Summary", func() {
+	var (
+		app    *fiber.App
+		store  *fakeStore
+		opener *fakeSnapshotOpener
+		sub    = "auth0|owner"
+	)
+
+	BeforeEach(func() {
+		store = &fakeStore{}
+		opener = &fakeSnapshotOpener{readers: map[string]portfolio.SnapshotReader{}}
+		app = fiber.New(fiber.Config{JSONEncoder: sonic.Marshal, JSONDecoder: sonic.Unmarshal})
+		app.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, sub)
+			return c.Next()
+		})
+		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, nil)
+		app.Get("/portfolios/:slug/summary", h.Summary)
+	})
+
+	It("returns 404 with 'no successful run' when status=pending", func() {
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusPending, SnapshotPath: nil,
+		}}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+
+		body, _ := io.ReadAll(resp.Body)
+		Expect(string(body)).To(ContainSubstring("no successful run"))
+	})
+
+	It("returns 200 with the summary payload when the snapshot opens", func() {
+		path := "/fake/snap.sqlite"
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusReady, SnapshotPath: &path,
+		}}
+		wantSummary := &openapi.PortfolioSummary{
+			CurrentValue: 103000,
+			Sharpe:       1.23,
+		}
+		opener.readers[path] = &fakeSnapshotReader{summary: wantSummary}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+
+		body, _ := io.ReadAll(resp.Body)
+		var got openapi.PortfolioSummary
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.CurrentValue).To(Equal(wantSummary.CurrentValue))
 	})
 })

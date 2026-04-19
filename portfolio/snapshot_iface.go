@@ -17,10 +17,17 @@ package portfolio
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/penny-vault/pv-api/openapi"
 )
+
+// ErrSnapshotNotFound is returned by date-parameterized snapshot readers
+// (e.g. HoldingsAsOf) when the requested date falls outside the backtest
+// window. snapshot.Opener translates snapshot.ErrNotFound to this sentinel
+// so the portfolio layer does not need to import the snapshot package.
+var ErrSnapshotNotFound = errors.New("snapshot: not found")
 
 // SnapshotReader is the subset of snapshot.Reader that portfolio handlers
 // need. Redeclared here so handler tests can provide a fake without

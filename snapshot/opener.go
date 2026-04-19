@@ -17,19 +17,30 @@ package snapshot
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/portfolio"
 )
 
 // readerAdapter wraps *Reader to present the portfolio.SnapshotReader
-// interface (translating SnapshotTxFilter to TransactionFilter).
+// interface (translating SnapshotTxFilter to TransactionFilter and
+// translating snapshot.ErrNotFound to portfolio.ErrSnapshotNotFound).
 type readerAdapter struct {
 	*Reader
 }
 
 func (a readerAdapter) Transactions(ctx context.Context, f portfolio.SnapshotTxFilter) (*openapi.TransactionsResponse, error) {
 	return a.Reader.Transactions(ctx, TransactionFilter{From: f.From, To: f.To, Types: f.Types})
+}
+
+func (a readerAdapter) HoldingsAsOf(ctx context.Context, d time.Time) (*openapi.HoldingsResponse, error) {
+	resp, err := a.Reader.HoldingsAsOf(ctx, d)
+	if errors.Is(err, ErrNotFound) {
+		return nil, portfolio.ErrSnapshotNotFound
+	}
+	return resp, err
 }
 
 var _ portfolio.SnapshotReader = readerAdapter{}

@@ -45,13 +45,28 @@ type Problem struct {
 // WriteProblem maps err to a status + problem+json body and writes it to c.
 // Unknown errors yield 500 with the error string logged (not exposed).
 func WriteProblem(c fiber.Ctx, err error) error {
+	return writeProblemWithOptionalDetail(c, err, "")
+}
+
+// WriteProblemWithDetail writes a problem+json response overriding the
+// detail field with the provided text.
+func WriteProblemWithDetail(c fiber.Ctx, err error, detail string) error {
+	return writeProblemWithOptionalDetail(c, err, detail)
+}
+
+func writeProblemWithOptionalDetail(c fiber.Ctx, err error, override string) error {
 	status, title := classify(err)
+
+	detail := err.Error()
+	if override != "" {
+		detail = override
+	}
 
 	p := Problem{
 		Type:     "about:blank",
 		Title:    title,
 		Status:   status,
-		Detail:   err.Error(),
+		Detail:   detail,
 		Instance: c.Path(),
 	}
 

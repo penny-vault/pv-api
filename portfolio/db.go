@@ -36,7 +36,7 @@ var ErrDuplicateSlug = errors.New("duplicate portfolio slug")
 const portfolioColumns = `
 	id, owner_sub, slug, name, strategy_code, strategy_ver, parameters,
 	preset_name, benchmark, mode, schedule, status, last_run_at,
-	last_error, created_at, updated_at
+	last_error, snapshot_path, created_at, updated_at
 `
 
 // List returns every portfolio owned by ownerSub, sorted newest-first.
@@ -146,7 +146,7 @@ func scan(r scanner) (Portfolio, error) {
 	err := r.Scan(
 		&p.ID, &p.OwnerSub, &p.Slug, &p.Name, &p.StrategyCode, &p.StrategyVer,
 		&paramsJSON, &p.PresetName, &p.Benchmark, &modeStr, &p.Schedule,
-		&statusStr, &p.LastRunAt, &p.LastError, &p.CreatedAt, &p.UpdatedAt,
+		&statusStr, &p.LastRunAt, &p.LastError, &p.SnapshotPath, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		return Portfolio{}, err
