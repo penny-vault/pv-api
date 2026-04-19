@@ -55,6 +55,7 @@ func (e PortfolioMeasurementsResolution) Valid() bool {
 // Defines values for PortfolioMode.
 const (
 	Continuous PortfolioMode = "continuous"
+	Live       PortfolioMode = "live"
 	OneShot    PortfolioMode = "one_shot"
 )
 
@@ -63,7 +64,33 @@ func (e PortfolioMode) Valid() bool {
 	switch e {
 	case Continuous:
 		return true
+	case Live:
+		return true
 	case OneShot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PortfolioStatus.
+const (
+	PortfolioStatusFailed  PortfolioStatus = "failed"
+	PortfolioStatusPending PortfolioStatus = "pending"
+	PortfolioStatusReady   PortfolioStatus = "ready"
+	PortfolioStatusRunning PortfolioStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the PortfolioStatus enum.
+func (e PortfolioStatus) Valid() bool {
+	switch e {
+	case PortfolioStatusFailed:
+		return true
+	case PortfolioStatusPending:
+		return true
+	case PortfolioStatusReady:
+		return true
+	case PortfolioStatusRunning:
 		return true
 	default:
 		return false
@@ -120,22 +147,22 @@ func (e RunStatus) Valid() bool {
 
 // Defines values for StrategyInstallState.
 const (
-	StrategyInstallStateFailed     StrategyInstallState = "failed"
-	StrategyInstallStateInstalling StrategyInstallState = "installing"
-	StrategyInstallStatePending    StrategyInstallState = "pending"
-	StrategyInstallStateReady      StrategyInstallState = "ready"
+	Failed     StrategyInstallState = "failed"
+	Installing StrategyInstallState = "installing"
+	Pending    StrategyInstallState = "pending"
+	Ready      StrategyInstallState = "ready"
 )
 
 // Valid indicates whether the value is a known member of the StrategyInstallState enum.
 func (e StrategyInstallState) Valid() bool {
 	switch e {
-	case StrategyInstallStateFailed:
+	case Failed:
 		return true
-	case StrategyInstallStateInstalling:
+	case Installing:
 		return true
-	case StrategyInstallStatePending:
+	case Pending:
 		return true
-	case StrategyInstallStateReady:
+	case Ready:
 		return true
 	default:
 		return false
@@ -178,20 +205,6 @@ func (e ListStrategiesParamsInclude) Valid() bool {
 	}
 }
 
-// AllocationRow defines model for AllocationRow.
-type AllocationRow struct {
-	// DayChange Decimal percent since previous close.
-	DayChange *float64 `json:"dayChange,omitempty"`
-	Name      string   `json:"name"`
-	Ticker    string   `json:"ticker"`
-
-	// Value Current market value in USD.
-	Value *float64 `json:"value,omitempty"`
-
-	// Weight Fraction of portfolio (0.58 = 58%).
-	Weight float64 `json:"weight"`
-}
-
 // BacktestRun defines model for BacktestRun.
 type BacktestRun struct {
 	DurationMs    *int               `json:"durationMs,omitempty"`
@@ -221,6 +234,25 @@ type Drawdown struct {
 	Trough openapi_types.Date `json:"trough"`
 }
 
+// Holding defines model for Holding.
+type Holding struct {
+	AvgCost float64 `json:"avgCost"`
+
+	// DayChange Decimal percent since previous close.
+	DayChange   *float64 `json:"dayChange,omitempty"`
+	Figi        *string  `json:"figi,omitempty"`
+	MarketValue float64  `json:"marketValue"`
+	Quantity    float64  `json:"quantity"`
+	Ticker      string   `json:"ticker"`
+}
+
+// HoldingsResponse defines model for HoldingsResponse.
+type HoldingsResponse struct {
+	Date             openapi_types.Date `json:"date"`
+	Items            []Holding          `json:"items"`
+	TotalMarketValue float64            `json:"totalMarketValue"`
+}
+
 // MeasurementPoint defines model for MeasurementPoint.
 type MeasurementPoint struct {
 	// BenchmarkValue Normalized to start at the portfolio's opening value.
@@ -235,38 +267,38 @@ type MeasurementPoint struct {
 // MetricFormat How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
 type MetricFormat string
 
-// Portfolio defines model for Portfolio.
+// Portfolio Portfolio configuration + status. Derived backtest output lives on separate endpoints.
 type Portfolio struct {
-	// Allocation Current holdings with weight (sum ≈ 1.0).
-	Allocation []AllocationRow `json:"allocation"`
+	Benchmark string     `json:"benchmark"`
+	CreatedAt time.Time  `json:"createdAt"`
+	LastError *string    `json:"lastError,omitempty"`
+	LastRunAt *time.Time `json:"lastRunAt,omitempty"`
 
-	// Benchmark Benchmark label, e.g. `S&P 500 TR`.
-	Benchmark string `json:"benchmark"`
+	// Mode Portfolio execution mode. `live` is reserved but rejected by
+	// POST /portfolios with 422 until a future live-trading project ships.
+	Mode       PortfolioMode          `json:"mode"`
+	Name       string                 `json:"name"`
+	Parameters map[string]interface{} `json:"parameters"`
 
-	// CurrentAssets Tickers currently held (excluding cash).
-	CurrentAssets []string `json:"currentAssets"`
+	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
+	PresetName *string `json:"presetName,omitempty"`
 
-	// Drawdowns Ordered by depth (deepest first).
-	Drawdowns     []Drawdown         `json:"drawdowns"`
-	Id            openapi_types.UUID `json:"id"`
-	InceptionDate openapi_types.Date `json:"inceptionDate"`
-	LastUpdated   time.Time          `json:"lastUpdated"`
-
-	// Metrics Trailing statistics for the Risk & style metrics panel.
-	Metrics []PortfolioMetric `json:"metrics"`
-	Name    string            `json:"name"`
-
-	// Summary Top-line numbers for the KPI strip.
-	Summary PortfolioSummary `json:"summary"`
-
-	// TrailingReturns Rows for the trailing returns table.
-	TrailingReturns []TrailingReturnRow `json:"trailingReturns"`
+	// Schedule tradecron string; null when mode=one_shot.
+	Schedule     *string         `json:"schedule,omitempty"`
+	Slug         string          `json:"slug"`
+	Status       PortfolioStatus `json:"status"`
+	StrategyCode string          `json:"strategyCode"`
+	StrategyVer  string          `json:"strategyVer"`
+	UpdatedAt    time.Time       `json:"updatedAt"`
 }
 
 // PortfolioCreateRequest defines model for PortfolioCreateRequest.
 type PortfolioCreateRequest struct {
-	Benchmark *string       `json:"benchmark,omitempty"`
-	Mode      PortfolioMode `json:"mode"`
+	Benchmark *string `json:"benchmark,omitempty"`
+
+	// Mode Portfolio execution mode. `live` is reserved but rejected by
+	// POST /portfolios with 422 until a future live-trading project ships.
+	Mode PortfolioMode `json:"mode"`
 
 	// Name User-visible display name.
 	Name string `json:"name"`
@@ -287,20 +319,24 @@ type PortfolioCreateRequest struct {
 	StrategyVer *string `json:"strategyVer,omitempty"`
 }
 
-// PortfolioListItem Light metadata for the dashboard/list view.
+// PortfolioListItem Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
 type PortfolioListItem struct {
-	Benchmark     string             `json:"benchmark"`
-	CurrentValue  float64            `json:"currentValue"`
-	Id            openapi_types.UUID `json:"id"`
-	InceptionDate openapi_types.Date `json:"inceptionDate"`
-	LastUpdated   time.Time          `json:"lastUpdated"`
+	Benchmark     *string             `json:"benchmark,omitempty"`
+	CreatedAt     time.Time           `json:"createdAt"`
+	CurrentValue  *float64            `json:"currentValue,omitempty"`
+	InceptionDate *openapi_types.Date `json:"inceptionDate,omitempty"`
+	LastUpdated   *time.Time          `json:"lastUpdated,omitempty"`
+	MaxDrawDown   *float64            `json:"maxDrawDown,omitempty"`
 
-	// MaxDrawDown Decimal percent, negative.
-	MaxDrawDown float64 `json:"maxDrawDown"`
-	Name        string  `json:"name"`
-
-	// YtdReturn Decimal percent (0.0714 = 7.14%).
-	YtdReturn float64 `json:"ytdReturn"`
+	// Mode Portfolio execution mode. `live` is reserved but rejected by
+	// POST /portfolios with 422 until a future live-trading project ships.
+	Mode         PortfolioMode   `json:"mode"`
+	Name         string          `json:"name"`
+	Slug         string          `json:"slug"`
+	Status       PortfolioStatus `json:"status"`
+	StrategyCode string          `json:"strategyCode"`
+	UpdatedAt    *time.Time      `json:"updatedAt,omitempty"`
+	YtdReturn    *float64        `json:"ytdReturn,omitempty"`
 }
 
 // PortfolioMeasurements defines model for PortfolioMeasurements.
@@ -323,8 +359,12 @@ type PortfolioMetric struct {
 	Value  float64      `json:"value"`
 }
 
-// PortfolioMode defines model for PortfolioMode.
+// PortfolioMode Portfolio execution mode. `live` is reserved but rejected by
+// POST /portfolios with 422 until a future live-trading project ships.
 type PortfolioMode string
+
+// PortfolioStatus defines model for PortfolioStatus.
+type PortfolioStatus string
 
 // PortfolioSummary Top-line numbers for the KPI strip.
 type PortfolioSummary struct {
@@ -342,11 +382,9 @@ type PortfolioSummary struct {
 	YtdReturn          float64  `json:"ytdReturn"`
 }
 
-// PortfolioUpdateRequest All fields optional; only provided fields are updated.
+// PortfolioUpdateRequest PATCH body. Only `name` is mutable — changing parameters, schedule, benchmark, or mode would break the slug invariant, so those fields are rejected with 422.
 type PortfolioUpdateRequest struct {
-	Name       *string                 `json:"name,omitempty"`
-	Parameters *map[string]interface{} `json:"parameters,omitempty"`
-	Schedule   *string                 `json:"schedule,omitempty"`
+	Name string `json:"name"`
 }
 
 // Problem RFC 7807 Problem Details.

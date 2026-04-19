@@ -252,6 +252,144 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/summary:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioSummary
+      summary: Top-line KPIs from the latest successful backtest
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/drawdowns:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioDrawdowns
+      summary: Drawdown list ordered by depth (deepest first)
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Drawdowns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Drawdown'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/metrics:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioMetrics
+      summary: Generic label/value/format metric rows
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioMetric'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/trailing-returns:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioTrailingReturns
+      summary: Trailing-returns rows (portfolio, benchmark, portfolio-tax, benchmark-tax)
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Trailing returns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrailingReturnRow'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/holdings:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioHoldings
+      summary: Latest holdings
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Holdings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/holdings/{date}:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioHoldingsAsOf
+      summary: Historical holdings as of a given date
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Holdings as of the given date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /strategies:
     get:
       tags: [Strategies]
@@ -419,98 +557,105 @@ components:
     # ============ Portfolio list ============
     PortfolioListItem:
       type: object
-      description: Light metadata for the dashboard/list view.
-      required: [id, name, benchmark, inceptionDate, currentValue, ytdReturn, maxDrawDown, lastUpdated]
+      description: Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
+      required: [slug, name, strategyCode, mode, status, createdAt]
       properties:
-        id:
+        slug:
           type: string
-          format: uuid
         name:
           type: string
-          example: 'Adaptive Momentum — Growth Sleeve'
+        strategyCode:
+          type: string
+        mode:
+          $ref: '#/components/schemas/PortfolioMode'
+        status:
+          $ref: '#/components/schemas/PortfolioStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
         benchmark:
           type: string
-          example: 'S&P 500 TR'
         inceptionDate:
           type: string
           format: date
-          example: '2015-01-02'
+          nullable: true
         currentValue:
           type: number
           format: double
-          example: 310760.55
+          nullable: true
         ytdReturn:
           type: number
           format: double
-          description: Decimal percent (0.0714 = 7.14%).
-          example: 0.0714
+          nullable: true
         maxDrawDown:
           type: number
           format: double
-          description: Decimal percent, negative.
-          example: -0.3387
+          nullable: true
         lastUpdated:
           type: string
           format: date-time
+          nullable: true
 
     # ============ Portfolio detail ============
     Portfolio:
       type: object
+      description: Portfolio configuration + status. Derived backtest output lives on separate endpoints.
       required:
-        - id
+        - slug
         - name
+        - strategyCode
+        - strategyVer
+        - parameters
         - benchmark
-        - inceptionDate
-        - currentAssets
-        - lastUpdated
-        - summary
-        - drawdowns
-        - metrics
-        - trailingReturns
-        - allocation
+        - mode
+        - status
+        - createdAt
+        - updatedAt
       properties:
-        id:
+        slug:
           type: string
-          format: uuid
+          example: 'adm-aggressive-gm59'
         name:
           type: string
+          example: 'ADM aggressive'
+        strategyCode:
+          type: string
+        strategyVer:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+        presetName:
+          type: string
+          nullable: true
+          description: Name of the matched strategy preset, or null when parameters did not match a preset.
         benchmark:
           type: string
-          description: Benchmark label, e.g. `S&P 500 TR`.
-        inceptionDate:
+          example: 'SPY'
+        mode:
+          $ref: '#/components/schemas/PortfolioMode'
+        schedule:
           type: string
-          format: date
-        currentAssets:
-          type: array
-          description: Tickers currently held (excluding cash).
-          items:
-            type: string
-          example: ['VTI', 'VEA', 'BND']
-        lastUpdated:
+          nullable: true
+          description: tradecron string; null when mode=one_shot.
+        status:
+          $ref: '#/components/schemas/PortfolioStatus'
+        createdAt:
           type: string
           format: date-time
-        summary:
-          $ref: '#/components/schemas/PortfolioSummary'
-        drawdowns:
-          type: array
-          description: Ordered by depth (deepest first).
-          items:
-            $ref: '#/components/schemas/Drawdown'
-        metrics:
-          type: array
-          description: Trailing statistics for the Risk & style metrics panel.
-          items:
-            $ref: '#/components/schemas/PortfolioMetric'
-        trailingReturns:
-          type: array
-          description: Rows for the trailing returns table.
-          items:
-            $ref: '#/components/schemas/TrailingReturnRow'
-        allocation:
-          type: array
-          description: Current holdings with weight (sum ≈ 1.0).
-          items:
-            $ref: '#/components/schemas/AllocationRow'
+        updatedAt:
+          type: string
+          format: date-time
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
 
     PortfolioSummary:
       type: object
@@ -629,28 +774,45 @@ components:
           type: number
           format: double
 
-    AllocationRow:
+    Holding:
       type: object
-      required: [ticker, name, weight]
+      required: [ticker, quantity, avgCost, marketValue]
       properties:
         ticker:
           type: string
           example: 'VTI'
-        name:
+        figi:
           type: string
-          example: 'Vanguard Total Stock Market'
-        weight:
+          nullable: true
+        quantity:
           type: number
           format: double
-          description: Fraction of portfolio (0.58 = 58%).
-        value:
+        avgCost:
           type: number
           format: double
-          description: Current market value in USD.
+        marketValue:
+          type: number
+          format: double
         dayChange:
           type: number
           format: double
+          nullable: true
           description: Decimal percent since previous close.
+
+    HoldingsResponse:
+      type: object
+      required: [date, items, totalMarketValue]
+      properties:
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Holding'
+        totalMarketValue:
+          type: number
+          format: double
 
     # ============ Measurements (time series) ============
     PortfolioMeasurements:
@@ -694,7 +856,10 @@ components:
 
     PortfolioMode:
       type: string
-      enum: [one_shot, continuous]
+      enum: [one_shot, continuous, live]
+      description: |
+        Portfolio execution mode. `live` is reserved but rejected by
+        POST /portfolios with 422 until a future live-trading project ships.
 
     PortfolioStatus:
       type: string
@@ -736,15 +901,12 @@ components:
 
     PortfolioUpdateRequest:
       type: object
-      description: All fields optional; only provided fields are updated.
+      description: PATCH body. Only `name` is mutable — changing parameters, schedule, benchmark, or mode would break the slug invariant, so those fields are rejected with 422.
+      required: [name]
       properties:
         name:
           type: string
-        schedule:
-          type: string
-        parameters:
-          type: object
-          additionalProperties: true
+      additionalProperties: false
 
     BacktestRun:
       type: object
