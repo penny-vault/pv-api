@@ -3687,35 +3687,29 @@ var _ = Describe("Handler.Summary", func() {
 
 - [ ] **Step 5: Fix compile errors in `api/portfolios.go`**
 
-Open `api/portfolios.go`. The `NewPortfolioHandler` call site will break because the constructor now takes more arguments. Update it:
+Open `api/portfolios.go`. **Delete the `api.PortfolioHandler` wrapper type and its `NewPortfolioHandler` constructor entirely** — they add an indirection over `portfolio.Handler` without carrying any additional responsibility. `RegisterPortfolioRoutesWith` instead takes `*portfolio.Handler` directly. Then update the single caller in `api/server.go` (around line 94) from `NewPortfolioHandler(portfolioStore, strategyStore)` to `portfolio.NewHandler(portfolioStore, strategyStore, cfg.SnapshotOpener, cfg.Dispatcher)`.
 
 ```go
-func NewPortfolioHandler(store portfolio.Store, strategies strategy.ReadStore, opener portfolio.SnapshotOpener, dispatcher portfolio.Dispatcher) *PortfolioHandler {
-	return &PortfolioHandler{inner: portfolio.NewHandler(store, strategies, opener, dispatcher)}
-}
-```
-
-And replace the 501-stub bindings in `RegisterPortfolioRoutesWith` with real handlers:
-
-```go
-func RegisterPortfolioRoutesWith(r fiber.Router, h *PortfolioHandler) {
-	r.Get("/portfolios", h.inner.List)
-	r.Post("/portfolios", h.inner.Create)
-	r.Get("/portfolios/:slug", h.inner.Get)
-	r.Patch("/portfolios/:slug", h.inner.Patch)
-	r.Delete("/portfolios/:slug", h.inner.Delete)
-	r.Get("/portfolios/:slug/summary", h.inner.Summary)
-	r.Get("/portfolios/:slug/drawdowns", h.inner.Drawdowns)
-	r.Get("/portfolios/:slug/statistics", h.inner.Statistics)
-	r.Get("/portfolios/:slug/trailing-returns", h.inner.TrailingReturns)
-	r.Get("/portfolios/:slug/holdings", h.inner.Holdings)
-	r.Get("/portfolios/:slug/holdings/history", h.inner.HoldingsHistory) // must precede :date
-	r.Get("/portfolios/:slug/holdings/:date", h.inner.HoldingsAsOf)
-	r.Get("/portfolios/:slug/performance", h.inner.Performance)
-	r.Get("/portfolios/:slug/transactions", h.inner.Transactions)
-	r.Post("/portfolios/:slug/runs", h.inner.CreateRun) // implemented in Task 14
-	r.Get("/portfolios/:slug/runs", h.inner.ListRuns)
-	r.Get("/portfolios/:slug/runs/:runId", h.inner.GetRun)
+// RegisterPortfolioRoutesWith mounts real portfolio handlers on r.
+// Callers construct portfolio.Handler directly via portfolio.NewHandler.
+func RegisterPortfolioRoutesWith(r fiber.Router, h *portfolio.Handler) {
+	r.Get("/portfolios", h.List)
+	r.Post("/portfolios", h.Create)
+	r.Get("/portfolios/:slug", h.Get)
+	r.Patch("/portfolios/:slug", h.Patch)
+	r.Delete("/portfolios/:slug", h.Delete)
+	r.Get("/portfolios/:slug/summary", h.Summary)
+	r.Get("/portfolios/:slug/drawdowns", h.Drawdowns)
+	r.Get("/portfolios/:slug/statistics", h.Statistics)
+	r.Get("/portfolios/:slug/trailing-returns", h.TrailingReturns)
+	r.Get("/portfolios/:slug/holdings", h.Holdings)
+	r.Get("/portfolios/:slug/holdings/history", h.HoldingsHistory) // must precede :date
+	r.Get("/portfolios/:slug/holdings/:date", h.HoldingsAsOf)
+	r.Get("/portfolios/:slug/performance", h.Performance)
+	r.Get("/portfolios/:slug/transactions", h.Transactions)
+	r.Post("/portfolios/:slug/runs", h.CreateRun) // implemented in Task 14
+	r.Get("/portfolios/:slug/runs", h.ListRuns)
+	r.Get("/portfolios/:slug/runs/:runId", h.GetRun)
 }
 ```
 
@@ -4560,13 +4554,14 @@ type Config struct {
 }
 ```
 
-Inside `NewApp`, when `cfg.Pool != nil`, pass these into `NewPortfolioHandler`:
+Inside `NewApp`, when `cfg.Pool != nil`, build the handler directly and register:
 
 ```go
-h := NewPortfolioHandler(store, strategyStore, cfg.SnapshotOpener, cfg.Dispatcher)
+portfolioHandler := portfolio.NewHandler(store, strategyStore, cfg.SnapshotOpener, cfg.Dispatcher)
+RegisterPortfolioRoutesWith(app, portfolioHandler)
 ```
 
-Where `store` now incorporates `cfg.RunStore` (or adjust `NewPoolStore` to build both — your call, follow Plan 4's existing pattern).
+Where `store` now incorporates `cfg.RunStore` (or adjust `NewPoolStore` to build both — your call, follow Plan 4's existing pattern). Note the descriptive variable name `portfolioHandler`; avoid generic names like `h` or `inner`.
 
 - [ ] **Step 2: Build backtest.Config + Dispatcher in `cmd/server.go`**
 
