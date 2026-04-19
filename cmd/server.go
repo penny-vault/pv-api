@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/penny-vault/pv-api/api"
 	"github.com/penny-vault/pv-api/backtest"
@@ -132,10 +131,10 @@ var serverCmd = &cobra.Command{
 
 		// Build backtest config from viper and apply defaults.
 		btCfg := backtest.Config{
-			SnapshotsDir:   viper.GetString("backtest.snapshots_dir"),
-			MaxConcurrency: viper.GetInt("backtest.max_concurrency"),
-			Timeout:        viper.GetDuration("backtest.timeout"),
-			RunnerMode:     viper.GetString("runner.mode"),
+			SnapshotsDir:   conf.Backtest.SnapshotsDir,
+			MaxConcurrency: conf.Backtest.MaxConcurrency,
+			Timeout:        conf.Backtest.Timeout,
+			RunnerMode:     conf.Runner.Mode,
 		}
 		btCfg.ApplyDefaults()
 		if err := btCfg.Validate(); err != nil {
@@ -213,7 +212,9 @@ var serverCmd = &cobra.Command{
 		case <-ctx.Done():
 			log.Info().Msg("shutdown signal received")
 			_ = dispatcher.Shutdown(30 * time.Second)
-			if err := app.ShutdownWithContext(ctx); err != nil {
+			shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutCancel()
+			if err := app.ShutdownWithContext(shutCtx); err != nil {
 				return fmt.Errorf("fiber shutdown: %w", err)
 			}
 			return nil
