@@ -932,8 +932,12 @@ components:
 
     Transaction:
       type: object
-      required: [date, type]
+      required: [date, type, batchId]
       properties:
+        batchId:
+          type: integer
+          format: int64
+          description: Batch (rebalance event) this transaction belongs to.
         date:
           type: string
           format: date

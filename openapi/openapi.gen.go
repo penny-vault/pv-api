@@ -539,7 +539,10 @@ type TrailingReturnRow struct {
 
 // Transaction defines model for Transaction.
 type Transaction struct {
-	Amount        *float64           `json:"amount,omitempty"`
+	Amount *float64 `json:"amount,omitempty"`
+
+	// BatchId Batch (rebalance event) this transaction belongs to.
+	BatchId       int64              `json:"batchId"`
 	Date          openapi_types.Date `json:"date"`
 	Figi          *string            `json:"figi,omitempty"`
 	Justification *string            `json:"justification,omitempty"`
