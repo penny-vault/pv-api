@@ -91,6 +91,30 @@ func (f *fakeStore) Delete(_ context.Context, ownerSub, slug string) error {
 	return portfolio.ErrNotFound
 }
 
+// RunStore stub methods — not exercised by handler tests.
+
+func (f *fakeStore) CreateRun(_ context.Context, _ uuid.UUID, _ string) (portfolio.Run, error) {
+	return portfolio.Run{}, nil
+}
+
+func (f *fakeStore) UpdateRunRunning(_ context.Context, _ uuid.UUID) error { return nil }
+
+func (f *fakeStore) UpdateRunSuccess(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
+	return nil
+}
+
+func (f *fakeStore) UpdateRunFailed(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
+	return nil
+}
+
+func (f *fakeStore) ListRuns(_ context.Context, _ uuid.UUID) ([]portfolio.Run, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) GetRun(_ context.Context, _, _ uuid.UUID) (portfolio.Run, error) {
+	return portfolio.Run{}, portfolio.ErrNotFound
+}
+
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
 // strategy; anything else is ErrNotFound.
 type fakeStrategyStore struct {

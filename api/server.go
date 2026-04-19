@@ -89,7 +89,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	protected := app.Group("", auth)
 
 	if conf.Pool != nil {
-		portfolioStore := portfolio.PoolStore{Pool: conf.Pool}
+		portfolioStore := portfolio.NewPoolStore(conf.Pool)
 		strategyStore := strategy.PoolStore{Pool: conf.Pool}
 		RegisterPortfolioRoutesWith(protected, NewPortfolioHandler(portfolioStore, strategyStore))
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))

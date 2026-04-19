@@ -23,6 +23,7 @@ import (
 
 // Store is the subset of db operations the handler needs.
 type Store interface {
+	RunStore
 	List(ctx context.Context, ownerSub string) ([]Portfolio, error)
 	Get(ctx context.Context, ownerSub, slug string) (Portfolio, error)
 	Insert(ctx context.Context, p Portfolio) error
@@ -33,6 +34,12 @@ type Store interface {
 // PoolStore adapts *pgxpool.Pool to the Store interface.
 type PoolStore struct {
 	Pool *pgxpool.Pool
+	*PoolRunStore
+}
+
+// NewPoolStore constructs a PoolStore backed by pool.
+func NewPoolStore(pool *pgxpool.Pool) *PoolStore {
+	return &PoolStore{Pool: pool, PoolRunStore: NewPoolRunStore(pool)}
 }
 
 func (p PoolStore) List(ctx context.Context, ownerSub string) ([]Portfolio, error) {
