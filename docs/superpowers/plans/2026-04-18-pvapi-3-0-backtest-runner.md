@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make portfolios actually run. Implement the backtest runner end-to-end so creating a `one_shot` portfolio executes a strategy binary, writes a per-portfolio SQLite snapshot, and serves all ten derived-data endpoints (`/summary`, `/drawdowns`, `/statistics`, `/trailing-returns`, `/holdings`, `/holdings/{date}`, `/performance`, `/transactions`, `/runs`, `/runs/{runId}`) from that snapshot.
+**Goal:** Make portfolios actually run. Implement the backtest runner end-to-end so creating a `one_shot` portfolio executes a strategy binary, writes a per-portfolio SQLite snapshot, and serves all eleven derived-data endpoints (`/summary`, `/drawdowns`, `/statistics`, `/trailing-returns`, `/holdings`, `/holdings/{date}`, `/holdings/history`, `/performance`, `/transactions`, `/runs`, `/runs/{runId}`) from that snapshot.
+
+**Coordination note:** `/holdings/history` uses pvbt's batches-join query (`batches` table + `batch_id` on `transactions` / `annotations`). pvbt's schema change for this is in flight; pvapi is developing in parallel. The test fixture builder in this plan creates the batches schema locally so implementation does not block on the pvbt release.
 
 **Architecture:**
 - Two new packages: `backtest/` (Runner interface, HostRunner, Dispatcher worker pool, Run orchestration) and `snapshot/` (read-only typed accessors over the per-portfolio SQLite).
@@ -226,6 +228,80 @@ After `PerformancePoint:`, insert:
             $ref: '#/components/schemas/Transaction'
 ```
 
+- [ ] **Step 6b: Add the `/holdings/history` path and its schemas**
+
+In `openapi/openapi.yaml`, find the existing `/portfolios/{slug}/holdings/{date}:` path entry. Insert this block immediately after it (so `/history` sits next to the other holdings routes — oapi-codegen's route matching is order-insensitive, but this keeps the file readable):
+
+```yaml
+  /portfolios/{slug}/holdings/history:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioHoldingsHistory
+      summary: Per-batch holdings history across the backtest
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: from
+          in: query
+          required: false
+          description: Inclusive lower bound on batch timestamp (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive upper bound on batch timestamp (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Per-batch holdings history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+```
+
+Then, inside `components: schemas:`, immediately after `TransactionsResponse:`, add:
+
+```yaml
+    HoldingsHistoryEntry:
+      type: object
+      required: [batchId, timestamp, items]
+      properties:
+        batchId:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Holding'
+        annotations:
+          type: object
+          description: Optional strategy-written key/value labels for this batch.
+          additionalProperties:
+            type: string
+
+    HoldingsHistoryResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HoldingsHistoryEntry'
+```
+
 - [ ] **Step 7: Regenerate `openapi.gen.go`**
 
 Run: `make gen`
@@ -233,8 +309,8 @@ Expected: exits 0; `openapi/openapi.gen.go` updated.
 
 - [ ] **Step 8: Verify the generated file has the new types**
 
-Run: `grep -c "PortfolioStatistic\|PortfolioPerformance\|PerformancePoint\|Transaction\b\|TransactionsResponse" openapi/openapi.gen.go`
-Expected: nonzero count (should be at least 10).
+Run: `grep -c "PortfolioStatistic\|PortfolioPerformance\|PerformancePoint\|Transaction\b\|TransactionsResponse\|HoldingsHistoryEntry\|HoldingsHistoryResponse" openapi/openapi.gen.go`
+Expected: nonzero count (should be at least 14).
 
 Run: `grep -c "PortfolioMetric\|PortfolioMeasurements\|MeasurementPoint" openapi/openapi.gen.go`
 Expected: `0` (all old names gone).
@@ -248,7 +324,7 @@ Expected: success. (No handler code references these types yet — all derived e
 
 ```bash
 git add openapi/openapi.yaml openapi/openapi.gen.go
-git commit -m "rename OpenAPI /metrics->/statistics, /measurements->/performance, add /transactions"
+git commit -m "rename OpenAPI /metrics->/statistics, /measurements->/performance, add /transactions and /holdings/history"
 ```
 
 ---
@@ -1141,17 +1217,19 @@ func BuildTestSnapshot(path string) error {
 	defer db.Close()
 
 	stmts := []string{
-		// schema (matches pvbt portfolio/sqlite.go)
+		// schema (matches pvbt portfolio/sqlite.go, plus the in-flight
+		// batches table and batch_id columns on transactions/annotations)
 		`CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)`,
 		`CREATE TABLE perf_data (date TEXT NOT NULL, metric TEXT NOT NULL, value REAL NOT NULL)`,
-		`CREATE TABLE transactions (date TEXT, type TEXT, ticker TEXT, figi TEXT, quantity REAL, price REAL, amount REAL, qualified INTEGER, justification TEXT)`,
+		`CREATE TABLE batches (batch_id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL)`,
+		`CREATE TABLE transactions (batch_id INTEGER REFERENCES batches(batch_id), date TEXT, type TEXT, ticker TEXT, figi TEXT, quantity REAL, price REAL, amount REAL, qualified INTEGER, justification TEXT)`,
 		`CREATE TABLE holdings (asset_ticker TEXT, asset_figi TEXT, quantity REAL, avg_cost REAL, market_value REAL)`,
 		`CREATE TABLE tax_lots (asset_ticker TEXT, asset_figi TEXT, date TEXT, quantity REAL, price REAL, id TEXT DEFAULT '')`,
 		`CREATE TABLE metrics (date TEXT, name TEXT, window TEXT, value REAL)`,
-		`CREATE TABLE annotations (timestamp INTEGER, key TEXT, value TEXT)`,
+		`CREATE TABLE annotations (batch_id INTEGER REFERENCES batches(batch_id), timestamp INTEGER, key TEXT, value TEXT)`,
 
 		// metadata
-		`INSERT INTO metadata VALUES ('schema_version', '3')`,
+		`INSERT INTO metadata VALUES ('schema_version', '4')`,
 		`INSERT INTO metadata VALUES ('start_date', '2024-01-02')`,
 		`INSERT INTO metadata VALUES ('end_date', '2024-01-08')`,
 		`INSERT INTO metadata VALUES ('benchmark', 'SPY')`,
@@ -1170,9 +1248,19 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO perf_data VALUES ('2024-01-05', 'benchmark_value', 101500)`,
 		`INSERT INTO perf_data VALUES ('2024-01-08', 'benchmark_value', 102000)`,
 
-		// one BUY transaction + one DIVIDEND
-		`INSERT INTO transactions VALUES ('2024-01-02', 'buy', 'VTI', 'BBG000BDTBL9', 100, 100, 10000, 0, 'initial buy')`,
-		`INSERT INTO transactions VALUES ('2024-01-05', 'dividend', 'VTI', 'BBG000BDTBL9', 0, 0, 25.50, 1, 'qualified div')`,
+		// batches: three rebalance points
+		`INSERT INTO batches VALUES (1, '2024-01-02T14:30:00Z')`,
+		`INSERT INTO batches VALUES (2, '2024-01-05T14:30:00Z')`,
+		`INSERT INTO batches VALUES (3, '2024-01-08T14:30:00Z')`,
+
+		// one BUY transaction in batch 1 + one DIVIDEND in batch 2
+		`INSERT INTO transactions VALUES (1, '2024-01-02', 'buy', 'VTI', 'BBG000BDTBL9', 100, 100, 10000, 0, 'initial buy')`,
+		`INSERT INTO transactions VALUES (2, '2024-01-05', 'dividend', 'VTI', 'BBG000BDTBL9', 0, 0, 25.50, 1, 'qualified div')`,
+
+		// annotations: one per batch
+		`INSERT INTO annotations VALUES (1, 1704205800, 'reason', 'initial allocation')`,
+		`INSERT INTO annotations VALUES (2, 1704464200, 'reason', 'dividend payment')`,
+		`INSERT INTO annotations VALUES (3, 1704722600, 'reason', 'final state')`,
 
 		// current holdings
 		`INSERT INTO holdings VALUES ('VTI', 'BBG000BDTBL9', 100, 100, 10300)`,
@@ -1525,6 +1613,40 @@ var _ = Describe("Holdings", func() {
 			Expect(err).To(MatchError(snapshot.ErrNotFound))
 		})
 	})
+
+	Describe("HoldingsHistory", func() {
+		It("emits one entry per batch with cumulative holdings and annotations", func() {
+			resp, err := reader.HoldingsHistory(context.Background(), nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Items).To(HaveLen(3))
+
+			// batch 1: one buy of 100 VTI
+			Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
+			Expect(resp.Items[0].Items).To(HaveLen(1))
+			Expect(resp.Items[0].Items[0].Ticker).To(Equal("VTI"))
+			Expect(resp.Items[0].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(*resp.Items[0].Annotations).To(HaveKeyWithValue("reason", "initial allocation"))
+
+			// batch 2: dividend doesn't change quantity
+			Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
+			Expect(resp.Items[1].Items).To(HaveLen(1))
+			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+
+			// batch 3: empty batch (no transactions) still appears
+			Expect(resp.Items[2].BatchId).To(Equal(int64(3)))
+			Expect(resp.Items[2].Items).To(HaveLen(1))
+			Expect(resp.Items[2].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+		})
+
+		It("filters the batch range by from/to timestamps", func() {
+			from := mustDate("2024-01-04")
+			to := mustDate("2024-01-06")
+			resp, err := reader.HoldingsHistory(context.Background(), &from, &to)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Items).To(HaveLen(1))
+			Expect(resp.Items[0].BatchId).To(Equal(int64(2)))
+		})
+	})
 })
 ```
 
@@ -1545,6 +1667,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oapi-codegen/runtime/types"
@@ -1688,6 +1811,140 @@ func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.Hol
 	return &out, nil
 }
 
+// HoldingsHistory emits one entry per batch in the backtest. Uses the
+// batches-join query recommended by the pvbt team:
+//
+//   SELECT b.batch_id, b.timestamp, t.ticker, t.figi,
+//          SUM(CASE t.type WHEN 'buy' THEN t.quantity
+//                          WHEN 'sell' THEN -t.quantity
+//                          WHEN 'split' THEN t.quantity
+//                          ELSE 0 END) AS quantity
+//     FROM batches b
+//     LEFT JOIN transactions t ON t.batch_id <= b.batch_id
+//    GROUP BY b.batch_id, b.timestamp, t.ticker, t.figi
+//   HAVING quantity != 0
+//    ORDER BY b.batch_id, t.ticker;
+//
+// Annotations are fetched separately and zipped by batch_id.
+func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error) {
+	// 1. select batches within range
+	batchQ := `SELECT batch_id, timestamp FROM batches`
+	var (
+		where []string
+		args  []any
+	)
+	if from != nil {
+		where = append(where, "timestamp >= ?")
+		args = append(args, from.Format("2006-01-02T15:04:05Z"))
+	}
+	if to != nil {
+		// upper bound is end-of-day
+		endOfTo := to.Add(24*time.Hour - time.Second)
+		where = append(where, "timestamp <= ?")
+		args = append(args, endOfTo.Format("2006-01-02T15:04:05Z"))
+	}
+	if len(where) > 0 {
+		batchQ += " WHERE " + strings.Join(where, " AND ")
+	}
+	batchQ += " ORDER BY batch_id"
+
+	rows, err := r.db.QueryContext(ctx, batchQ, args...)
+	if err != nil {
+		return nil, fmt.Errorf("holdings history batches: %w", err)
+	}
+	defer rows.Close()
+
+	type batchKey struct {
+		id int64
+		ts time.Time
+	}
+	var batches []batchKey
+	for rows.Next() {
+		var b batchKey
+		var tsStr string
+		if err := rows.Scan(&b.id, &tsStr); err != nil {
+			return nil, fmt.Errorf("holdings history scan: %w", err)
+		}
+		b.ts, _ = time.Parse(time.RFC3339, tsStr)
+		batches = append(batches, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := &openapi.HoldingsHistoryResponse{Items: []openapi.HoldingsHistoryEntry{}}
+	if len(batches) == 0 {
+		return out, nil
+	}
+
+	// 2. for each batch, get cumulative holdings via SUM(CASE) over
+	//    transactions up to and including that batch_id. Running two
+	//    queries per batch is fine for typical strategies (dozens of
+	//    batches); an aggregated single query is an optimization we can
+	//    bring back if profiling demands it.
+	for _, b := range batches {
+		entry := openapi.HoldingsHistoryEntry{
+			BatchId:   b.id,
+			Timestamp: b.ts,
+			Items:     []openapi.Holding{},
+		}
+		hRows, err := r.db.QueryContext(ctx, `
+			SELECT ticker, figi,
+			       SUM(CASE type
+			           WHEN 'buy'   THEN  quantity
+			           WHEN 'sell'  THEN -quantity
+			           WHEN 'split' THEN  quantity
+			           ELSE 0 END) AS q
+			  FROM transactions
+			 WHERE batch_id <= ?
+			 GROUP BY ticker, figi
+			HAVING q != 0
+			 ORDER BY ticker
+		`, b.id)
+		if err != nil {
+			return nil, fmt.Errorf("holdings history batch %d: %w", b.id, err)
+		}
+		for hRows.Next() {
+			var ticker string
+			var figi sql.NullString
+			var q float64
+			if err := hRows.Scan(&ticker, &figi, &q); err != nil {
+				hRows.Close()
+				return nil, fmt.Errorf("holdings history batch scan: %w", err)
+			}
+			h := openapi.Holding{Ticker: ticker, Quantity: q}
+			if figi.Valid && figi.String != "" {
+				s := figi.String
+				h.Figi = &s
+			}
+			entry.Items = append(entry.Items, h)
+		}
+		hRows.Close()
+
+		// 3. annotations for this batch
+		aRows, err := r.db.QueryContext(ctx,
+			`SELECT key, value FROM annotations WHERE batch_id = ? ORDER BY key`, b.id)
+		if err != nil {
+			return nil, fmt.Errorf("holdings history annotations %d: %w", b.id, err)
+		}
+		ann := map[string]string{}
+		for aRows.Next() {
+			var k, v string
+			if err := aRows.Scan(&k, &v); err != nil {
+				aRows.Close()
+				return nil, err
+			}
+			ann[k] = v
+		}
+		aRows.Close()
+		if len(ann) > 0 {
+			entry.Annotations = &ann
+		}
+		out.Items = append(out.Items, entry)
+	}
+	return out, nil
+}
+
 func (r *Reader) readEndDate(ctx context.Context) (time.Time, error) {
 	var s string
 	err := r.db.QueryRowContext(ctx,
@@ -1740,7 +1997,7 @@ Expected: all Holdings specs pass.
 
 ```bash
 git add snapshot/holdings.go snapshot/holdings_test.go
-git commit -m "add snapshot.Reader.CurrentHoldings + HoldingsAsOf (transaction replay)"
+git commit -m "add snapshot.Reader.CurrentHoldings + HoldingsAsOf + HoldingsHistory"
 ```
 
 ---
@@ -2882,6 +3139,7 @@ type SnapshotReader interface {
 	TrailingReturns(ctx context.Context) ([]openapi.TrailingReturnRow, error)
 	CurrentHoldings(ctx context.Context) (*openapi.HoldingsResponse, error)
 	HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.HoldingsResponse, error)
+	HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error)
 	Performance(ctx context.Context, slug string, from, to *time.Time) (*openapi.PortfolioPerformance, error)
 	Transactions(ctx context.Context, filter SnapshotTxFilter) (*openapi.TransactionsResponse, error)
 	Close() error
@@ -3156,6 +3414,28 @@ var snapshotPkgNotFound = snapshot.ErrNotFound
 Continue in `portfolio/handler.go`:
 
 ```go
+// GET /portfolios/{slug}/holdings/history
+func (h *Handler) HoldingsHistory(c fiber.Ctx) error {
+	var from, to *time.Time
+	if s := string([]byte(c.Query("from"))); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			return api.WriteProblem(c, fmt.Errorf("%w: from must be YYYY-MM-DD", api.ErrInvalidParams))
+		}
+		from = &t
+	}
+	if s := string([]byte(c.Query("to"))); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			return api.WriteProblem(c, fmt.Errorf("%w: to must be YYYY-MM-DD", api.ErrInvalidParams))
+		}
+		to = &t
+	}
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.HoldingsHistory(c.Context(), from, to)
+	})
+}
+
 // GET /portfolios/{slug}/performance
 func (h *Handler) Performance(c fiber.Ctx) error {
 	var from, to *time.Time
@@ -3321,6 +3601,7 @@ func (f *fakeSnapshotReader) Statistics(ctx context.Context) ([]openapi.Portfoli
 func (f *fakeSnapshotReader) TrailingReturns(ctx context.Context) ([]openapi.TrailingReturnRow, error) { return nil, nil }
 func (f *fakeSnapshotReader) CurrentHoldings(ctx context.Context) (*openapi.HoldingsResponse, error) { return nil, nil }
 func (f *fakeSnapshotReader) HoldingsAsOf(ctx context.Context, d time.Time) (*openapi.HoldingsResponse, error) { return nil, nil }
+func (f *fakeSnapshotReader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error) { return nil, nil }
 func (f *fakeSnapshotReader) Performance(ctx context.Context, slug string, from, to *time.Time) (*openapi.PortfolioPerformance, error) { return nil, nil }
 func (f *fakeSnapshotReader) Transactions(ctx context.Context, fi portfolio.SnapshotTxFilter) (*openapi.TransactionsResponse, error) { return nil, nil }
 
@@ -3428,6 +3709,7 @@ func RegisterPortfolioRoutesWith(r fiber.Router, h *PortfolioHandler) {
 	r.Get("/portfolios/:slug/statistics", h.inner.Statistics)
 	r.Get("/portfolios/:slug/trailing-returns", h.inner.TrailingReturns)
 	r.Get("/portfolios/:slug/holdings", h.inner.Holdings)
+	r.Get("/portfolios/:slug/holdings/history", h.inner.HoldingsHistory) // must precede :date
 	r.Get("/portfolios/:slug/holdings/:date", h.inner.HoldingsAsOf)
 	r.Get("/portfolios/:slug/performance", h.inner.Performance)
 	r.Get("/portfolios/:slug/transactions", h.inner.Transactions)
@@ -4435,4 +4717,4 @@ git commit -m "go mod tidy after plan 5"
 
 ## Plan summary
 
-Ten tasks cover the cross-cutting plumbing (contract, migration, packages, dispatcher, orchestration, wiring, sweep, smoke). Four tasks add the derived-data endpoints in the pattern-matched style. Task 1 is the contract rename that has to land first. All tasks use Ginkgo/Gomega per the repo convention, and only Task 11 and Task 18 Step 4 touch a live database — guarded behind `PVAPI_SMOKE_DB_URL` so hermetic runs (`ginkgo -r`) stay fast and self-contained.
+Eighteen tasks cover the cross-cutting plumbing (contract, migration, packages, dispatcher, orchestration, wiring, sweep, smoke) and the eleven derived-data endpoints. Task 1 is the contract rename + new paths that must land first. All tasks use Ginkgo/Gomega per the repo convention, and only Task 11 and Task 18 Step 4 touch a live database — guarded behind `PVAPI_SMOKE_DB_URL` so hermetic runs (`ginkgo -r`) stay fast and self-contained. `/holdings/history` uses a local batches-schema fixture so pvapi implementation does not block on the in-flight pvbt release that adds that schema to the snapshot.
