@@ -254,29 +254,36 @@ All endpoints require `BearerAuth` (Auth0 JWT). Errors are
 
 ### Portfolios
 
-The portfolio surface is split so that portfolio *configuration* (stable,
-always present) is separate from the *latest backtest output* (derived,
-overwritten each successful run). Pending portfolios — ones that have never
-completed a run — respond 200 on the config endpoint and 404 on the derived
-endpoints.
+The portfolio surface is fully split: portfolio *configuration* (stable,
+user-editable) lives at `/portfolios/{slug}`; every *derived* shape from
+the latest successful backtest gets its own endpoint. No bundled
+`/results` response — flat endpoints each answer one UI question and
+can be loaded independently. Pending portfolios — ones that have never
+completed a run — respond 200 on the config endpoint and 404 on every
+derived endpoint.
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET    | `/portfolios` | List the caller's portfolios. Each item carries config fields plus top-line summary KPIs (`currentValue`, `ytdReturn`, `maxDrawDown`, `lastUpdated`) marked **optional** so pending portfolios appear with `status` only. |
 | POST   | `/portfolios` | Create: strategy + parameters + mode + schedule. Returns 201 with slug. `mode=live` returns 422 until a future live-trading plan ships. |
-| GET    | `/portfolios/{slug}` | **Config only.** Slug, name, strategyCode, strategyVer, parameters, presetName, benchmark, mode, schedule, status, createdAt, updatedAt, lastRunAt, lastError. Always 200 on existing portfolios. |
+| GET    | `/portfolios/{slug}` | **Config only.** slug, name, strategyCode, strategyVer, parameters, presetName, benchmark, mode, schedule, status, createdAt, updatedAt, lastRunAt, lastError. Always 200 on existing portfolios. |
 | PATCH  | `/portfolios/{slug}` | **`name` only.** Changes to parameters / schedule / benchmark / mode are rejected — the user must DELETE and re-create to keep slug coherent with config. |
 | DELETE | `/portfolios/{slug}` | Delete portfolio row and its snapshot file. |
-| GET    | `/portfolios/{slug}/results` | Bundled derived output from the latest successful run: `asOf`, `summary`, `drawdowns`, `metrics`, `trailingReturns`, `allocation`. 404 when no successful run. |
-| GET    | `/portfolios/{slug}/measurements` | Equity-curve time series. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/summary` | `PortfolioSummary` — top-line KPIs (currentValue, ytdReturn, cagrSinceInception, maxDrawDown, sharpe, sortino, beta, alpha, stdDev, taxCostRatio, ...). 404 when no successful run. |
+| GET    | `/portfolios/{slug}/drawdowns` | `Drawdown[]`, ordered by depth. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/metrics` | `PortfolioMetric[]` — generic label/value/format rows for the risk-and-style panel. 404 when no successful run. |
+| GET    | `/portfolios/{slug}/trailing-returns` | `TrailingReturnRow[]` — kebab-case path because `trailingreturns` is unreadable. 404 when no successful run. |
 | GET    | `/portfolios/{slug}/holdings` | Latest holdings: `{date, items: Holding[], totalMarketValue}` where `Holding = {ticker, figi?, quantity, avgCost, marketValue}`. 404 when no successful run. |
 | GET    | `/portfolios/{slug}/holdings/{date}` | Historical holdings as of ISO `YYYY-MM-DD`. 404 when no snapshot for that date. |
+| GET    | `/portfolios/{slug}/measurements` | Equity-curve time series. 404 when no successful run. |
 | POST   | `/portfolios/{slug}/runs` | Trigger a one-shot backtest now. Returns 202 with the new `backtest_runs` row. |
 | GET    | `/portfolios/{slug}/runs` | Run history. |
 | GET    | `/portfolios/{slug}/runs/{runId}` | Single run detail. |
 
-Whether `/results.allocation` stays once `/holdings` exists, or is dropped
-as redundant, is an open question flagged for Plan 4 brainstorming.
+Allocation-as-weights is not a separate endpoint: `/holdings` is the
+canonical holdings resource, and clients compute weights client-side
+from `item.marketValue / totalMarketValue`. `dayChange` (delta since
+previous close) moves to the `Holding` schema.
 
 ### Strategies
 
@@ -342,6 +349,46 @@ POST /portfolios
   (bounded by a timeout) before the create returns. Official strategies
   already installed are a no-op. Unofficial strategies always install
   ephemerally per run — `strategyVer` is tracked but no pre-install happens.
+
+### Create-portfolio validation (Plan 4)
+
+Plan 4 (portfolio CRUD slice) performs all validation server-side before
+inserting the row. A create succeeds only if **every** check passes:
+
+1. **Strategy exists.** `strategyCode` must reference a row in
+   `strategies`. Otherwise 422 `{title: "Unknown strategy", detail: "no
+   registered strategy with short_code=<x>"}`.
+2. **Strategy is installed.** The referenced strategy's
+   `installed_ver IS NOT NULL` and `describe_json IS NOT NULL`. If the
+   strategy is still in `pending` / `installing` / `failed`, the create
+   returns 422 `{title: "Strategy not ready", detail: "<short_code> is
+   still installing — try again in a few seconds"}`.
+3. **Strategy version exists.** If `strategyVer` is supplied, it must
+   equal the row's `installed_ver` (Plan 4 only accepts the currently
+   installed version; historical pinning lands in a future plan). If
+   omitted, `installed_ver` is used.
+4. **Mode is not `live`.** `mode=live` → 422
+   `{title: "Live mode unavailable", detail: "live trading is not yet
+   supported"}`.
+5. **Schedule consistency.** `mode=continuous` requires a non-empty
+   `schedule`; `mode=one_shot` rejects any `schedule`. 422 on violation.
+6. **Parameters validate against describe.** The strategy's
+   `describe_json.parameters` enumerates declared names; every name
+   required by the strategy must appear in the request's `parameters`.
+   Unknown extra keys are rejected. Type matching is
+   best-effort in Plan 4 (value must be JSON-serializable); deeper
+   type-checks live with the strategy runner in Plan 5.
+7. **No duplicate.** Slug is computed; if `(owner_sub, slug)` already
+   exists, return 409 with the existing slug.
+
+On success, the slug's preset segment is chosen by comparing the
+submitted `parameters` against each entry in `describe_json.presets`.
+First match (presets are ordered by the strategy author) wins; no
+match → `custom`.
+
+`runNow` is accepted but is a **no-op in Plan 4** — no runner exists
+yet. The portfolio lands at `status=pending`. Plan 5 (backtest runner)
+honors `runNow` for real.
 
 ## Auth
 
@@ -734,7 +781,3 @@ brainstorming:
   pvapi. Decision deferred; nullable columns for now.
 - **SSE/WebSocket for run progress**: currently polling only. If the UI
   needs live progress, add later.
-- **`/results.allocation` vs `/holdings`**: both expose current
-  holdings at different levels of detail. Open question for Plan 4:
-  keep `allocation` inside `/results` (pie-chart-friendly weights) or
-  drop it since `/holdings` supersedes it.
