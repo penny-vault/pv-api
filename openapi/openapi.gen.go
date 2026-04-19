@@ -31,27 +31,6 @@ func (e MetricFormat) Valid() bool {
 	}
 }
 
-// Defines values for PortfolioMeasurementsResolution.
-const (
-	PortfolioMeasurementsResolutionDaily   PortfolioMeasurementsResolution = "daily"
-	PortfolioMeasurementsResolutionMonthly PortfolioMeasurementsResolution = "monthly"
-	PortfolioMeasurementsResolutionWeekly  PortfolioMeasurementsResolution = "weekly"
-)
-
-// Valid indicates whether the value is a known member of the PortfolioMeasurementsResolution enum.
-func (e PortfolioMeasurementsResolution) Valid() bool {
-	switch e {
-	case PortfolioMeasurementsResolutionDaily:
-		return true
-	case PortfolioMeasurementsResolutionMonthly:
-		return true
-	case PortfolioMeasurementsResolutionWeekly:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PortfolioMode.
 const (
 	Continuous PortfolioMode = "continuous"
@@ -67,6 +46,27 @@ func (e PortfolioMode) Valid() bool {
 	case Live:
 		return true
 	case OneShot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PortfolioPerformanceResolution.
+const (
+	PortfolioPerformanceResolutionDaily   PortfolioPerformanceResolution = "daily"
+	PortfolioPerformanceResolutionMonthly PortfolioPerformanceResolution = "monthly"
+	PortfolioPerformanceResolutionWeekly  PortfolioPerformanceResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the PortfolioPerformanceResolution enum.
+func (e PortfolioPerformanceResolution) Valid() bool {
+	switch e {
+	case PortfolioPerformanceResolutionDaily:
+		return true
+	case PortfolioPerformanceResolutionMonthly:
+		return true
+	case PortfolioPerformanceResolutionWeekly:
 		return true
 	default:
 		return false
@@ -169,21 +169,60 @@ func (e StrategyInstallState) Valid() bool {
 	}
 }
 
-// Defines values for GetPortfolioMeasurementsParamsResolution.
+// Defines values for TransactionType.
 const (
-	GetPortfolioMeasurementsParamsResolutionDaily   GetPortfolioMeasurementsParamsResolution = "daily"
-	GetPortfolioMeasurementsParamsResolutionMonthly GetPortfolioMeasurementsParamsResolution = "monthly"
-	GetPortfolioMeasurementsParamsResolutionWeekly  GetPortfolioMeasurementsParamsResolution = "weekly"
+	Buy        TransactionType = "buy"
+	Deposit    TransactionType = "deposit"
+	Dividend   TransactionType = "dividend"
+	Fee        TransactionType = "fee"
+	Interest   TransactionType = "interest"
+	Journal    TransactionType = "journal"
+	Sell       TransactionType = "sell"
+	Split      TransactionType = "split"
+	Withdrawal TransactionType = "withdrawal"
 )
 
-// Valid indicates whether the value is a known member of the GetPortfolioMeasurementsParamsResolution enum.
-func (e GetPortfolioMeasurementsParamsResolution) Valid() bool {
+// Valid indicates whether the value is a known member of the TransactionType enum.
+func (e TransactionType) Valid() bool {
 	switch e {
-	case GetPortfolioMeasurementsParamsResolutionDaily:
+	case Buy:
 		return true
-	case GetPortfolioMeasurementsParamsResolutionMonthly:
+	case Deposit:
 		return true
-	case GetPortfolioMeasurementsParamsResolutionWeekly:
+	case Dividend:
+		return true
+	case Fee:
+		return true
+	case Interest:
+		return true
+	case Journal:
+		return true
+	case Sell:
+		return true
+	case Split:
+		return true
+	case Withdrawal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPortfolioPerformanceParamsResolution.
+const (
+	GetPortfolioPerformanceParamsResolutionDaily   GetPortfolioPerformanceParamsResolution = "daily"
+	GetPortfolioPerformanceParamsResolutionMonthly GetPortfolioPerformanceParamsResolution = "monthly"
+	GetPortfolioPerformanceParamsResolutionWeekly  GetPortfolioPerformanceParamsResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the GetPortfolioPerformanceParamsResolution enum.
+func (e GetPortfolioPerformanceParamsResolution) Valid() bool {
+	switch e {
+	case GetPortfolioPerformanceParamsResolutionDaily:
+		return true
+	case GetPortfolioPerformanceParamsResolutionMonthly:
+		return true
+	case GetPortfolioPerformanceParamsResolutionWeekly:
 		return true
 	default:
 		return false
@@ -246,6 +285,20 @@ type Holding struct {
 	Ticker      string   `json:"ticker"`
 }
 
+// HoldingsHistoryEntry defines model for HoldingsHistoryEntry.
+type HoldingsHistoryEntry struct {
+	// Annotations Optional strategy-written key/value labels for this batch.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+	BatchId     int64              `json:"batchId"`
+	Items       []Holding          `json:"items"`
+	Timestamp   time.Time          `json:"timestamp"`
+}
+
+// HoldingsHistoryResponse defines model for HoldingsHistoryResponse.
+type HoldingsHistoryResponse struct {
+	Items []HoldingsHistoryEntry `json:"items"`
+}
+
 // HoldingsResponse defines model for HoldingsResponse.
 type HoldingsResponse struct {
 	Date             openapi_types.Date `json:"date"`
@@ -253,8 +306,11 @@ type HoldingsResponse struct {
 	TotalMarketValue float64            `json:"totalMarketValue"`
 }
 
-// MeasurementPoint defines model for MeasurementPoint.
-type MeasurementPoint struct {
+// MetricFormat How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
+type MetricFormat string
+
+// PerformancePoint defines model for PerformancePoint.
+type PerformancePoint struct {
 	// BenchmarkValue Normalized to start at the portfolio's opening value.
 	BenchmarkValue float64            `json:"benchmarkValue"`
 	Date           openapi_types.Date `json:"date"`
@@ -263,9 +319,6 @@ type MeasurementPoint struct {
 	// RiskFreeRate Annualized risk-free rate at this date (e.g. 3-month T-Bill). Optional.
 	RiskFreeRate *float64 `json:"riskFreeRate,omitempty"`
 }
-
-// MetricFormat How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
-type MetricFormat string
 
 // Portfolio Portfolio configuration + status. Derived backtest output lives on separate endpoints.
 type Portfolio struct {
@@ -339,29 +392,29 @@ type PortfolioListItem struct {
 	YtdReturn    *float64        `json:"ytdReturn,omitempty"`
 }
 
-// PortfolioMeasurements defines model for PortfolioMeasurements.
-type PortfolioMeasurements struct {
-	From          openapi_types.Date               `json:"from"`
-	Points        []MeasurementPoint               `json:"points"`
-	PortfolioSlug string                           `json:"portfolioSlug"`
-	Resolution    *PortfolioMeasurementsResolution `json:"resolution,omitempty"`
-	To            openapi_types.Date               `json:"to"`
+// PortfolioMode Portfolio execution mode. `live` is reserved but rejected by
+// POST /portfolios with 422 until a future live-trading project ships.
+type PortfolioMode string
+
+// PortfolioPerformance defines model for PortfolioPerformance.
+type PortfolioPerformance struct {
+	From          openapi_types.Date              `json:"from"`
+	Points        []PerformancePoint              `json:"points"`
+	PortfolioSlug string                          `json:"portfolioSlug"`
+	Resolution    *PortfolioPerformanceResolution `json:"resolution,omitempty"`
+	To            openapi_types.Date              `json:"to"`
 }
 
-// PortfolioMeasurementsResolution defines model for PortfolioMeasurements.Resolution.
-type PortfolioMeasurementsResolution string
+// PortfolioPerformanceResolution defines model for PortfolioPerformance.Resolution.
+type PortfolioPerformanceResolution string
 
-// PortfolioMetric defines model for PortfolioMetric.
-type PortfolioMetric struct {
+// PortfolioStatistic defines model for PortfolioStatistic.
+type PortfolioStatistic struct {
 	// Format How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
 	Format MetricFormat `json:"format"`
 	Label  string       `json:"label"`
 	Value  float64      `json:"value"`
 }
-
-// PortfolioMode Portfolio execution mode. `live` is reserved but rejected by
-// POST /portfolios with 422 until a future live-trading project ships.
-type PortfolioMode string
 
 // PortfolioStatus defines model for PortfolioStatus.
 type PortfolioStatus string
@@ -484,6 +537,27 @@ type TrailingReturnRow struct {
 	Ytd            float64       `json:"ytd"`
 }
 
+// Transaction defines model for Transaction.
+type Transaction struct {
+	Amount        *float64           `json:"amount,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	Figi          *string            `json:"figi,omitempty"`
+	Justification *string            `json:"justification,omitempty"`
+	Price         *float64           `json:"price,omitempty"`
+	Qualified     *bool              `json:"qualified,omitempty"`
+	Quantity      *float64           `json:"quantity,omitempty"`
+	Ticker        *string            `json:"ticker,omitempty"`
+	Type          TransactionType    `json:"type"`
+}
+
+// TransactionType defines model for Transaction.Type.
+type TransactionType string
+
+// TransactionsResponse defines model for TransactionsResponse.
+type TransactionsResponse struct {
+	Items []Transaction `json:"items"`
+}
+
 // PortfolioSlug defines model for PortfolioSlug.
 type PortfolioSlug = string
 
@@ -502,8 +576,17 @@ type Unauthorized = Problem
 // UnprocessableEntity RFC 7807 Problem Details.
 type UnprocessableEntity = Problem
 
-// GetPortfolioMeasurementsParams defines parameters for GetPortfolioMeasurements.
-type GetPortfolioMeasurementsParams struct {
+// GetPortfolioHoldingsHistoryParams defines parameters for GetPortfolioHoldingsHistory.
+type GetPortfolioHoldingsHistoryParams struct {
+	// From Inclusive lower bound on batch timestamp (YYYY-MM-DD).
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive upper bound on batch timestamp (YYYY-MM-DD).
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetPortfolioPerformanceParams defines parameters for GetPortfolioPerformance.
+type GetPortfolioPerformanceParams struct {
 	// From ISO date (YYYY-MM-DD). Inclusive.
 	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
 
@@ -511,11 +594,23 @@ type GetPortfolioMeasurementsParams struct {
 	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 
 	// Resolution Downsample target. `daily` (default) or `weekly`/`monthly` for coarser series.
-	Resolution *GetPortfolioMeasurementsParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+	Resolution *GetPortfolioPerformanceParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
 }
 
-// GetPortfolioMeasurementsParamsResolution defines parameters for GetPortfolioMeasurements.
-type GetPortfolioMeasurementsParamsResolution string
+// GetPortfolioPerformanceParamsResolution defines parameters for GetPortfolioPerformance.
+type GetPortfolioPerformanceParamsResolution string
+
+// GetPortfolioTransactionsParams defines parameters for GetPortfolioTransactions.
+type GetPortfolioTransactionsParams struct {
+	// From Inclusive start date (YYYY-MM-DD).
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive end date (YYYY-MM-DD).
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+
+	// Type Comma-separated list of transaction types to include.
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+}
 
 // ListStrategiesParams defines parameters for ListStrategies.
 type ListStrategiesParams struct {

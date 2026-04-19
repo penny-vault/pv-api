@@ -76,7 +76,7 @@ paths:
       summary: Get a single portfolio with full summary data
       description: |
         Returns everything the Portfolio Summary screen needs **except** the
-        time-series measurements (those are at `/portfolios/{slug}/measurements`
+        time-series measurements (those are at `/portfolios/{slug}/performance`
         because they can be large and are cached separately).
       parameters:
         - $ref: '#/components/parameters/PortfolioSlug'
@@ -136,11 +136,11 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /portfolios/{slug}/measurements:
+  /portfolios/{slug}/performance:
     get:
       tags: [Portfolios]
-      operationId: getPortfolioMeasurements
-      summary: Time-series portfolio + benchmark values
+      operationId: getPortfolioPerformance
+      summary: Equity-curve time series
       description: |
         Daily measurements. Optionally filter by date range; when omitted,
         returns the full series from inception to today.
@@ -174,7 +174,48 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PortfolioMeasurements'
+                $ref: '#/components/schemas/PortfolioPerformance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/transactions:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioTransactions
+      summary: Backtest transactions (buys, sells, dividends, etc.)
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start date (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end date (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+        - name: type
+          in: query
+          required: false
+          description: Comma-separated list of transaction types to include.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -296,11 +337,11 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /portfolios/{slug}/metrics:
+  /portfolios/{slug}/statistics:
     get:
       tags: [Portfolios]
-      operationId: getPortfolioMetrics
-      summary: Generic label/value/format metric rows
+      operationId: getPortfolioStatistics
+      summary: Risk and style statistics
       parameters:
         - $ref: '#/components/parameters/PortfolioSlug'
       responses:
@@ -311,7 +352,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PortfolioMetric'
+                  $ref: '#/components/schemas/PortfolioStatistic'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -383,6 +424,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/holdings/history:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioHoldingsHistory
+      summary: Per-batch holdings history across the backtest
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: from
+          in: query
+          required: false
+          description: Inclusive lower bound on batch timestamp (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive upper bound on batch timestamp (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Per-batch holdings history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsHistoryResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -735,7 +811,7 @@ components:
           type: integer
           description: Trading days from start to recovery (or end of series if unrecovered).
 
-    PortfolioMetric:
+    PortfolioStatistic:
       type: object
       required: [label, value, format]
       properties:
@@ -814,8 +890,8 @@ components:
           type: number
           format: double
 
-    # ============ Measurements (time series) ============
-    PortfolioMeasurements:
+    # ============ Performance (time series) ============
+    PortfolioPerformance:
       type: object
       required: [portfolioSlug, from, to, points]
       properties:
@@ -833,9 +909,9 @@ components:
         points:
           type: array
           items:
-            $ref: '#/components/schemas/MeasurementPoint'
+            $ref: '#/components/schemas/PerformancePoint'
 
-    MeasurementPoint:
+    PerformancePoint:
       type: object
       required: [date, portfolioValue, benchmarkValue]
       properties:
@@ -853,6 +929,76 @@ components:
           type: number
           format: double
           description: Annualized risk-free rate at this date (e.g. 3-month T-Bill). Optional.
+
+    Transaction:
+      type: object
+      required: [date, type]
+      properties:
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+          enum: [buy, sell, dividend, fee, deposit, withdrawal, split, interest, journal]
+        ticker:
+          type: string
+          nullable: true
+        figi:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          format: double
+        price:
+          type: number
+          format: double
+        amount:
+          type: number
+          format: double
+        qualified:
+          type: boolean
+          nullable: true
+        justification:
+          type: string
+          nullable: true
+
+    TransactionsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    HoldingsHistoryEntry:
+      type: object
+      required: [batchId, timestamp, items]
+      properties:
+        batchId:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Holding'
+        annotations:
+          type: object
+          description: Optional strategy-written key/value labels for this batch.
+          additionalProperties:
+            type: string
+
+    HoldingsHistoryResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HoldingsHistoryEntry'
 
     PortfolioMode:
       type: string
