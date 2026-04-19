@@ -84,3 +84,9 @@ func (p PoolStore) SetReady(ctx context.Context, id uuid.UUID, snapshotPath stri
 func (p PoolStore) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
 	return SetFailed(ctx, p.Pool, id, errMsg)
 }
+
+// MarkAllRunningAsFailed implements backtest.PortfolioSweeper. It flips every
+// portfolio whose status is 'running' to 'failed' at server startup.
+func (p PoolStore) MarkAllRunningAsFailed(ctx context.Context, reason string) (int, error) {
+	return MarkAllRunningAsFailed(ctx, p.Pool, reason)
+}

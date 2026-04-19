@@ -183,6 +183,20 @@ func SetFailed(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, errMsg str
 	return err
 }
 
+// MarkAllRunningAsFailed flips every portfolio whose status is 'running' to
+// 'failed' with the supplied reason. Called at startup to clear any portfolios
+// that were left mid-run when the server was previously killed.
+// Returns the number of rows updated.
+func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason string) (int, error) {
+	tag, err := pool.Exec(ctx,
+		`UPDATE portfolios SET status='failed', last_error=$1, updated_at=NOW()
+		  WHERE status='running'`, reason)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }
