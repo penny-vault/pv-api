@@ -1402,7 +1402,9 @@ var _ = Describe("Transactions", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.Items).To(HaveLen(2))
 		Expect(resp.Items[0].Type).To(BeEquivalentTo(openapi.TransactionTypeBuy))
+		Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
 		Expect(resp.Items[1].Type).To(BeEquivalentTo(openapi.TransactionTypeDividend))
+		Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
 	})
 
 	It("filters by date range inclusively", func() {
@@ -1482,12 +1484,12 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 		}
 	}
 
-	q := `SELECT date, type, ticker, figi, quantity, price, amount, qualified, justification
+	q := `SELECT batch_id, date, type, ticker, figi, quantity, price, amount, qualified, justification
 	        FROM transactions`
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
 	}
-	q += " ORDER BY date, rowid"
+	q += " ORDER BY batch_id, rowid"
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -1499,13 +1501,14 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 	out.Items = []openapi.Transaction{}
 	for rows.Next() {
 		var (
+			batchID                         int64
 			dateStr                         string
 			typeStr                         string
 			ticker, figi, justification     *string
 			quantity, price, amount         *float64
 			qualified                       *int64
 		)
-		if err := rows.Scan(&dateStr, &typeStr, &ticker, &figi, &quantity, &price, &amount, &qualified, &justification); err != nil {
+		if err := rows.Scan(&batchID, &dateStr, &typeStr, &ticker, &figi, &quantity, &price, &amount, &qualified, &justification); err != nil {
 			return nil, fmt.Errorf("transactions scan: %w", err)
 		}
 		d, perr := time.Parse("2006-01-02", dateStr)
@@ -1513,6 +1516,7 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 			return nil, fmt.Errorf("transactions parse date %q: %w", dateStr, perr)
 		}
 		t := openapi.Transaction{
+			BatchId:       batchID,
 			Date:          types.Date{Time: d},
 			Type:          openapi.TransactionType(typeStr),
 			Ticker:        ticker,
