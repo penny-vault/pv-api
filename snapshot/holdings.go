@@ -42,7 +42,7 @@ func (r *Reader) CurrentHoldings(ctx context.Context) (*openapi.HoldingsResponse
 	if err != nil {
 		return nil, fmt.Errorf("holdings query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out openapi.HoldingsResponse
 	out.Date = types.Date{Time: endDate}
@@ -68,6 +68,14 @@ func (r *Reader) CurrentHoldings(ctx context.Context) (*openapi.HoldingsResponse
 	return &out, nil
 }
 
+// ledgerRow tracks a replayed transaction position for HoldingsAsOf.
+type ledgerRow struct {
+	figi      string
+	quantity  float64
+	totalCost float64
+	lastPrice float64
+}
+
 // HoldingsAsOf replays transactions up to (and including) date to reconstruct
 // the per-ticker position.
 func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.HoldingsResponse, error) {
@@ -86,55 +94,67 @@ func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.Hol
 	if err != nil {
 		return nil, fmt.Errorf("holdings asof query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
-	type ledgerRow struct {
-		figi      string
-		quantity  float64
-		totalCost float64
-		lastPrice float64
-	}
 	ledger := map[string]*ledgerRow{}
-
 	for rows.Next() {
-		var (
-			ticker, typeStr string
-			figi            sql.NullString
-			quantity, price float64
-		)
-		if err := rows.Scan(&ticker, &figi, &typeStr, &quantity, &price); err != nil {
-			return nil, fmt.Errorf("holdings asof scan: %w", err)
-		}
-		if ticker == "" {
-			continue
-		}
-		pos := ledger[ticker]
-		if pos == nil {
-			pos = &ledgerRow{figi: figi.String}
-			ledger[ticker] = pos
-		}
-		if price > 0 {
-			pos.lastPrice = price
-		}
-		switch typeStr {
-		case "buy":
-			pos.totalCost += quantity * price
-			pos.quantity += quantity
-		case "sell":
-			if pos.quantity > 0 {
-				avg := pos.totalCost / pos.quantity
-				pos.totalCost -= avg * quantity
-			}
-			pos.quantity -= quantity
-		case "split":
-			pos.quantity *= price
+		if err := replayTxIntoLedger(rows, ledger); err != nil {
+			return nil, err
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("holdings asof iterate: %w", err)
 	}
+	return ledgerToResponse(date, ledger), nil
+}
 
-	out := openapi.HoldingsResponse{
+// replayTxIntoLedger scans one transaction row and updates the ledger.
+func replayTxIntoLedger(rows interface {
+	Scan(...any) error
+}, ledger map[string]*ledgerRow) error {
+	var (
+		ticker, typeStr string
+		figi            sql.NullString
+		quantity, price float64
+	)
+	if err := rows.Scan(&ticker, &figi, &typeStr, &quantity, &price); err != nil {
+		return fmt.Errorf("holdings asof scan: %w", err)
+	}
+	if ticker == "" {
+		return nil
+	}
+	pos := ledger[ticker]
+	if pos == nil {
+		pos = &ledgerRow{figi: figi.String}
+		ledger[ticker] = pos
+	}
+	if price > 0 {
+		pos.lastPrice = price
+	}
+	applyTxToLedger(pos, typeStr, quantity, price)
+	return nil
+}
+
+// applyTxToLedger updates one ledger position given a transaction type.
+func applyTxToLedger(pos *ledgerRow, typeStr string, quantity, price float64) {
+	switch typeStr {
+	case "buy":
+		pos.totalCost += quantity * price
+		pos.quantity += quantity
+	case "sell":
+		if pos.quantity > 0 {
+			avg := pos.totalCost / pos.quantity
+			pos.totalCost -= avg * quantity
+		}
+		pos.quantity -= quantity
+	case "split":
+		pos.quantity *= price
+	}
+}
+
+// ledgerToResponse converts a ledger map into a HoldingsResponse.
+func ledgerToResponse(date time.Time, ledger map[string]*ledgerRow) *openapi.HoldingsResponse {
+	out := &openapi.HoldingsResponse{
 		Date:  types.Date{Time: date},
 		Items: []openapi.Holding{},
 	}
@@ -142,10 +162,7 @@ func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.Hol
 		if pos.quantity <= 0 {
 			continue
 		}
-		avg := 0.0
-		if pos.quantity > 0 {
-			avg = pos.totalCost / pos.quantity
-		}
+		avg := pos.totalCost / pos.quantity
 		mv := pos.quantity * pos.lastPrice
 		h := openapi.Holding{
 			Ticker:      ticker,
@@ -160,7 +177,7 @@ func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.Hol
 		out.Items = append(out.Items, h)
 		out.TotalMarketValue += mv
 	}
-	return &out, nil
+	return out
 }
 
 // HoldingsHistory emits one entry per batch. Uses the pvbt-recommended
@@ -182,7 +199,7 @@ func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*ope
 		args = append(args, endOfTo.Format("2006-01-02T15:04:05Z"))
 	}
 	if len(where) > 0 {
-		batchQ += " WHERE " + strings.Join(where, " AND ")
+		batchQ += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // G202: where clauses use only "timestamp >= ?" and "timestamp <= ?", no user input
 	}
 	batchQ += " ORDER BY batch_id"
 
@@ -190,12 +207,8 @@ func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*ope
 	if err != nil {
 		return nil, fmt.Errorf("holdings history batches: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
-	type batchKey struct {
-		id int64
-		ts time.Time
-	}
 	var batches []batchKey
 	for rows.Next() {
 		var b batchKey
@@ -211,70 +224,94 @@ func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*ope
 	}
 
 	out := &openapi.HoldingsHistoryResponse{Items: []openapi.HoldingsHistoryEntry{}}
-	if len(batches) == 0 {
-		return out, nil
-	}
-
 	for _, b := range batches {
-		entry := openapi.HoldingsHistoryEntry{
-			BatchId:   b.id,
-			Timestamp: b.ts,
-			Items:     []openapi.Holding{},
-		}
-		hRows, err := r.db.QueryContext(ctx, `
-			SELECT ticker, figi,
-			       SUM(CASE type
-			           WHEN 'buy'   THEN  quantity
-			           WHEN 'sell'  THEN -quantity
-			           WHEN 'split' THEN  quantity
-			           ELSE 0 END) AS q
-			  FROM transactions
-			 WHERE batch_id <= ?
-			 GROUP BY ticker, figi
-			HAVING q != 0
-			 ORDER BY ticker
-		`, b.id)
+		entry, err := r.holdingsHistoryBatch(ctx, b.id, b.ts)
 		if err != nil {
-			return nil, fmt.Errorf("holdings history batch %d: %w", b.id, err)
-		}
-		for hRows.Next() {
-			var ticker string
-			var figi sql.NullString
-			var q float64
-			if err := hRows.Scan(&ticker, &figi, &q); err != nil {
-				hRows.Close()
-				return nil, fmt.Errorf("holdings history batch scan: %w", err)
-			}
-			h := openapi.Holding{Ticker: ticker, Quantity: q}
-			if figi.Valid && figi.String != "" {
-				s := figi.String
-				h.Figi = &s
-			}
-			entry.Items = append(entry.Items, h)
-		}
-		hRows.Close()
-
-		aRows, err := r.db.QueryContext(ctx,
-			`SELECT key, value FROM annotations WHERE batch_id = ? ORDER BY key`, b.id)
-		if err != nil {
-			return nil, fmt.Errorf("holdings history annotations %d: %w", b.id, err)
-		}
-		ann := map[string]string{}
-		for aRows.Next() {
-			var k, v string
-			if err := aRows.Scan(&k, &v); err != nil {
-				aRows.Close()
-				return nil, err
-			}
-			ann[k] = v
-		}
-		aRows.Close()
-		if len(ann) > 0 {
-			entry.Annotations = &ann
+			return nil, err
 		}
 		out.Items = append(out.Items, entry)
 	}
 	return out, nil
+}
+
+type batchKey struct {
+	id int64
+	ts time.Time
+}
+
+// holdingsHistoryBatch builds one HoldingsHistoryEntry for the given batch.
+func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts time.Time) (openapi.HoldingsHistoryEntry, error) {
+	entry := openapi.HoldingsHistoryEntry{
+		BatchId:   batchID,
+		Timestamp: ts,
+		Items:     []openapi.Holding{},
+	}
+
+	hRows, err := r.db.QueryContext(ctx, `
+		SELECT ticker, figi,
+		       SUM(CASE type
+		           WHEN 'buy'   THEN  quantity
+		           WHEN 'sell'  THEN -quantity
+		           WHEN 'split' THEN  quantity
+		           ELSE 0 END) AS q
+		  FROM transactions
+		 WHERE batch_id <= ?
+		 GROUP BY ticker, figi
+		HAVING q != 0
+		 ORDER BY ticker
+	`, batchID)
+	if err != nil {
+		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	}
+	defer func() { _ = hRows.Close() }()
+	for hRows.Next() {
+		var ticker string
+		var figi sql.NullString
+		var q float64
+		if err := hRows.Scan(&ticker, &figi, &q); err != nil {
+			return entry, fmt.Errorf("holdings history batch scan: %w", err)
+		}
+		h := openapi.Holding{Ticker: ticker, Quantity: q}
+		if figi.Valid && figi.String != "" {
+			s := figi.String
+			h.Figi = &s
+		}
+		entry.Items = append(entry.Items, h)
+	}
+	if err := hRows.Err(); err != nil {
+		return entry, fmt.Errorf("holdings history batch iterate: %w", err)
+	}
+
+	ann, err := r.readBatchAnnotations(ctx, batchID)
+	if err != nil {
+		return entry, err
+	}
+	if len(ann) > 0 {
+		entry.Annotations = &ann
+	}
+	return entry, nil
+}
+
+// readBatchAnnotations returns the annotations map for the given batch ID.
+func (r *Reader) readBatchAnnotations(ctx context.Context, batchID int64) (map[string]string, error) {
+	aRows, err := r.db.QueryContext(ctx,
+		`SELECT key, value FROM annotations WHERE batch_id = ? ORDER BY key`, batchID)
+	if err != nil {
+		return nil, fmt.Errorf("holdings history annotations %d: %w", batchID, err)
+	}
+	defer func() { _ = aRows.Close() }()
+	ann := map[string]string{}
+	for aRows.Next() {
+		var k, v string
+		if err := aRows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		ann[k] = v
+	}
+	if err := aRows.Err(); err != nil {
+		return nil, fmt.Errorf("holdings history annotations iterate: %w", err)
+	}
+	return ann, nil
 }
 
 func (r *Reader) readEndDate(ctx context.Context) (time.Time, error) {
@@ -296,7 +333,7 @@ func (r *Reader) readDateWindow(ctx context.Context) (time.Time, time.Time, erro
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("read window: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var start, end time.Time
 	for rows.Next() {
 		var k, v string

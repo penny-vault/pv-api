@@ -59,7 +59,7 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 	q := `SELECT batch_id, date, type, ticker, figi, quantity, price, amount, qualified, justification
 	        FROM transactions`
 	if len(where) > 0 {
-		q += " WHERE " + strings.Join(where, " AND ")
+		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // G202: where clauses use only parameterized placeholders, no user input
 	}
 	q += " ORDER BY batch_id, rowid"
 
@@ -67,7 +67,7 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 	if err != nil {
 		return nil, fmt.Errorf("transactions query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out openapi.TransactionsResponse
 	out.Items = []openapi.Transaction{}

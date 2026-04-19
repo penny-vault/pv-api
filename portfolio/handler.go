@@ -118,17 +118,41 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusUnprocessableEntity, "Invalid portfolio", err.Error())
 	}
 
-	var describe strategy.Describe
-	if err := json.Unmarshal(s.DescribeJSON, &describe); err != nil {
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", "strategy describe is malformed")
-	}
-	slug, err := Slug(norm, describe)
+	p, err := h.buildPortfolio(ownerSub, norm, s)
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 
-	presetName := presetMatch(norm.Parameters, describe)
+	if err := h.store.Insert(c.Context(), p); err != nil {
+		if errors.Is(err, ErrDuplicateSlug) {
+			return writeProblem(c, fiber.StatusConflict, "Conflict", "portfolio with slug "+p.Slug+" already exists for this user")
+		}
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
 
+	// Re-read so CreatedAt / UpdatedAt / ID reflect the DB row. Falls back
+	// to an in-memory view if the read fails.
+	stored, err := h.store.Get(c.Context(), ownerSub, p.Slug)
+	created := p
+	if err == nil {
+		created = stored
+	}
+
+	h.maybeAutoTrigger(c, created, norm.RunNow)
+	return writeJSON(c, fiber.StatusCreated, toView(created))
+}
+
+// buildPortfolio constructs a Portfolio value from a validated create request.
+func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy.Strategy) (Portfolio, error) {
+	var describe strategy.Describe
+	if err := json.Unmarshal(s.DescribeJSON, &describe); err != nil {
+		return Portfolio{}, errStrategyMalformed
+	}
+	slug, err := Slug(norm, describe)
+	if err != nil {
+		return Portfolio{}, err
+	}
+	presetName := presetMatch(norm.Parameters, describe)
 	p := Portfolio{
 		OwnerSub:     ownerSub,
 		Slug:         slug,
@@ -145,39 +169,26 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		sch := norm.Schedule
 		p.Schedule = &sch
 	}
+	return p, nil
+}
 
-	if err := h.store.Insert(c.Context(), p); err != nil {
-		if errors.Is(err, ErrDuplicateSlug) {
-			return writeProblem(c, fiber.StatusConflict, "Conflict", "portfolio with slug "+slug+" already exists for this user")
+// maybeAutoTrigger submits a backtest run when the portfolio mode warrants it.
+func (h *Handler) maybeAutoTrigger(c fiber.Ctx, created Portfolio, runNow bool) {
+	if h.dispatcher == nil {
+		return
+	}
+	switch created.Mode {
+	case ModeOneShot:
+		if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
+			log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
 		}
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
-	}
-
-	// Re-read so CreatedAt / UpdatedAt / ID reflect the DB row. Falls back
-	// to an in-memory view if the read fails.
-	stored, err := h.store.Get(c.Context(), ownerSub, slug)
-	created := p
-	if err == nil {
-		created = stored
-	}
-
-	// Auto-trigger a backtest run when appropriate.
-	if h.dispatcher != nil {
-		switch created.Mode {
-		case ModeOneShot:
+	case ModeContinuous:
+		if runNow {
 			if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
 				log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
 			}
-		case ModeContinuous:
-			if norm.RunNow {
-				if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
-					log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
-				}
-			}
 		}
 	}
-
-	return writeJSON(c, fiber.StatusCreated, toView(created))
 }
 
 // Patch implements PATCH /portfolios/{slug} (name-only).
@@ -384,7 +395,7 @@ func (h *Handler) readSnapshot(c fiber.Ctx, fn func(SnapshotReader) (any, error)
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	out, err := fn(reader)
 	if errors.Is(err, errNotFoundSentinel) {
 		return writeProblem(c, fiber.StatusNotFound, "Not Found", "not found")
@@ -485,14 +496,14 @@ func parseFromTo(c fiber.Ctx) (*time.Time, *time.Time, error) {
 	if s := string([]byte(c.Query("from"))); s != "" {
 		t, err := time.Parse("2006-01-02", s)
 		if err != nil {
-			return nil, nil, fmt.Errorf("from must be YYYY-MM-DD")
+			return nil, nil, errFromDate
 		}
 		from = &t
 	}
 	if s := string([]byte(c.Query("to"))); s != "" {
 		t, err := time.Parse("2006-01-02", s)
 		if err != nil {
-			return nil, nil, fmt.Errorf("to must be YYYY-MM-DD")
+			return nil, nil, errToDate
 		}
 		to = &t
 	}
@@ -610,3 +621,10 @@ func (h *Handler) CreateRun(c fiber.Ctx) error {
 
 // errNotFoundSentinel is used internally by readSnapshot to signal 404.
 var errNotFoundSentinel = errors.New("not found")
+
+// errFromDate and errToDate are returned by parseFromTo for invalid date params.
+var (
+	errFromDate          = errors.New("from must be YYYY-MM-DD")
+	errToDate            = errors.New("to must be YYYY-MM-DD")
+	errStrategyMalformed = errors.New("strategy describe is malformed")
+)

@@ -153,7 +153,7 @@ var serverCmd = &cobra.Command{
 				return "", err
 			}
 			if s.ArtifactRef == nil || *s.ArtifactRef == "" {
-				return "", fmt.Errorf("strategy %s has no installed binary", code)
+				return "", fmt.Errorf("%w: %s", backtest.ErrStrategyNoArtifact, code)
 			}
 			return *s.ArtifactRef, nil
 		}

@@ -49,46 +49,18 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 		return Kpis{}, err
 	}
 
-	var curVal, startVal float64
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date DESC LIMIT 1`).
-		Scan(&curVal); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return Kpis{}, fmt.Errorf("kpis current value: %w", err)
-	}
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date ASC LIMIT 1`).
-		Scan(&startVal); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return Kpis{}, fmt.Errorf("kpis start value: %w", err)
+	curVal, startVal, err := r.kpisPortfolioValues(ctx)
+	if err != nil {
+		return Kpis{}, err
 	}
 
-	ytdStart := time.Date(time.Now().Year(), 1, 1, 0, 0, 0, 0, time.UTC)
-	var ytdBaseline float64
-	err = r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date >= ?
-		  ORDER BY date ASC LIMIT 1`, ytdStart.Format(dateLayout)).Scan(&ytdBaseline)
-	if errors.Is(err, sql.ErrNoRows) {
-		ytdBaseline = startVal
-	} else if err != nil {
-		return Kpis{}, fmt.Errorf("kpis ytd baseline: %w", err)
+	ytdReturn, err := r.kpisYTDReturn(ctx, curVal, startVal)
+	if err != nil {
+		return Kpis{}, err
 	}
-	ytdReturn := 0.0
-	if ytdBaseline > 0 {
-		ytdReturn = (curVal - ytdBaseline) / ytdBaseline
-	}
-
-	var oneYearBaseline float64
-	cutoff := time.Now().AddDate(-1, 0, 0)
-	err = r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date <= ?
-		  ORDER BY date DESC LIMIT 1`, cutoff.Format(dateLayout)).Scan(&oneYearBaseline)
-	if errors.Is(err, sql.ErrNoRows) {
-		oneYearBaseline = startVal
-	} else if err != nil {
-		return Kpis{}, fmt.Errorf("kpis 1y baseline: %w", err)
-	}
-	oneYearReturn := 0.0
-	if oneYearBaseline > 0 {
-		oneYearReturn = (curVal - oneYearBaseline) / oneYearBaseline
+	oneYearReturn, err := r.kpisOneYearReturn(ctx, curVal, startVal)
+	if err != nil {
+		return Kpis{}, err
 	}
 
 	years := time.Since(start).Hours() / 24 / 365.25
@@ -122,4 +94,55 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 		TaxCostRatio:  vals["tax_cost_ratio"],
 		InceptionDate: start,
 	}, nil
+}
+
+// kpisPortfolioValues returns the most-recent and oldest portfolio_value rows.
+func (r *Reader) kpisPortfolioValues(ctx context.Context) (curVal, startVal float64, err error) {
+	if scanErr := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date DESC LIMIT 1`).
+		Scan(&curVal); scanErr != nil && !errors.Is(scanErr, sql.ErrNoRows) {
+		return 0, 0, fmt.Errorf("kpis current value: %w", scanErr)
+	}
+	if scanErr := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date ASC LIMIT 1`).
+		Scan(&startVal); scanErr != nil && !errors.Is(scanErr, sql.ErrNoRows) {
+		return 0, 0, fmt.Errorf("kpis start value: %w", scanErr)
+	}
+	return curVal, startVal, nil
+}
+
+// kpisYTDReturn computes the year-to-date return from the snapshot data.
+func (r *Reader) kpisYTDReturn(ctx context.Context, curVal, startVal float64) (float64, error) {
+	ytdStart := time.Date(time.Now().Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	var ytdBaseline float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date >= ?
+		  ORDER BY date ASC LIMIT 1`, ytdStart.Format(dateLayout)).Scan(&ytdBaseline)
+	if errors.Is(err, sql.ErrNoRows) {
+		ytdBaseline = startVal
+	} else if err != nil {
+		return 0, fmt.Errorf("kpis ytd baseline: %w", err)
+	}
+	if ytdBaseline > 0 {
+		return (curVal - ytdBaseline) / ytdBaseline, nil
+	}
+	return 0, nil
+}
+
+// kpisOneYearReturn computes the trailing 1-year return from the snapshot data.
+func (r *Reader) kpisOneYearReturn(ctx context.Context, curVal, startVal float64) (float64, error) {
+	cutoff := time.Now().AddDate(-1, 0, 0)
+	var oneYearBaseline float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date <= ?
+		  ORDER BY date DESC LIMIT 1`, cutoff.Format(dateLayout)).Scan(&oneYearBaseline)
+	if errors.Is(err, sql.ErrNoRows) {
+		oneYearBaseline = startVal
+	} else if err != nil {
+		return 0, fmt.Errorf("kpis 1y baseline: %w", err)
+	}
+	if oneYearBaseline > 0 {
+		return (curVal - oneYearBaseline) / oneYearBaseline, nil
+	}
+	return 0, nil
 }

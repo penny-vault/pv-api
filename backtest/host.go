@@ -39,7 +39,7 @@ func (r *HostRunner) Run(ctx context.Context, req RunRequest) error {
 	}
 
 	args := append([]string{"backtest", "--output", req.OutPath}, req.Args...)
-	cmd := exec.CommandContext(timeoutCtx, req.Binary, args...)
+	cmd := exec.CommandContext(timeoutCtx, req.Binary, args...) //nolint:gosec // G204: binary path comes from admin-controlled strategy registry
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

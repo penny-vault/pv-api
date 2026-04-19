@@ -36,7 +36,7 @@ func BuildTestSnapshot(path string) error {
 	if err != nil {
 		return fmt.Errorf("build fixture open: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	stmts := []string{
 		`CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)`,

@@ -36,4 +36,16 @@ var (
 	// ErrStrategyNotInstalled is returned when the resolved strategy has
 	// no installed binary on disk.
 	ErrStrategyNotInstalled = errors.New("backtest: strategy binary not installed")
+
+	// ErrSnapshotsDirRequired is returned by Config.Validate when SnapshotsDir is empty.
+	ErrSnapshotsDirRequired = errors.New("backtest: snapshots_dir is required")
+
+	// ErrInvalidConcurrency is returned by Config.Validate when MaxConcurrency < 0.
+	ErrInvalidConcurrency = errors.New("backtest: max_concurrency must be >= 0")
+
+	// ErrUnsupportedRunnerMode is returned by Config.Validate when RunnerMode is not "host".
+	ErrUnsupportedRunnerMode = errors.New(`backtest: runner.mode must be "host" in Plan 5 (docker/kubernetes land in Plans 8/9)`)
+
+	// ErrStrategyNoArtifact is returned when a strategy has no installed binary artifact.
+	ErrStrategyNoArtifact = errors.New("backtest: strategy has no installed binary")
 )

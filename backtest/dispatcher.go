@@ -110,7 +110,7 @@ func (d *Dispatcher) Start(parent context.Context) {
 		return
 	}
 	d.started = true
-	d.ctx, d.cancel = context.WithCancel(parent)
+	d.ctx, d.cancel = context.WithCancel(parent) //nolint:gosec // G118: cancel stored in d.cancel and called by Shutdown
 	for i := 0; i < d.cfg.MaxConcurrency; i++ {
 		d.wg.Add(1)
 		go d.worker()

@@ -48,7 +48,7 @@ func (r *Reader) Performance(ctx context.Context, slug string, from, to *time.Ti
 	if err != nil {
 		return nil, fmt.Errorf("performance query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	points := map[string]*openapi.PerformancePoint{}
 	var order []string

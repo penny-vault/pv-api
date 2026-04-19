@@ -16,7 +16,6 @@
 package backtest
 
 import (
-	"errors"
 	"runtime"
 	"time"
 )
@@ -42,13 +41,13 @@ func (c *Config) ApplyDefaults() {
 // Validate returns an error if the config is not usable.
 func (c Config) Validate() error {
 	if c.SnapshotsDir == "" {
-		return errors.New("backtest: snapshots_dir is required")
+		return ErrSnapshotsDirRequired
 	}
 	if c.MaxConcurrency < 0 {
-		return errors.New("backtest: max_concurrency must be >= 0")
+		return ErrInvalidConcurrency
 	}
 	if c.RunnerMode != "host" {
-		return errors.New("backtest: runner.mode must be \"host\" in Plan 5 (docker/kubernetes land in Plans 8/9)")
+		return ErrUnsupportedRunnerMode
 	}
 	return nil
 }

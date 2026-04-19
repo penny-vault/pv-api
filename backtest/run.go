@@ -67,7 +67,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	}
 	if row.Status == "running" {
 		_ = o.rs.UpdateRunFailed(ctx, runID, "portfolio already running",
-			int32(time.Since(started).Milliseconds()))
+			durationMs(time.Since(started)))
 		return ErrAlreadyRunning
 	}
 
@@ -80,7 +80,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 
 	binary, err := o.resolve(row.StrategyCode, row.StrategyVer)
 	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("%w: %v", ErrStrategyNotInstalled, err))
+		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("%w: %w", ErrStrategyNotInstalled, err))
 	}
 
 	tmp := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite.tmp")
@@ -96,28 +96,13 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return o.fail(ctx, portfolioID, runID, started, err)
 	}
 
-	f, err := os.Open(tmp)
-	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("open tmp: %w", err))
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("fsync tmp: %w", err))
-	}
-	f.Close()
-
-	if err := os.Rename(tmp, final); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("rename: %w", err))
+	if err := fsyncAndRename(tmp, final); err != nil {
+		return o.fail(ctx, portfolioID, runID, started, err)
 	}
 
-	reader, err := snapshot.Open(final)
+	kp, err := readKpisFromSnapshot(ctx, final)
 	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("open snapshot: %w", err))
-	}
-	kp, err := reader.Kpis(ctx)
-	reader.Close()
-	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("read kpis: %w", err))
+		return o.fail(ctx, portfolioID, runID, started, err)
 	}
 
 	setKpis := SetKpis{
@@ -132,11 +117,57 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("set ready: %w", err))
 	}
 	if err := o.rs.UpdateRunSuccess(ctx, runID, final,
-		int32(time.Since(started).Milliseconds())); err != nil {
+		durationMs(time.Since(started))); err != nil {
 		return fmt.Errorf("update run success: %w", err)
 	}
 	log.Info().Stringer("portfolio_id", portfolioID).Stringer("run_id", runID).Msg("backtest succeeded")
 	return nil
+}
+
+// fsyncAndRename fsyncs tmp to ensure durability then atomically renames it to final.
+func fsyncAndRename(tmp, final string) error {
+	f, err := os.Open(tmp) //nolint:gosec // G304: tmp is constructed from validated SnapshotsDir + portfolio UUID
+	if err != nil {
+		return fmt.Errorf("open tmp: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("fsync tmp: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close tmp: %w", err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		return fmt.Errorf("rename: %w", err)
+	}
+	return nil
+}
+
+// readKpisFromSnapshot opens the snapshot at path, reads KPIs, and closes it.
+func readKpisFromSnapshot(ctx context.Context, path string) (snapshot.Kpis, error) {
+	reader, err := snapshot.Open(path)
+	if err != nil {
+		return snapshot.Kpis{}, fmt.Errorf("open snapshot: %w", err)
+	}
+	kp, kpisErr := reader.Kpis(ctx)
+	if closeErr := reader.Close(); closeErr != nil && kpisErr == nil {
+		kpisErr = fmt.Errorf("close snapshot: %w", closeErr)
+	}
+	if kpisErr != nil {
+		return snapshot.Kpis{}, fmt.Errorf("read kpis: %w", kpisErr)
+	}
+	return kp, nil
+}
+
+// durationMs converts a time.Duration to int32 milliseconds, clamping to
+// math.MaxInt32 for durations exceeding ~24 days (which should never occur in
+// practice but protects against G115 integer overflow).
+func durationMs(d time.Duration) int32 {
+	ms := d.Milliseconds()
+	if ms > 2147483647 {
+		return 2147483647
+	}
+	return int32(ms) //nolint:gosec // G115: bounded by the check above
 }
 
 // fail records the failure on both the portfolio and run rows, then returns
@@ -148,7 +179,7 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 		msg = msg[:2048]
 	}
 	_ = o.ps.SetFailed(ctx, portfolioID, msg)
-	_ = o.rs.UpdateRunFailed(ctx, runID, msg, int32(time.Since(started).Milliseconds()))
+	_ = o.rs.UpdateRunFailed(ctx, runID, msg, durationMs(time.Since(started)))
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return fmt.Errorf("%w: %s", ErrTimedOut, msg)
 	}
