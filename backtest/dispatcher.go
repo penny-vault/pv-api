@@ -29,14 +29,47 @@ import (
 // backtest → portfolio.
 type RunStore interface {
 	CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (RunRow, error)
+	UpdateRunRunning(ctx context.Context, runID uuid.UUID) error
+	UpdateRunSuccess(ctx context.Context, runID uuid.UUID, snapshotPath string, durationMs int32) error
+	UpdateRunFailed(ctx context.Context, runID uuid.UUID, errMsg string, durationMs int32) error
 }
 
 // RunRow mirrors portfolio.Run but lives here to avoid the import cycle.
-// Task 15 will extend this if needed.
 type RunRow struct {
 	ID          uuid.UUID
 	PortfolioID uuid.UUID
 	Status      string
+}
+
+// PortfolioStore is the subset of portfolio operations the backtest
+// orchestrator needs. Declared here to avoid the cycle backtest → portfolio.
+type PortfolioStore interface {
+	GetByID(ctx context.Context, portfolioID uuid.UUID) (PortfolioRow, error)
+	SetRunning(ctx context.Context, portfolioID uuid.UUID) error
+	SetReady(ctx context.Context, portfolioID uuid.UUID, snapshotPath string, kpis SetKpis) error
+	SetFailed(ctx context.Context, portfolioID uuid.UUID, errMsg string) error
+}
+
+// PortfolioRow carries the fields the orchestrator reads from a portfolio.
+type PortfolioRow struct {
+	ID           uuid.UUID
+	StrategyCode string
+	StrategyVer  string
+	Parameters   map[string]any
+	Benchmark    string
+	Status       string
+	SnapshotPath *string
+}
+
+// SetKpis carries the KPI values written back to the portfolios row after
+// a successful backtest run.
+type SetKpis struct {
+	CurrentValue  float64
+	YtdReturn     float64
+	MaxDrawdown   float64
+	Sharpe        float64
+	Cagr          float64
+	InceptionDate time.Time
 }
 
 type task struct {

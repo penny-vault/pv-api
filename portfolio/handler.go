@@ -26,6 +26,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/strategy"
@@ -155,10 +156,28 @@ func (h *Handler) Create(c fiber.Ctx) error {
 	// Re-read so CreatedAt / UpdatedAt / ID reflect the DB row. Falls back
 	// to an in-memory view if the read fails.
 	stored, err := h.store.Get(c.Context(), ownerSub, slug)
+	created := p
 	if err == nil {
-		return writeJSON(c, fiber.StatusCreated, toView(stored))
+		created = stored
 	}
-	return writeJSON(c, fiber.StatusCreated, toView(p))
+
+	// Auto-trigger a backtest run when appropriate.
+	if h.dispatcher != nil {
+		switch created.Mode {
+		case ModeOneShot:
+			if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
+				log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
+			}
+		case ModeContinuous:
+			if norm.RunNow {
+				if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
+					log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
+				}
+			}
+		}
+	}
+
+	return writeJSON(c, fiber.StatusCreated, toView(created))
 }
 
 // Patch implements PATCH /portfolios/{slug} (name-only).
@@ -557,9 +576,36 @@ func toAPIRun(r Run, slug string) openapi.BacktestRun {
 	return out
 }
 
-// CreateRun is a temporary stub — filled in Task 15.
+// CreateRun implements POST /portfolios/{slug}/runs. It creates a queued
+// backtest run and submits it to the dispatcher.
 func (h *Handler) CreateRun(c fiber.Ctx) error {
-	return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "not implemented")
+	sub, err := subject(c)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	}
+	slug := string([]byte(c.Params("slug")))
+	p, err := h.store.Get(c.Context(), sub, slug)
+	if errors.Is(err, ErrNotFound) {
+		return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	}
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if p.Status == StatusRunning {
+		return writeProblem(c, fiber.StatusConflict, "Conflict", "portfolio is already running")
+	}
+	if h.dispatcher == nil {
+		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "backtest dispatcher not configured")
+	}
+	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	return c.Status(fiber.StatusAccepted).JSON(openapi.BacktestRun{
+		Id:            runID,
+		PortfolioSlug: slug,
+		Status:        openapi.RunStatusQueued,
+	})
 }
 
 // errNotFoundSentinel is used internally by readSnapshot to signal 404.

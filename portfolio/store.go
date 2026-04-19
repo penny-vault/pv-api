@@ -17,7 +17,9 @@ package portfolio
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -60,4 +62,25 @@ func (p PoolStore) UpdateName(ctx context.Context, ownerSub, slug, name string) 
 
 func (p PoolStore) Delete(ctx context.Context, ownerSub, slug string) error {
 	return Delete(ctx, p.Pool, ownerSub, slug)
+}
+
+// GetByID fetches a portfolio by id without owner scoping (backtest path).
+func (p PoolStore) GetByID(ctx context.Context, id uuid.UUID) (Portfolio, error) {
+	return GetByID(ctx, p.Pool, id)
+}
+
+// SetRunning marks the portfolio as running (called by backtest orchestrator).
+func (p PoolStore) SetRunning(ctx context.Context, id uuid.UUID) error {
+	return SetRunning(ctx, p.Pool, id)
+}
+
+// SetReady marks the portfolio as ready and writes KPI columns (backtest path).
+func (p PoolStore) SetReady(ctx context.Context, id uuid.UUID, snapshotPath string,
+	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64, inceptionDate time.Time) error {
+	return SetReady(ctx, p.Pool, id, snapshotPath, currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate)
+}
+
+// SetFailed marks the portfolio as failed (backtest path).
+func (p PoolStore) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
+	return SetFailed(ctx, p.Pool, id, errMsg)
 }

@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -130,6 +132,55 @@ func Delete(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) erro
 		return ErrNotFound
 	}
 	return nil
+}
+
+// GetByID fetches a portfolio by id without owner scoping. Used by
+// backtest orchestration (internal call path, not user-facing).
+func GetByID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (Portfolio, error) {
+	row := pool.QueryRow(ctx,
+		`SELECT `+portfolioColumns+` FROM portfolios WHERE id=$1`, id)
+	p, err := scan(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Portfolio{}, ErrNotFound
+	}
+	return p, err
+}
+
+// SetRunning marks the portfolio as running.
+func SetRunning(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE portfolios SET status='running', updated_at=NOW() WHERE id=$1`, id)
+	return err
+}
+
+// SetReady marks the portfolio as ready and writes all KPI columns.
+// inceptionDate is written only if the row has no existing inception_date.
+func SetReady(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, snapshotPath string,
+	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64, inceptionDate time.Time) error {
+	const q = `
+		UPDATE portfolios SET
+			status='ready',
+			last_run_at=NOW(),
+			last_error=NULL,
+			snapshot_path=$2,
+			current_value=$3,
+			ytd_return=$4,
+			max_drawdown=$5,
+			sharpe=$6,
+			cagr_since_inception=$7,
+			inception_date=COALESCE(inception_date, $8),
+			updated_at=NOW()
+		  WHERE id=$1`
+	_, err := pool.Exec(ctx, q, id, snapshotPath, currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate)
+	return err
+}
+
+// SetFailed marks the portfolio as failed and records the error message.
+func SetFailed(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, errMsg string) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE portfolios SET status='failed', last_error=$2, updated_at=NOW() WHERE id=$1`,
+		id, errMsg)
+	return err
 }
 
 type scanner interface {

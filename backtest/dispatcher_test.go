@@ -62,12 +62,20 @@ type fakeRunStore struct {
 
 func newFakeRunStore() *fakeRunStore { return &fakeRunStore{} }
 
-func (f *fakeRunStore) CreateRun(ctx context.Context, pid uuid.UUID, status string) (backtest.RunRow, error) {
+func (f *fakeRunStore) CreateRun(_ context.Context, pid uuid.UUID, status string) (backtest.RunRow, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	runID := uuid.New()
 	f.created = append(f.created, runID)
 	return backtest.RunRow{ID: runID, PortfolioID: pid, Status: status}, nil
+}
+
+func (f *fakeRunStore) UpdateRunRunning(_ context.Context, _ uuid.UUID) error { return nil }
+func (f *fakeRunStore) UpdateRunSuccess(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
+	return nil
+}
+func (f *fakeRunStore) UpdateRunFailed(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
+	return nil
 }
 
 var _ = Describe("Dispatcher", func() {
