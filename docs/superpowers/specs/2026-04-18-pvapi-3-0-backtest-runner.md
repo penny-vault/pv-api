@@ -6,7 +6,7 @@
 
 ## Goal
 
-Make portfolios actually run. Plan 4 left every derived-data endpoint stubbed to 501 and `runNow` as a no-op; Plan 5 wires the backtest runner end-to-end so that creating a `one_shot` portfolio executes a strategy binary, produces a per-portfolio SQLite snapshot, and serves all of the derived views (`/summary`, `/drawdowns`, `/statistics`, `/trailing-returns`, `/holdings`, `/holdings/{date}`, `/performance`, `/transactions`, `/runs`, `/runs/{runId}`) from that snapshot.
+Make portfolios actually run. Plan 4 left every derived-data endpoint stubbed to 501 and `runNow` as a no-op; Plan 5 wires the backtest runner end-to-end so that creating a `one_shot` portfolio executes a strategy binary, produces a per-portfolio SQLite snapshot, and serves all of the derived views (`/summary`, `/drawdowns`, `/statistics`, `/trailing-returns`, `/holdings`, `/holdings/{date}`, `/holdings/history`, `/performance`, `/transactions`, `/runs`, `/runs/{runId}`) from that snapshot.
 
 ## Guiding principle — state lives in SQLite
 
@@ -22,7 +22,7 @@ In scope for Plan 5:
 - `backtest.Run(ctx, portfolioID)` entry point (single-run orchestration).
 - `backtest.Dispatcher` — bounded worker pool used by both `POST /runs` and the (future) scheduler.
 - `snapshot` reader package — typed accessors over the per-portfolio SQLite.
-- Real implementations of all ten derived endpoints (paths listed above).
+- Real implementations of all eleven derived endpoints (paths listed above + `/holdings/history` — see below).
 - `POST /portfolios/{slug}/runs` async dispatch (202 + background goroutine).
 - Auto-trigger first run for `mode=one_shot` portfolios at create time, and for `mode=continuous` when `runNow=true`.
 - OpenAPI contract updates: rename `/metrics` → `/statistics`, `/measurements` → `/performance`; add `/transactions`.
@@ -62,6 +62,7 @@ snapshot/
   returns.go       # TrailingReturns(ctx) ([]api.TrailingReturnRow, error)
   holdings.go      # CurrentHoldings(ctx) (*api.HoldingsResponse, error)
                    # HoldingsAsOf(ctx, date) (*api.HoldingsResponse, error)  -- transaction replay
+                   # HoldingsHistory(ctx, from, to) (*api.HoldingsHistoryResponse, error) -- per-batch
   performance.go   # Performance(ctx, slug, from, to) (*api.PortfolioPerformance, error)
   transactions.go  # Transactions(ctx, filter) ([]api.Transaction, error)
   kpis.go          # Kpis(ctx) (Kpis, error)  -- scalar values written to portfolios row
@@ -248,6 +249,7 @@ Computation strategy:
 - `TrailingReturns` — compute YTD, 1Y, 3Y, 5Y, 10Y, since-inception from the `perf_data` series using pvbt helpers; emit the two OpenAPI rows (`portfolio` and `benchmark`).
 - `CurrentHoldings` — `SELECT asset_ticker, asset_figi, quantity, avg_cost, market_value FROM holdings`; compute `totalMarketValue` as SUM.
 - `HoldingsAsOf(date)` — 404 if `date` falls outside the backtest window recorded in `metadata` (`start_date` .. `end_date`). Otherwise replay every row of `transactions WHERE date <= $date` ordered by `(date, rowid)` to produce a per-ticker running ledger of `{quantity, avg_cost, last_price}`. `marketValue` is approximated as `quantity * last_price`, where `last_price` is the most recent `price` column seen for that ticker in the replayed transactions (the per-portfolio snapshot does not carry an EOD price table; this is the best signal available in-file). Zero-quantity tickers are omitted.
+- `HoldingsHistory(from, to)` — emits one entry per batch (a strategy rebalance event) in the backtest. Uses the pvbt-recommended batches-join query: cumulative sum over `transactions JOIN batches ON t.batch_id <= b.batch_id`, grouped by `(batch_id, ticker, figi)`, filtering `HAVING quantity != 0`. Annotations for each batch are pulled with a second query and zipped by `batch_id`. Optional `from` / `to` filter the batch range by `batches.timestamp`. **Depends on pvbt shipping the `batches` table + adding `batch_id` to `transactions` and `annotations`; the fixture builder in this plan creates the schema locally so work can land in parallel with pvbt's change.**
 - `Performance(slug, from, to)` — stream `perf_data WHERE metric IN ('portfolio_value','benchmark_value') AND date BETWEEN ...`; emit `PortfolioPerformance{points: [{date, portfolioValue, benchmarkValue}]}`.
 - `Transactions(filter)` — parameterized WHERE over `transactions` table.
 - `Kpis` — called by `backtest.Run` post-success; same data as `Summary` but returns an internal struct, not the API shape.
@@ -261,6 +263,7 @@ The `openapi/openapi.yaml` contract ships the following diff in Plan 5:
 1. Path rename: `/portfolios/{slug}/metrics` → `/portfolios/{slug}/statistics`. Schema rename: `PortfolioMetric` → `PortfolioStatistic`. OperationId: `getPortfolioMetrics` → `getPortfolioStatistics`.
 2. Path rename: `/portfolios/{slug}/measurements` → `/portfolios/{slug}/performance`. Schema renames: `PortfolioMeasurements` → `PortfolioPerformance`, `MeasurementPoint` → `PerformancePoint`. OperationId: `getPortfolioMeasurements` → `getPortfolioPerformance`.
 3. New path: `GET /portfolios/{slug}/transactions` with query parameters `from`, `to`, `type`. New schema `Transaction`. OperationId: `getPortfolioTransactions`.
+4. New path: `GET /portfolios/{slug}/holdings/history` with query parameters `from`, `to`. New schemas `HoldingsHistoryResponse`, `HoldingsHistoryEntry`. OperationId: `getPortfolioHoldingsHistory`.
 
 `Transaction` schema:
 
@@ -288,6 +291,28 @@ TransactionsResponse:
     items:
       type: array
       items: { $ref: '#/components/schemas/Transaction' }
+
+HoldingsHistoryEntry:
+  type: object
+  required: [batchId, timestamp, items]
+  properties:
+    batchId:    { type: integer, format: int64 }
+    timestamp:  { type: string,  format: date-time }
+    items:
+      type: array
+      items: { $ref: '#/components/schemas/Holding' }
+    annotations:
+      type: object
+      additionalProperties: { type: string }
+      description: Optional strategy-written key/value labels for this batch.
+
+HoldingsHistoryResponse:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/components/schemas/HoldingsHistoryEntry' }
 ```
 
 oapi-codegen regenerates `api/oapi/` types on this contract; downstream references in `api/portfolios.go` and `portfolio.Handler` update accordingly. Stub 501 routes for the renamed endpoints are replaced with real handlers.
@@ -350,7 +375,7 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 }
 ```
 
-One helper per endpoint; near-identical skeletons differ only in the reader call. `/holdings/{date}` additionally parses the date path parameter (ISO YYYY-MM-DD, 422 on parse error). `/transactions` parses query params.
+One helper per endpoint; near-identical skeletons differ only in the reader call. `/holdings/{date}` additionally parses the date path parameter (ISO YYYY-MM-DD, 422 on parse error). `/transactions`, `/performance`, and `/holdings/history` parse `from` / `to` query params (and `type` for `/transactions`).
 
 `/runs` and `/runs/{runId}` bypass the snapshot entirely — they query `backtest_runs` via the Store.
 
@@ -413,6 +438,7 @@ type SnapshotReader interface {
     TrailingReturns(ctx context.Context) ([]api.TrailingReturnRow, error)
     CurrentHoldings(ctx context.Context) (*api.HoldingsResponse, error)
     HoldingsAsOf(ctx context.Context, date time.Time) (*api.HoldingsResponse, error)
+    HoldingsHistory(ctx context.Context, from, to *time.Time) (*api.HoldingsHistoryResponse, error)
     Performance(ctx context.Context, slug string, from, to *time.Time) (*api.PortfolioPerformance, error)
     Transactions(ctx context.Context, filter TransactionFilter) (*api.TransactionsResponse, error)
     Close() error
