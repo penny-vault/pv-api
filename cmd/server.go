@@ -24,12 +24,86 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/penny-vault/pv-api/api"
+	"github.com/penny-vault/pv-api/backtest"
+	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/sql"
+	"github.com/penny-vault/pv-api/strategy"
 )
+
+// backtestPortfolioStoreAdapter adapts *portfolio.PoolStore to the
+// backtest.PortfolioStore interface. Lives in cmd because it exists
+// purely to bridge package boundaries that we deliberately keep
+// dependency-free in each direction.
+type backtestPortfolioStoreAdapter struct {
+	store *portfolio.PoolStore
+}
+
+// backtestRunStoreAdapter adapts *portfolio.PoolRunStore to the
+// backtest.RunStore interface. CreateRun translates the portfolio.Run
+// return type to backtest.RunRow; the other methods delegate directly.
+type backtestRunStoreAdapter struct {
+	store *portfolio.PoolRunStore
+}
+
+func (a backtestRunStoreAdapter) CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (backtest.RunRow, error) {
+	r, err := a.store.CreateRun(ctx, portfolioID, status)
+	if err != nil {
+		return backtest.RunRow{}, err
+	}
+	return backtest.RunRow{
+		ID:          r.ID,
+		PortfolioID: r.PortfolioID,
+		Status:      r.Status,
+	}, nil
+}
+
+func (a backtestRunStoreAdapter) UpdateRunRunning(ctx context.Context, runID uuid.UUID) error {
+	return a.store.UpdateRunRunning(ctx, runID)
+}
+
+func (a backtestRunStoreAdapter) UpdateRunSuccess(ctx context.Context, runID uuid.UUID, snapshotPath string, durationMs int32) error {
+	return a.store.UpdateRunSuccess(ctx, runID, snapshotPath, durationMs)
+}
+
+func (a backtestRunStoreAdapter) UpdateRunFailed(ctx context.Context, runID uuid.UUID, errMsg string, durationMs int32) error {
+	return a.store.UpdateRunFailed(ctx, runID, errMsg, durationMs)
+}
+
+func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID) (backtest.PortfolioRow, error) {
+	p, err := a.store.GetByID(ctx, id)
+	if err != nil {
+		return backtest.PortfolioRow{}, err
+	}
+	return backtest.PortfolioRow{
+		ID:           p.ID,
+		StrategyCode: p.StrategyCode,
+		StrategyVer:  p.StrategyVer,
+		Parameters:   p.Parameters,
+		Benchmark:    p.Benchmark,
+		Status:       string(p.Status),
+		SnapshotPath: p.SnapshotPath,
+	}, nil
+}
+
+func (a backtestPortfolioStoreAdapter) SetRunning(ctx context.Context, id uuid.UUID) error {
+	return a.store.SetRunning(ctx, id)
+}
+
+func (a backtestPortfolioStoreAdapter) SetReady(ctx context.Context, id uuid.UUID, path string, k backtest.SetKpis) error {
+	return a.store.SetReady(ctx, id, path,
+		k.CurrentValue, k.YtdReturn, k.MaxDrawdown, k.Sharpe, k.Cagr, k.InceptionDate)
+}
+
+func (a backtestPortfolioStoreAdapter) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
+	return a.store.SetFailed(ctx, id, errMsg)
+}
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
@@ -56,6 +130,46 @@ var serverCmd = &cobra.Command{
 
 		pool := sql.Instance(ctx)
 
+		// Build backtest config from viper and apply defaults.
+		btCfg := backtest.Config{
+			SnapshotsDir:   viper.GetString("backtest.snapshots_dir"),
+			MaxConcurrency: viper.GetInt("backtest.max_concurrency"),
+			Timeout:        viper.GetDuration("backtest.timeout"),
+			RunnerMode:     viper.GetString("runner.mode"),
+		}
+		btCfg.ApplyDefaults()
+		if err := btCfg.Validate(); err != nil {
+			log.Fatal().Err(err).Msg("backtest config")
+		}
+		if err := os.MkdirAll(btCfg.SnapshotsDir, 0o750); err != nil {
+			log.Fatal().Err(err).Msg("mkdir snapshots_dir")
+		}
+
+		portfolioStore := portfolio.NewPoolStore(pool)
+		strategyStore := strategy.PoolStore{Pool: pool}
+
+		resolve := func(code, ver string) (string, error) {
+			s, err := strategyStore.Get(ctx, code)
+			if err != nil {
+				return "", err
+			}
+			if s.ArtifactRef == nil || *s.ArtifactRef == "" {
+				return "", fmt.Errorf("strategy %s has no installed binary", code)
+			}
+			return *s.ArtifactRef, nil
+		}
+
+		runner := &backtest.HostRunner{}
+		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
+		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
+		orch := backtest.NewRunner(btCfg, runner, portfolioAdapter, runAdapter, resolve)
+		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
+		dispatcher.Start(ctx)
+
+		if err := backtest.StartupSweep(ctx, btCfg.SnapshotsDir, portfolioStore); err != nil {
+			log.Warn().Err(err).Msg("startup sweep")
+		}
+
 		app, err := api.NewApp(ctx, api.Config{
 			Port:         conf.Server.Port,
 			AllowOrigins: conf.Server.AllowOrigins,
@@ -72,6 +186,8 @@ var serverCmd = &cobra.Command{
 				OfficialDir:  conf.Strategy.OfficialDir,
 				GitHubOwner:  "penny-vault",
 			},
+			Dispatcher:     dispatcher,
+			SnapshotOpener: snapshot.Opener{},
 		})
 		if err != nil {
 			return fmt.Errorf("build app: %w", err)
@@ -96,6 +212,7 @@ var serverCmd = &cobra.Command{
 			return nil
 		case <-ctx.Done():
 			log.Info().Msg("shutdown signal received")
+			_ = dispatcher.Shutdown(30 * time.Second)
 			if err := app.ShutdownWithContext(ctx); err != nil {
 				return fmt.Errorf("fiber shutdown: %w", err)
 			}

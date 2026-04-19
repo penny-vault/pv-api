@@ -41,11 +41,13 @@ var (
 
 // Config holds HTTP-layer configuration.
 type Config struct {
-	Port         int
-	AllowOrigins string
-	Auth         AuthConfig
-	Registry     RegistryConfig
-	Pool         *pgxpool.Pool // optional: if set, real handlers mount; otherwise stubs
+	Port           int
+	AllowOrigins   string
+	Auth           AuthConfig
+	Registry       RegistryConfig
+	Pool           *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
+	Dispatcher     portfolio.Dispatcher // optional: if nil, /runs POST returns 501
+	SnapshotOpener portfolio.SnapshotOpener
 }
 
 // RegistryConfig configures the strategy registry sync and its install
@@ -92,7 +94,11 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	if conf.Pool != nil {
 		portfolioStore := portfolio.NewPoolStore(conf.Pool)
 		strategyStore := strategy.PoolStore{Pool: conf.Pool}
-		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, snapshot.Opener{}, nil /* dispatcher wired in Task 17 */)
+		opener := conf.SnapshotOpener
+		if opener == nil {
+			opener = snapshot.Opener{}
+		}
+		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, opener, conf.Dispatcher)
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))
 

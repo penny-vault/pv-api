@@ -40,6 +40,7 @@ func Execute() {
 }
 
 func init() {
+	setViperDefaults()
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/pvapi.toml)")
