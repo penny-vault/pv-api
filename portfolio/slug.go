@@ -53,14 +53,16 @@ func Slug(req CreateRequest, d strategy.Describe) (string, error) {
 		return "", fmt.Errorf("canonicalizing parameters: %w", err)
 	}
 
+	// hash.Hash.Write is documented never to return an error, so the
+	// writes below are safe to ignore.
 	h := fnv.New32a()
-	h.Write(canon)
-	h.Write([]byte{0})
-	h.Write([]byte(string(req.Mode)))
-	h.Write([]byte{0})
-	h.Write([]byte(req.Schedule))
-	h.Write([]byte{0})
-	h.Write([]byte(req.Benchmark))
+	_, _ = h.Write(canon)
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(string(req.Mode)))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(req.Schedule))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(req.Benchmark))
 
 	sum := h.Sum32() & 0xFFFFF // low 20 bits
 

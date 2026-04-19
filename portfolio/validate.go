@@ -46,25 +46,8 @@ var (
 func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, error) {
 	norm := req
 
-	// mode=live unsupported
-	if norm.Mode == ModeLive {
-		return norm, fmt.Errorf("%w: live trading is not yet supported", ErrLiveNotSupported)
-	}
-
-	// schedule consistency
-	switch norm.Mode {
-	case ModeContinuous:
-		if norm.Schedule == "" {
-			return norm, fmt.Errorf("%w", ErrScheduleRequired)
-		}
-	case ModeOneShot:
-		if norm.Schedule != "" {
-			return norm, fmt.Errorf("%w", ErrScheduleForbidden)
-		}
-	case ModeLive:
-		// handled above
-	default:
-		return norm, fmt.Errorf("%w: %q", ErrUnsupportedMode, norm.Mode)
+	if err := validateMode(norm); err != nil {
+		return norm, err
 	}
 
 	// strategy installed
@@ -81,21 +64,10 @@ func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, erro
 	// parameters validate against describe
 	var d strategy.Describe
 	if err := json.Unmarshal(s.DescribeJSON, &d); err != nil {
-		return norm, fmt.Errorf("%w: %v", ErrInvalidStrategyDescribe, err)
+		return norm, fmt.Errorf("%w: %w", ErrInvalidStrategyDescribe, err)
 	}
-	declared := make(map[string]struct{}, len(d.Parameters))
-	for _, p := range d.Parameters {
-		declared[p.Name] = struct{}{}
-	}
-	for k := range norm.Parameters {
-		if _, ok := declared[k]; !ok {
-			return norm, fmt.Errorf("%w: %s", ErrUnknownParameter, k)
-		}
-	}
-	for _, p := range d.Parameters {
-		if _, present := norm.Parameters[p.Name]; !present {
-			return norm, fmt.Errorf("%w: %s", ErrMissingParameter, p.Name)
-		}
+	if err := validateParameters(norm.Parameters, d); err != nil {
+		return norm, err
 	}
 
 	// default benchmark
@@ -104,4 +76,46 @@ func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, erro
 	}
 
 	return norm, nil
+}
+
+// validateMode enforces the live / schedule rules from the spec.
+func validateMode(req CreateRequest) error {
+	if req.Mode == ModeLive {
+		return fmt.Errorf("%w: live trading is not yet supported", ErrLiveNotSupported)
+	}
+	switch req.Mode {
+	case ModeContinuous:
+		if req.Schedule == "" {
+			return fmt.Errorf("%w", ErrScheduleRequired)
+		}
+	case ModeOneShot:
+		if req.Schedule != "" {
+			return fmt.Errorf("%w", ErrScheduleForbidden)
+		}
+	case ModeLive:
+		// handled above
+	default:
+		return fmt.Errorf("%w: %q", ErrUnsupportedMode, req.Mode)
+	}
+	return nil
+}
+
+// validateParameters enforces that every declared parameter is present and
+// that no unknown parameters are supplied.
+func validateParameters(params map[string]any, d strategy.Describe) error {
+	declared := make(map[string]struct{}, len(d.Parameters))
+	for _, p := range d.Parameters {
+		declared[p.Name] = struct{}{}
+	}
+	for k := range params {
+		if _, ok := declared[k]; !ok {
+			return fmt.Errorf("%w: %s", ErrUnknownParameter, k)
+		}
+	}
+	for _, p := range d.Parameters {
+		if _, present := params[p.Name]; !present {
+			return fmt.Errorf("%w: %s", ErrMissingParameter, p.Name)
+		}
+	}
+	return nil
 }
