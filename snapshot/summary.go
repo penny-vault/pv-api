@@ -1,0 +1,63 @@
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package snapshot
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/penny-vault/pv-api/openapi"
+)
+
+// Summary returns top-line KPIs by reading metadata, the latest perf_data
+// row, and the full-window metrics table.
+func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error) {
+	k, err := r.Kpis(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &openapi.PortfolioSummary{
+		CurrentValue:       k.CurrentValue,
+		YtdReturn:          k.YtdReturn,
+		OneYearReturn:      k.OneYearReturn,
+		CagrSinceInception: k.Cagr,
+		MaxDrawDown:        k.MaxDrawdown,
+		Sharpe:             k.Sharpe,
+		Sortino:            k.Sortino,
+		Beta:               k.Beta,
+		Alpha:              k.Alpha,
+		StdDev:             k.StdDev,
+		UlcerIndex:         &k.UlcerIndex,
+		TaxCostRatio:       k.TaxCostRatio,
+	}, nil
+}
+
+// readMetric returns the value of the full-window metric named name, or
+// 0 if the row is absent.
+func (r *Reader) readMetric(ctx context.Context, name string) (float64, error) {
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM metrics WHERE name = ? AND window='full' LIMIT 1`, name).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read metric %s: %w", name, err)
+	}
+	return v, nil
+}
