@@ -1,0 +1,172 @@
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package portfolio
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// ErrNotFound is returned when a portfolio lookup does not match any row
+// owned by the calling user.
+var ErrNotFound = errors.New("portfolio not found")
+
+// ErrDuplicateSlug is returned on (owner_sub, slug) unique-constraint hits.
+var ErrDuplicateSlug = errors.New("duplicate portfolio slug")
+
+const portfolioColumns = `
+	id, owner_sub, slug, name, strategy_code, strategy_ver, parameters,
+	preset_name, benchmark, mode, schedule, status, last_run_at,
+	last_error, created_at, updated_at
+`
+
+// List returns every portfolio owned by ownerSub, sorted newest-first.
+func List(ctx context.Context, pool *pgxpool.Pool, ownerSub string) ([]Portfolio, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT `+portfolioColumns+` FROM portfolios WHERE owner_sub = $1 ORDER BY created_at DESC`,
+		ownerSub,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("querying portfolios: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Portfolio
+	for rows.Next() {
+		p, scanErr := scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// Get returns one portfolio by (ownerSub, slug). ErrNotFound if no row.
+func Get(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) (Portfolio, error) {
+	row := pool.QueryRow(ctx,
+		`SELECT `+portfolioColumns+` FROM portfolios WHERE owner_sub = $1 AND slug = $2`,
+		ownerSub, slug,
+	)
+	p, err := scan(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Portfolio{}, ErrNotFound
+	}
+	return p, err
+}
+
+// Insert writes a new portfolio row. The caller must have populated every
+// field on p (slug, strategy_ver, parameters, benchmark, mode, status,
+// etc.) before calling. Returns ErrDuplicateSlug on a
+// (owner_sub, slug) UNIQUE violation.
+func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
+	paramsJSON, err := json.Marshal(p.Parameters)
+	if err != nil {
+		return fmt.Errorf("marshaling parameters: %w", err)
+	}
+	_, err = pool.Exec(ctx, `
+		INSERT INTO portfolios (
+			owner_sub, slug, name, strategy_code, strategy_ver, parameters,
+			preset_name, benchmark, mode, schedule, status
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, p.OwnerSub, p.Slug, p.Name, p.StrategyCode, p.StrategyVer, paramsJSON,
+		p.PresetName, p.Benchmark, string(p.Mode), p.Schedule, string(p.Status))
+	if err != nil {
+		if uniqueViolation(err) {
+			return ErrDuplicateSlug
+		}
+		return fmt.Errorf("inserting portfolio: %w", err)
+	}
+	return nil
+}
+
+// UpdateName updates a portfolio's display name. Returns ErrNotFound if
+// the (ownerSub, slug) pair does not match any row.
+func UpdateName(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug, name string) error {
+	tag, err := pool.Exec(ctx, `
+		UPDATE portfolios
+		   SET name = $3, updated_at = NOW()
+		 WHERE owner_sub = $1 AND slug = $2
+	`, ownerSub, slug, name)
+	if err != nil {
+		return fmt.Errorf("updating portfolio name: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete removes a portfolio by (ownerSub, slug). Returns ErrNotFound if
+// no row was deleted.
+func Delete(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) error {
+	tag, err := pool.Exec(ctx,
+		`DELETE FROM portfolios WHERE owner_sub = $1 AND slug = $2`,
+		ownerSub, slug,
+	)
+	if err != nil {
+		return fmt.Errorf("deleting portfolio: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scan(r scanner) (Portfolio, error) {
+	var (
+		p          Portfolio
+		modeStr    string
+		statusStr  string
+		paramsJSON []byte
+	)
+	err := r.Scan(
+		&p.ID, &p.OwnerSub, &p.Slug, &p.Name, &p.StrategyCode, &p.StrategyVer,
+		&paramsJSON, &p.PresetName, &p.Benchmark, &modeStr, &p.Schedule,
+		&statusStr, &p.LastRunAt, &p.LastError, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		return Portfolio{}, err
+	}
+	p.Mode = Mode(modeStr)
+	p.Status = Status(statusStr)
+	if len(paramsJSON) > 0 {
+		if err := json.Unmarshal(paramsJSON, &p.Parameters); err != nil {
+			return Portfolio{}, fmt.Errorf("unmarshaling parameters: %w", err)
+		}
+	}
+	return p, nil
+}
+
+// uniqueViolation reports whether err carries Postgres 23505 (unique_violation).
+// pgx v5 wraps database errors; the most reliable cross-version check is
+// inspecting the formatted message for "SQLSTATE 23505".
+func uniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "SQLSTATE 23505")
+}
