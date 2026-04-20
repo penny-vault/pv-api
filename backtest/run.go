@@ -29,9 +29,11 @@ import (
 	"github.com/penny-vault/pv-api/snapshot"
 )
 
-// BinaryResolver returns the absolute path to an installed strategy binary
-// for the given (code, ver) pair.
-type BinaryResolver func(code, ver string) (string, error)
+// BinaryResolver resolves a strategy binary for the given cloneURL and version.
+// It returns the absolute path to the binary, a cleanup function to call when
+// the binary is no longer needed, and any error. The caller must always call
+// cleanup when err is nil.
+type BinaryResolver func(ctx context.Context, cloneURL, ver string) (binPath string, cleanup func(), err error)
 
 // orchestrator owns a Config, all stores, the runner, and the resolver.
 type orchestrator struct {
@@ -75,10 +77,11 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark running: %w", err))
 	}
 
-	binary, err := o.resolve(row.StrategyCode, row.StrategyVer)
+	binary, cleanup, err := o.resolve(ctx, row.StrategyCloneURL, row.StrategyVer)
 	if err != nil {
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("%w: %w", ErrStrategyNotInstalled, err))
 	}
+	defer cleanup()
 
 	tmp := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite.tmp")
 	final := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite")

@@ -88,13 +88,14 @@ func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID
 		strategyVer = *p.StrategyVer
 	}
 	return backtest.PortfolioRow{
-		ID:           p.ID,
-		StrategyCode: p.StrategyCode,
-		StrategyVer:  strategyVer,
-		Parameters:   p.Parameters,
-		Benchmark:    p.Benchmark,
-		Status:       string(p.Status),
-		SnapshotPath: p.SnapshotPath,
+		ID:               p.ID,
+		StrategyCode:     p.StrategyCode,
+		StrategyVer:      strategyVer,
+		StrategyCloneURL: p.StrategyCloneURL,
+		Parameters:       p.Parameters,
+		Benchmark:        p.Benchmark,
+		Status:           string(p.Status),
+		SnapshotPath:     p.SnapshotPath,
 	}, nil
 }
 
@@ -210,15 +211,14 @@ var serverCmd = &cobra.Command{
 		portfolioStore := portfolio.NewPoolStore(pool)
 		strategyStore := strategy.PoolStore{Pool: pool}
 
-		resolve := func(code, ver string) (string, error) {
-			s, err := strategyStore.Get(ctx, code)
+		resolve := func(resolveCtx context.Context, cloneURL, ver string) (string, func(), error) {
+			// Task 8: minimal adaptation using LookupArtifact(cloneURL, ver).
+			// Task 10 will rewrite this to do cache-or-ephemeral for unofficial strategies.
+			ref, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
 			if err != nil {
-				return "", err
+				return "", func() {}, fmt.Errorf("%w: %w", backtest.ErrStrategyNotInstalled, err)
 			}
-			if s.ArtifactRef == nil || *s.ArtifactRef == "" {
-				return "", fmt.Errorf("%w: %s", backtest.ErrStrategyNoArtifact, code)
-			}
-			return *s.ArtifactRef, nil
+			return ref, func() {}, nil
 		}
 
 		runner := &backtest.HostRunner{}

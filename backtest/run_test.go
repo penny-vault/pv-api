@@ -20,6 +20,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -99,7 +100,9 @@ var _ = Describe("Run orchestration", func() {
 
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
 			&backtest.HostRunner{}, ps, rs,
-			func(_, _ string) (string, error) { return fakeStratBin, nil })
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
 
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(err).NotTo(HaveOccurred())
@@ -129,11 +132,61 @@ var _ = Describe("Run orchestration", func() {
 
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
 			&backtest.HostRunner{}, ps, rs,
-			func(_, _ string) (string, error) { return fakeStratBin, nil })
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
 
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(err).To(HaveOccurred())
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(ps.markFailed).NotTo(BeEmpty())
+	})
+
+	It("calls cleanup after a successful run", func() {
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+		rs := &fakeRunStoreFull{}
+
+		var cleanupCalls atomic.Int32
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
+			&backtest.HostRunner{}, ps, rs,
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
+			})
+
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
+	})
+
+	It("calls cleanup after a runner failure", func() {
+		snapsDir := GinkgoT().TempDir()
+		Expect(os.Setenv("FAKESTRAT_BEHAVIOR", "fail")).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_BEHAVIOR") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+		rs := &fakeRunStoreFull{}
+
+		var cleanupCalls atomic.Int32
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
+			&backtest.HostRunner{}, ps, rs,
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
+			})
+
+		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
+		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
 	})
 })
