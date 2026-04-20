@@ -28,6 +28,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/penny-vault/pvbt/tradecron"
+
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
@@ -138,11 +140,20 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		created = stored
 	}
 
-	h.maybeAutoTrigger(c, created, norm.RunNow)
+	if status, pb := h.autoTriggerOrProblem(c, created); status != 0 {
+		// Rollback the portfolio row because we could not queue its first run.
+		if delErr := h.store.Delete(c.Context(), ownerSub, created.Slug); delErr != nil {
+			log.Warn().Err(delErr).Stringer("portfolio_id", created.ID).Msg("rollback delete failed")
+		}
+		return writeProblem(c, status, pb.title, pb.detail)
+	}
+
 	return writeJSON(c, fiber.StatusCreated, toView(created))
 }
 
 // buildPortfolio constructs a Portfolio value from a validated create request.
+// For continuous portfolios, next_run_at is bootstrapped to the next
+// tradecron boundary.
 func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy.Strategy) (Portfolio, error) {
 	var describe strategy.Describe
 	if err := json.Unmarshal(s.DescribeJSON, &describe); err != nil {
@@ -169,26 +180,47 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy
 		sch := norm.Schedule
 		p.Schedule = &sch
 	}
+	if norm.Mode == ModeContinuous {
+		tc, err := tradecron.New(norm.Schedule, tradecron.RegularHours)
+		if err != nil {
+			// Unreachable: ValidateCreate already checks this.
+			return Portfolio{}, fmt.Errorf("%w: %w", ErrInvalidSchedule, err)
+		}
+		nextAt := tc.Next(time.Now())
+		p.NextRunAt = &nextAt
+	}
 	return p, nil
 }
 
-// maybeAutoTrigger submits a backtest run when the portfolio mode warrants it.
-func (h *Handler) maybeAutoTrigger(c fiber.Ctx, created Portfolio, runNow bool) {
+// autoTriggerOrProblem dispatches a backtest run for modes that require one
+// and returns a problem status + body on failure. A zero status means the
+// caller should proceed normally.
+func (h *Handler) autoTriggerOrProblem(c fiber.Ctx, created Portfolio) (int, problemBody) {
 	if h.dispatcher == nil {
-		return
+		// Runner not wired — Plan 4 behavior. Caller proceeds as 201.
+		return 0, problemBody{}
 	}
 	switch created.Mode {
-	case ModeOneShot:
-		if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
-			log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
-		}
-	case ModeContinuous:
-		if runNow {
-			if _, dispErr := h.dispatcher.Submit(c.Context(), created.ID); dispErr != nil {
-				log.Warn().Err(dispErr).Stringer("portfolio_id", created.ID).Msg("auto-trigger dispatch failed")
+	case ModeOneShot, ModeContinuous:
+		if _, err := h.dispatcher.Submit(c.Context(), created.ID); err != nil {
+			if errors.Is(err, ErrQueueFull) {
+				return fiber.StatusServiceUnavailable, problemBody{
+					title:  "Service Unavailable",
+					detail: "backtest queue is full, try again later",
+				}
+			}
+			return fiber.StatusInternalServerError, problemBody{
+				title:  "Internal Server Error",
+				detail: err.Error(),
 			}
 		}
 	}
+	return 0, problemBody{}
+}
+
+type problemBody struct {
+	title  string
+	detail string
 }
 
 // Patch implements PATCH /portfolios/{slug} (name-only).
