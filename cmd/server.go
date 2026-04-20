@@ -26,12 +26,14 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/penny-vault/pvbt/tradecron"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/penny-vault/pv-api/api"
 	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/scheduler"
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/sql"
 	"github.com/penny-vault/pv-api/strategy"
@@ -123,6 +125,44 @@ func (a dispatcherAdapter) Submit(ctx context.Context, portfolioID uuid.UUID) (u
 	return id, err
 }
 
+// schedulerStoreAdapter adapts *portfolio.PoolStore to scheduler.PortfolioStore,
+// translating portfolio.DueContinuous → scheduler.Claim and
+// scheduler.NextRunFunc → portfolio.NextRunFunc at the package seam.
+type schedulerStoreAdapter struct {
+	store *portfolio.PoolStore
+}
+
+func (a schedulerStoreAdapter) ClaimDueContinuous(
+	ctx context.Context, before time.Time, batchSize int,
+	nextRun scheduler.NextRunFunc,
+) ([]scheduler.Claim, error) {
+	portRun := portfolio.NextRunFunc(nextRun)
+	dues, err := a.store.ClaimDueContinuous(ctx, before, batchSize, portRun)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]scheduler.Claim, len(dues))
+	for i, d := range dues {
+		out[i] = scheduler.Claim{
+			PortfolioID: d.PortfolioID,
+			Schedule:    d.Schedule,
+			NextRunAt:   d.NextRunAt,
+		}
+	}
+	return out, nil
+}
+
+// schedulerDispatcherAdapter wraps *backtest.Dispatcher for the scheduler.
+// ErrQueueFull is NOT translated here — scheduler.tickOnce already uses
+// errors.Is against backtest.ErrQueueFull directly.
+type schedulerDispatcherAdapter struct {
+	bt *backtest.Dispatcher
+}
+
+func (a schedulerDispatcherAdapter) Submit(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	return a.bt.Submit(ctx, id)
+}
+
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
@@ -186,6 +226,39 @@ var serverCmd = &cobra.Command{
 
 		if err := backtest.StartupSweep(ctx, btCfg.SnapshotsDir, portfolioStore); err != nil {
 			log.Warn().Err(err).Msg("startup sweep")
+		}
+
+		// Initialize tradecron with no holiday data (future plan loads real
+		// holidays). Required before any @monthend/@quarter* schedule is
+		// evaluated anywhere in the process.
+		tradecron.SetMarketHolidays(nil)
+		log.Info().Msg("tradecron holidays disabled (no data loaded)")
+
+		if conf.Scheduler.Enabled {
+			schedCfg := scheduler.Config{
+				TickInterval: conf.Scheduler.TickInterval,
+				BatchSize:    conf.Scheduler.BatchSize,
+			}
+			schedCfg.ApplyDefaults()
+			if err := schedCfg.Validate(); err != nil {
+				log.Fatal().Err(err).Msg("scheduler config")
+			}
+			sched := scheduler.New(schedCfg,
+				schedulerStoreAdapter{store: portfolioStore},
+				schedulerDispatcherAdapter{bt: dispatcher},
+				scheduler.TradecronNext,
+			)
+			go func() {
+				if err := sched.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					log.Error().Err(err).Msg("scheduler exited with error")
+				}
+			}()
+			log.Info().
+				Dur("tick_interval", schedCfg.TickInterval).
+				Int("batch_size", schedCfg.BatchSize).
+				Msg("scheduler started")
+		} else {
+			log.Info().Msg("scheduler disabled")
 		}
 
 		app, err := api.NewApp(ctx, api.Config{
