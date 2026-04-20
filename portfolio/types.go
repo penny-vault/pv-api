@@ -58,6 +58,7 @@ type Portfolio struct {
 	Schedule     *string
 	Status       Status
 	LastRunAt    *time.Time
+	NextRunAt    *time.Time
 	LastError    *string
 	SnapshotPath *string
 	CreatedAt    time.Time

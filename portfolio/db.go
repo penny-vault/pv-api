@@ -37,7 +37,7 @@ var ErrDuplicateSlug = errors.New("duplicate portfolio slug")
 
 const portfolioColumns = `
 	id, owner_sub, slug, name, strategy_code, strategy_ver, parameters,
-	preset_name, benchmark, mode, schedule, status, last_run_at,
+	preset_name, benchmark, mode, schedule, status, last_run_at, next_run_at,
 	last_error, snapshot_path, created_at, updated_at
 `
 
@@ -88,10 +88,10 @@ func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
 	_, err = pool.Exec(ctx, `
 		INSERT INTO portfolios (
 			owner_sub, slug, name, strategy_code, strategy_ver, parameters,
-			preset_name, benchmark, mode, schedule, status
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			preset_name, benchmark, mode, schedule, status, next_run_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, p.OwnerSub, p.Slug, p.Name, p.StrategyCode, p.StrategyVer, paramsJSON,
-		p.PresetName, p.Benchmark, string(p.Mode), p.Schedule, string(p.Status))
+		p.PresetName, p.Benchmark, string(p.Mode), p.Schedule, string(p.Status), p.NextRunAt)
 	if err != nil {
 		if uniqueViolation(err) {
 			return ErrDuplicateSlug
@@ -289,7 +289,8 @@ func scan(r scanner) (Portfolio, error) {
 	err := r.Scan(
 		&p.ID, &p.OwnerSub, &p.Slug, &p.Name, &p.StrategyCode, &p.StrategyVer,
 		&paramsJSON, &p.PresetName, &p.Benchmark, &modeStr, &p.Schedule,
-		&statusStr, &p.LastRunAt, &p.LastError, &p.SnapshotPath, &p.CreatedAt, &p.UpdatedAt,
+		&statusStr, &p.LastRunAt, &p.NextRunAt, &p.LastError, &p.SnapshotPath,
+		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		return Portfolio{}, err
