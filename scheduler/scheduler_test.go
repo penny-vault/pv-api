@@ -175,4 +175,25 @@ var _ = Describe("Scheduler.Run", func() {
 		Expect(store.claimCalls.Load()).To(BeNumerically(">=", int64(2)))
 		Expect(disp.submitCalls.Load()).To(Equal(int64(0)))
 	})
+
+	It("fires the first tick immediately without waiting for TickInterval", func() {
+		claims := []scheduler.Claim{
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
+		}
+		store := &stubStore{claims: claims}
+		disp := &stubDispatcher{}
+		// TickInterval far in the future; the only way Submit fires is the
+		// initial tick before the ticker.
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- sched.Run(ctx) }()
+
+		Eventually(func() int64 { return disp.submitCalls.Load() }, 200*time.Millisecond).Should(Equal(int64(1)))
+		cancel()
+		<-done
+	})
 })
