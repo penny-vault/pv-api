@@ -149,6 +149,26 @@ func MarkFailure(ctx context.Context, pool *pgxpool.Pool, shortCode, version, er
 	return nil
 }
 
+// LookupArtifact returns the artifact_ref for an official strategy matching the
+// given clone URL and version, or ErrNotFound if no such row exists with a
+// successful install (install_error IS NULL).
+func LookupArtifact(ctx context.Context, pool *pgxpool.Pool, cloneURL, installedVer string) (string, error) {
+	var ref string
+	err := pool.QueryRow(ctx, `
+		SELECT artifact_ref
+		  FROM strategies
+		 WHERE clone_url = $1 AND installed_ver = $2 AND install_error IS NULL
+		 LIMIT 1
+	`, cloneURL, installedVer).Scan(&ref)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("looking up artifact: %w", err)
+	}
+	return ref, nil
+}
+
 // scanner is the subset of pgx.Rows / pgx.Row used by scan.
 type scanner interface {
 	Scan(dest ...any) error

@@ -45,6 +45,7 @@ type Store interface {
 	MarkAttempt(ctx context.Context, shortCode, version string) error
 	MarkSuccess(ctx context.Context, shortCode, version, kind, ref string, describe []byte) error
 	MarkFailure(ctx context.Context, shortCode, version, errText string) error
+	LookupArtifact(ctx context.Context, cloneURL, ver string) (string, error)
 }
 
 // DiscoveryFunc returns the current set of listings from GitHub.

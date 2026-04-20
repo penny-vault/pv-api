@@ -49,3 +49,7 @@ func (p PoolStore) MarkSuccess(ctx context.Context, shortCode, version, kind, re
 func (p PoolStore) MarkFailure(ctx context.Context, shortCode, version, errText string) error {
 	return MarkFailure(ctx, p.Pool, shortCode, version, errText)
 }
+
+func (p PoolStore) LookupArtifact(ctx context.Context, cloneURL, ver string) (string, error) {
+	return LookupArtifact(ctx, p.Pool, cloneURL, ver)
+}

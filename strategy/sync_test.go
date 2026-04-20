@@ -103,6 +103,18 @@ func (f *fakeStore) MarkFailure(_ context.Context, sc, ver, errText string) erro
 	return nil
 }
 
+func (f *fakeStore) LookupArtifact(_ context.Context, cloneURL, ver string) (string, error) {
+	for _, row := range f.rows {
+		if row.CloneURL == cloneURL &&
+			row.InstalledVer != nil && *row.InstalledVer == ver &&
+			row.InstallError == nil &&
+			row.ArtifactRef != nil {
+			return *row.ArtifactRef, nil
+		}
+	}
+	return "", strategy.ErrNotFound
+}
+
 var _ = Describe("Syncer.Tick", func() {
 	It("inserts a new listing, attempts install, records success", func() {
 		store := newFakeStore()
