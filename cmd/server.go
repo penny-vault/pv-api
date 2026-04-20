@@ -83,10 +83,14 @@ func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID
 	if err != nil {
 		return backtest.PortfolioRow{}, err
 	}
+	strategyVer := ""
+	if p.StrategyVer != nil {
+		strategyVer = *p.StrategyVer
+	}
 	return backtest.PortfolioRow{
 		ID:           p.ID,
 		StrategyCode: p.StrategyCode,
-		StrategyVer:  p.StrategyVer,
+		StrategyVer:  strategyVer,
 		Parameters:   p.Parameters,
 		Benchmark:    p.Benchmark,
 		Status:       string(p.Status),

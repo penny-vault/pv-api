@@ -169,12 +169,15 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy
 		Slug:         slug,
 		Name:         norm.Name,
 		StrategyCode: norm.StrategyCode,
-		StrategyVer:  norm.StrategyVer,
 		Parameters:   norm.Parameters,
 		PresetName:   presetName,
 		Benchmark:    norm.Benchmark,
 		Mode:         norm.Mode,
 		Status:       StatusPending,
+	}
+	if norm.StrategyVer != "" {
+		v := norm.StrategyVer
+		p.StrategyVer = &v
 	}
 	if norm.Schedule != "" {
 		sch := norm.Schedule
@@ -311,37 +314,39 @@ func (b createBody) toRequest() CreateRequest {
 
 // portfolioView mirrors the OpenAPI Portfolio schema (config only).
 type portfolioView struct {
-	Slug         string         `json:"slug"`
-	Name         string         `json:"name"`
-	StrategyCode string         `json:"strategyCode"`
-	StrategyVer  string         `json:"strategyVer"`
-	Parameters   map[string]any `json:"parameters"`
-	PresetName   *string        `json:"presetName"`
-	Benchmark    string         `json:"benchmark"`
-	Mode         string         `json:"mode"`
-	Schedule     *string        `json:"schedule"`
-	Status       string         `json:"status"`
-	CreatedAt    string         `json:"createdAt"`
-	UpdatedAt    string         `json:"updatedAt"`
-	LastRunAt    *string        `json:"lastRunAt"`
-	LastError    *string        `json:"lastError"`
+	Slug             string         `json:"slug"`
+	Name             string         `json:"name"`
+	StrategyCode     string         `json:"strategyCode"`
+	StrategyVer      *string        `json:"strategyVer"`
+	StrategyCloneURL string         `json:"strategyCloneUrl"`
+	Parameters       map[string]any `json:"parameters"`
+	PresetName       *string        `json:"presetName"`
+	Benchmark        string         `json:"benchmark"`
+	Mode             string         `json:"mode"`
+	Schedule         *string        `json:"schedule"`
+	Status           string         `json:"status"`
+	CreatedAt        string         `json:"createdAt"`
+	UpdatedAt        string         `json:"updatedAt"`
+	LastRunAt        *string        `json:"lastRunAt"`
+	LastError        *string        `json:"lastError"`
 }
 
 func toView(p Portfolio) portfolioView {
 	v := portfolioView{
-		Slug:         p.Slug,
-		Name:         p.Name,
-		StrategyCode: p.StrategyCode,
-		StrategyVer:  p.StrategyVer,
-		Parameters:   p.Parameters,
-		PresetName:   p.PresetName,
-		Benchmark:    p.Benchmark,
-		Mode:         string(p.Mode),
-		Schedule:     p.Schedule,
-		Status:       string(p.Status),
-		CreatedAt:    p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:    p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		LastError:    p.LastError,
+		Slug:             p.Slug,
+		Name:             p.Name,
+		StrategyCode:     p.StrategyCode,
+		StrategyVer:      p.StrategyVer,
+		StrategyCloneURL: p.StrategyCloneURL,
+		Parameters:       p.Parameters,
+		PresetName:       p.PresetName,
+		Benchmark:        p.Benchmark,
+		Mode:             string(p.Mode),
+		Schedule:         p.Schedule,
+		Status:           string(p.Status),
+		CreatedAt:        p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:        p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		LastError:        p.LastError,
 	}
 	if p.LastRunAt != nil {
 		t := p.LastRunAt.UTC().Format("2006-01-02T15:04:05Z")
