@@ -16,8 +16,11 @@
 package scheduler_test
 
 import (
+	"context"
+	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -45,5 +48,53 @@ var _ = Describe("TradecronNext", func() {
 	It("returns an error for an unparseable schedule", func() {
 		_, err := scheduler.TradecronNext("not-a-schedule", time.Now())
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+// --- Scheduler.Run tests ---
+
+type stubStore struct {
+	claimCalls int
+	claims     []scheduler.Claim
+	err        error
+}
+
+func (s *stubStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int, _ scheduler.NextRunFunc) ([]scheduler.Claim, error) {
+	s.claimCalls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.claims, nil
+}
+
+type stubDispatcher struct {
+	submitCalls int
+	err         error
+}
+
+func (d *stubDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
+	d.submitCalls++
+	if d.err != nil {
+		return uuid.Nil, d.err
+	}
+	return uuid.Must(uuid.NewV7()), nil
+}
+
+func stubNextRun(_ string, now time.Time) (time.Time, error) {
+	return now.Add(time.Hour), nil
+}
+
+var _ = Describe("Scheduler.Run", func() {
+	It("exits cleanly when context is cancelled", func() {
+		store := &stubStore{}
+		disp := &stubDispatcher{}
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		err := sched.Run(ctx)
+		Expect(errors.Is(err, context.Canceled)).To(BeTrue())
 	})
 })

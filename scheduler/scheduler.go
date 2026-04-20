@@ -60,3 +60,43 @@ func TradecronNext(schedule string, now time.Time) (time.Time, error) {
 	}
 	return tc.Next(now), nil
 }
+
+// Scheduler owns the tick loop that picks up due continuous portfolios.
+type Scheduler struct {
+	store      PortfolioStore
+	dispatcher Dispatcher
+	cfg        Config
+	nextRun    NextRunFunc
+}
+
+// New builds a Scheduler. cfg defaults are applied.
+func New(cfg Config, store PortfolioStore, dispatcher Dispatcher, nextRun NextRunFunc) *Scheduler {
+	cfg.ApplyDefaults()
+	return &Scheduler{
+		store:      store,
+		dispatcher: dispatcher,
+		cfg:        cfg,
+		nextRun:    nextRun,
+	}
+}
+
+// Run blocks until ctx is cancelled, firing tickOnce immediately and then at
+// each cfg.TickInterval. Errors in a single tick are logged but do not exit
+// the loop.
+func (s *Scheduler) Run(ctx context.Context) error {
+	s.tickOnce(ctx)
+	ticker := time.NewTicker(s.cfg.TickInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			s.tickOnce(ctx)
+		}
+	}
+}
+
+func (s *Scheduler) tickOnce(_ context.Context) {
+	// Filled in by Task 4.
+}
