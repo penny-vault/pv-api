@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/penny-vault/pvbt/tradecron"
+
 	"github.com/penny-vault/pv-api/strategy"
 )
 
@@ -30,6 +32,7 @@ var (
 	ErrLiveNotSupported        = errors.New("live mode unavailable")
 	ErrScheduleRequired        = errors.New("schedule required for continuous mode")
 	ErrScheduleForbidden       = errors.New("schedule forbidden for non-continuous mode")
+	ErrInvalidSchedule         = errors.New("invalid schedule")
 	ErrStrategyNotReady        = errors.New("strategy not installed")
 	ErrStrategyVersionMismatch = errors.New("strategy version not installed")
 	ErrUnknownParameter        = errors.New("unknown parameter")
@@ -87,6 +90,9 @@ func validateMode(req CreateRequest) error {
 	case ModeContinuous:
 		if req.Schedule == "" {
 			return fmt.Errorf("%w", ErrScheduleRequired)
+		}
+		if _, err := tradecron.New(req.Schedule, tradecron.RegularHours); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidSchedule, err)
 		}
 	case ModeOneShot:
 		if req.Schedule != "" {
