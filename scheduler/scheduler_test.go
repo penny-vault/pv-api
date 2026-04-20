@@ -18,6 +18,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,13 +55,13 @@ var _ = Describe("TradecronNext", func() {
 // --- Scheduler.Run tests ---
 
 type stubStore struct {
-	claimCalls int
+	claimCalls atomic.Int64
 	claims     []scheduler.Claim
 	err        error
 }
 
 func (s *stubStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int, _ scheduler.NextRunFunc) ([]scheduler.Claim, error) {
-	s.claimCalls++
+	s.claimCalls.Add(1)
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -68,12 +69,12 @@ func (s *stubStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int, _ 
 }
 
 type stubDispatcher struct {
-	submitCalls int
+	submitCalls atomic.Int64
 	err         error
 }
 
 func (d *stubDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
-	d.submitCalls++
+	d.submitCalls.Add(1)
 	if d.err != nil {
 		return uuid.Nil, d.err
 	}
