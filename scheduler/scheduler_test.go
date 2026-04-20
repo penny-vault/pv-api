@@ -27,6 +27,7 @@ import (
 
 	"github.com/penny-vault/pvbt/tradecron"
 
+	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/scheduler"
 )
 
@@ -119,5 +120,59 @@ var _ = Describe("Scheduler.Run", func() {
 		cancel()
 		Expect(<-done).To(MatchError(context.Canceled))
 		Expect(store.claimCalls.Load()).To(BeNumerically(">=", int64(1)))
+	})
+
+	It("continues past ErrQueueFull and dispatches remaining claims", func() {
+		claims := []scheduler.Claim{
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
+		}
+		store := &stubStore{claims: claims}
+		disp := &stubDispatcher{err: backtest.ErrQueueFull}
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- sched.Run(ctx) }()
+
+		Eventually(func() int64 { return disp.submitCalls.Load() }, time.Second).Should(Equal(int64(2)))
+		cancel()
+		Expect(<-done).To(MatchError(context.Canceled))
+	})
+
+	It("continues past a generic dispatcher error", func() {
+		claims := []scheduler.Claim{
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
+		}
+		store := &stubStore{claims: claims}
+		disp := &stubDispatcher{err: errors.New("pool closed")}
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- sched.Run(ctx) }()
+
+		Eventually(func() int64 { return disp.submitCalls.Load() }, time.Second).Should(Equal(int64(2)))
+		cancel()
+		Expect(<-done).To(MatchError(context.Canceled))
+	})
+
+	It("does not panic or exit when ClaimDueContinuous errors", func() {
+		store := &stubStore{err: errors.New("db down")}
+		disp := &stubDispatcher{}
+		sched := scheduler.New(scheduler.Config{TickInterval: 10 * time.Millisecond, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err := sched.Run(ctx)
+		Expect(errors.Is(err, context.DeadlineExceeded)).To(BeTrue())
+		Expect(store.claimCalls.Load()).To(BeNumerically(">=", int64(2)))
+		Expect(disp.submitCalls.Load()).To(Equal(int64(0)))
 	})
 })
