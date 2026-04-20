@@ -32,6 +32,9 @@ func setViperDefaults() {
 	viper.SetDefault("backtest.max_concurrency", 0)
 	viper.SetDefault("backtest.timeout", "15m")
 	viper.SetDefault("runner.mode", "host")
+	viper.SetDefault("scheduler.tick_interval", "60s")
+	viper.SetDefault("scheduler.batch_size", 32)
+	viper.SetDefault("scheduler.enabled", true)
 }
 
 func bindPFlagsToViper(cmd *cobra.Command) {
