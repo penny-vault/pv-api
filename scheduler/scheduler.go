@@ -20,11 +20,15 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/penny-vault/pvbt/tradecron"
+	"github.com/rs/zerolog/log"
+
+	"github.com/penny-vault/pv-api/backtest"
 )
 
 // NextRunFunc computes the next scheduled execution for a tradecron schedule.
@@ -97,6 +101,30 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) tickOnce(_ context.Context) {
-	// Filled in by Task 4.
+func (s *Scheduler) tickOnce(ctx context.Context) {
+	claims, err := s.store.ClaimDueContinuous(ctx, time.Now(), s.cfg.BatchSize, s.nextRun)
+	if err != nil {
+		log.Error().Err(err).Msg("scheduler: claim failed")
+		return
+	}
+	for _, c := range claims {
+		runID, err := s.dispatcher.Submit(ctx, c.PortfolioID)
+		switch {
+		case errors.Is(err, backtest.ErrQueueFull):
+			log.Warn().
+				Stringer("portfolio_id", c.PortfolioID).
+				Time("next_run_at", c.NextRunAt).
+				Msg("scheduler: queue full, firing skipped until next boundary")
+		case err != nil:
+			log.Error().Err(err).
+				Stringer("portfolio_id", c.PortfolioID).
+				Msg("scheduler: submit failed")
+		default:
+			log.Info().
+				Stringer("portfolio_id", c.PortfolioID).
+				Stringer("run_id", runID).
+				Time("next_run_at", c.NextRunAt).
+				Msg("scheduler: dispatched")
+		}
+	}
 }

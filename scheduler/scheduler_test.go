@@ -98,4 +98,26 @@ var _ = Describe("Scheduler.Run", func() {
 		err := sched.Run(ctx)
 		Expect(errors.Is(err, context.Canceled)).To(BeTrue())
 	})
+
+	It("dispatches each claimed portfolio on the initial tick", func() {
+		claims := []scheduler.Claim{
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@monthend", NextRunAt: time.Now().Add(time.Hour)},
+			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily", NextRunAt: time.Now().Add(24 * time.Hour)},
+		}
+		store := &stubStore{claims: claims}
+		disp := &stubDispatcher{}
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
+			store, disp, stubNextRun)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan error, 1)
+		go func() { done <- sched.Run(ctx) }()
+
+		Eventually(func() int64 { return disp.submitCalls.Load() }, time.Second).Should(Equal(int64(2)))
+		cancel()
+		Expect(<-done).To(MatchError(context.Canceled))
+		Expect(store.claimCalls.Load()).To(BeNumerically(">=", int64(1)))
+	})
 })
