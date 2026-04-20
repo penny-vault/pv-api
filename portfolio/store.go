@@ -31,6 +31,7 @@ type Store interface {
 	Insert(ctx context.Context, p Portfolio) error
 	UpdateName(ctx context.Context, ownerSub, slug, name string) error
 	Delete(ctx context.Context, ownerSub, slug string) error
+	ClaimDueContinuous(ctx context.Context, before time.Time, batchSize int, nextRun NextRunFunc) ([]DueContinuous, error)
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -108,4 +109,11 @@ func (p PoolStore) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID
 func (p PoolStore) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID,
 	errMsg string, durationMs int32) error {
 	return MarkFailedTx(ctx, p.Pool, portfolioID, runID, errMsg, durationMs)
+}
+
+// ClaimDueContinuous claims due continuous portfolios for the scheduler and
+// advances their next_run_at in the same tx.
+func (p PoolStore) ClaimDueContinuous(ctx context.Context, before time.Time,
+	batchSize int, nextRun NextRunFunc) ([]DueContinuous, error) {
+	return ClaimDueContinuous(ctx, p.Pool, before, batchSize, nextRun)
 }

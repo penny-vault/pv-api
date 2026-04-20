@@ -20,13 +20,14 @@ import "time"
 // Config is the top-level pvapi configuration shape. New sections are added
 // as later plans land (runner, scheduler, ...).
 type Config struct {
-	Log      logConf
-	Server   serverConf
-	Auth0    auth0Conf
-	GitHub   githubConf
-	Strategy strategyConf
-	Backtest backtestConf
-	Runner   runnerConf
+	Log       logConf
+	Server    serverConf
+	Auth0     auth0Conf
+	GitHub    githubConf
+	Strategy  strategyConf
+	Backtest  backtestConf
+	Runner    runnerConf
+	Scheduler schedulerConf
 }
 
 // serverConf holds HTTP server settings.
@@ -65,6 +66,14 @@ type backtestConf struct {
 // runnerConf holds the runner execution-mode setting.
 type runnerConf struct {
 	Mode string `mapstructure:"mode"`
+}
+
+// schedulerConf controls the in-process scheduler that picks up due
+// continuous portfolios and submits them to the backtest dispatcher.
+type schedulerConf struct {
+	TickInterval time.Duration `mapstructure:"tick_interval"`
+	BatchSize    int           `mapstructure:"batch_size"`
+	Enabled      bool          `mapstructure:"enabled"`
 }
 
 var conf Config

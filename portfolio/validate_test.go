@@ -143,3 +143,37 @@ var _ = Describe("ValidateCreate", func() {
 		Expect(err.Error()).To(ContainSubstring("riskOn"))
 	})
 })
+
+var _ = Describe("Schedule validation", func() {
+	strategyFixture := func() strategy.Strategy {
+		ver := "v1.0.0"
+		return strategy.Strategy{
+			ShortCode:    "adm",
+			InstalledVer: &ver,
+			DescribeJSON: []byte(`{
+				"shortCode": "adm",
+				"benchmark": "SPY",
+				"parameters": [],
+				"presets": []
+			}`),
+		}
+	}
+
+	It("accepts a valid tradecron schedule on continuous", func() {
+		req := portfolio.CreateRequest{
+			Name: "x", StrategyCode: "adm", Parameters: map[string]any{},
+			Mode: portfolio.ModeContinuous, Schedule: "@daily",
+		}
+		_, err := portfolio.ValidateCreate(req, strategyFixture())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("rejects an invalid schedule on continuous with ErrInvalidSchedule", func() {
+		req := portfolio.CreateRequest{
+			Name: "x", StrategyCode: "adm", Parameters: map[string]any{},
+			Mode: portfolio.ModeContinuous, Schedule: "garbage",
+		}
+		_, err := portfolio.ValidateCreate(req, strategyFixture())
+		Expect(errors.Is(err, portfolio.ErrInvalidSchedule)).To(BeTrue())
+	})
+})

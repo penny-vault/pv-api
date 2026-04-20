@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"net/http/httptest"
+	"sync/atomic"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -28,12 +29,27 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/penny-vault/pvbt/tradecron"
 
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
 )
+
+// countingDispatcher is a portfolio.Dispatcher that records calls and
+// returns a canned (runID, err). Pointer receiver for Submit so call
+// counts persist across the interface boundary.
+type countingDispatcher struct {
+	calls atomic.Int64
+	runID uuid.UUID
+	err   error
+}
+
+func (d *countingDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
+	d.calls.Add(1)
+	return d.runID, d.err
+}
 
 // fakeStore is a trivial in-memory implementation of portfolio.Store.
 type fakeStore struct {
@@ -115,6 +131,12 @@ func (f *fakeStore) ListRuns(_ context.Context, _ uuid.UUID) ([]portfolio.Run, e
 
 func (f *fakeStore) GetRun(_ context.Context, _, _ uuid.UUID) (portfolio.Run, error) {
 	return portfolio.Run{}, portfolio.ErrNotFound
+}
+
+// ClaimDueContinuous stub — handler tests do not exercise the scheduler path.
+func (f *fakeStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int,
+	_ portfolio.NextRunFunc) ([]portfolio.DueContinuous, error) {
+	return nil, nil
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
@@ -453,5 +475,95 @@ var _ = Describe("Handler.Summary", func() {
 		var got openapi.PortfolioSummary
 		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
 		Expect(got.CurrentValue).To(Equal(wantSummary.CurrentValue))
+	})
+})
+
+var _ = Describe("Create for continuous portfolios", func() {
+	installedVer := "v1.0.0"
+	describeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[{"name":"standard","parameters":{"riskOn":"VFINX,PRIDX,QQQ"}}],"schedule":"@monthend","benchmark":"SPY"}`)
+
+	body := `{
+		"name": "test",
+		"strategyCode": "adm",
+		"parameters": {"riskOn": "VFINX,PRIDX,QQQ"},
+		"mode": "continuous",
+		"schedule": "@monthend"
+	}`
+
+	newSetup := func(disp portfolio.Dispatcher) (*fakeStore, *fiber.App) {
+		store := &fakeStore{}
+		strategies := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &installedVer,
+				DescribeJSON: describeJSON,
+			},
+		}
+		h := portfolio.NewHandler(store, strategies, nil, disp)
+
+		app := fiber.New()
+		app.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, "auth0|user-1")
+			return c.Next()
+		})
+		app.Post("/portfolios", h.Create)
+		return store, app
+	}
+
+	BeforeEach(func() {
+		tradecron.SetMarketHolidays(nil)
+	})
+
+	It("submits a run even when runNow is omitted", func() {
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		_, app := newSetup(disp)
+
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusCreated))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
+	})
+
+	It("bootstraps next_run_at on the inserted portfolio", func() {
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		store, app := newSetup(disp)
+
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusCreated))
+		Expect(store.rows).To(HaveLen(1))
+		Expect(store.rows[0].NextRunAt).NotTo(BeNil())
+		Expect(store.rows[0].NextRunAt.After(time.Now().Add(-time.Minute))).To(BeTrue())
+	})
+
+	It("returns 422 for an invalid schedule", func() {
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		store, app := newSetup(disp)
+
+		badBody := `{"name":"x","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"},"mode":"continuous","schedule":"garbage"}`
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(badBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusUnprocessableEntity))
+		Expect(store.rows).To(BeEmpty())
+		Expect(disp.calls.Load()).To(Equal(int64(0)))
+	})
+
+	It("rolls back the portfolio row and returns 503 when dispatcher is full", func() {
+		disp := &countingDispatcher{err: portfolio.ErrQueueFull}
+		store, app := newSetup(disp)
+
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusServiceUnavailable))
+		Expect(store.rows).To(BeEmpty())
 	})
 })
