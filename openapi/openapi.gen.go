@@ -4,8 +4,11 @@
 package openapi
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -229,21 +232,6 @@ func (e GetPortfolioPerformanceParamsResolution) Valid() bool {
 	}
 }
 
-// Defines values for ListStrategiesParamsInclude.
-const (
-	Unofficial ListStrategiesParamsInclude = "unofficial"
-)
-
-// Valid indicates whether the value is a known member of the ListStrategiesParamsInclude enum.
-func (e ListStrategiesParamsInclude) Valid() bool {
-	switch e {
-	case Unofficial:
-		return true
-	default:
-		return false
-	}
-}
-
 // BacktestRun defines model for BacktestRun.
 type BacktestRun struct {
 	DurationMs    *int               `json:"durationMs,omitempty"`
@@ -337,12 +325,17 @@ type Portfolio struct {
 	PresetName *string `json:"presetName,omitempty"`
 
 	// Schedule tradecron string; null when mode=one_shot.
-	Schedule     *string         `json:"schedule,omitempty"`
-	Slug         string          `json:"slug"`
-	Status       PortfolioStatus `json:"status"`
-	StrategyCode string          `json:"strategyCode"`
-	StrategyVer  string          `json:"strategyVer"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
+	Schedule *string         `json:"schedule,omitempty"`
+	Slug     string          `json:"slug"`
+	Status   PortfolioStatus `json:"status"`
+
+	// StrategyCloneUrl Clone URL of the strategy that produced this portfolio.
+	StrategyCloneUrl string `json:"strategyCloneUrl"`
+	StrategyCode     string `json:"strategyCode"`
+
+	// StrategyVer Pinned strategy version (NULL for unofficial portfolios).
+	StrategyVer *string   `json:"strategyVer,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // PortfolioCreateRequest defines model for PortfolioCreateRequest.
@@ -365,12 +358,22 @@ type PortfolioCreateRequest struct {
 	// Schedule tradecron string, required iff mode=continuous (e.g. `@monthend`).
 	Schedule *string `json:"schedule,omitempty"`
 
+	// StrategyCloneUrl HTTPS GitHub clone URL. Mutually exclusive with strategyCode.
+	StrategyCloneUrl *string `json:"strategyCloneUrl,omitempty"`
+
 	// StrategyCode Strategy short code (from `describe` output).
-	StrategyCode string `json:"strategyCode"`
+	StrategyCode *string `json:"strategyCode,omitempty"`
 
 	// StrategyVer Specific version to pin; omit for latest installed.
 	StrategyVer *string `json:"strategyVer,omitempty"`
+	union       json.RawMessage
 }
+
+// PortfolioCreateRequest0 defines model for .
+type PortfolioCreateRequest0 = interface{}
+
+// PortfolioCreateRequest1 defines model for .
+type PortfolioCreateRequest1 = interface{}
 
 // PortfolioListItem Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
 type PortfolioListItem struct {
@@ -517,12 +520,6 @@ type StrategyPreset struct {
 	Parameters map[string]interface{} `json:"parameters"`
 }
 
-// StrategyRegisterRequest defines model for StrategyRegisterRequest.
-type StrategyRegisterRequest struct {
-	// CloneUrl HTTPS clone URL for the strategy repository.
-	CloneUrl string `json:"cloneUrl"`
-}
-
 // TrailingReturnRow defines model for TrailingReturnRow.
 type TrailingReturnRow struct {
 	FiveYear float64 `json:"fiveYear"`
@@ -563,6 +560,9 @@ type TransactionsResponse struct {
 
 // PortfolioSlug defines model for PortfolioSlug.
 type PortfolioSlug = string
+
+// BadRequest RFC 7807 Problem Details.
+type BadRequest = Problem
 
 // Conflict RFC 7807 Problem Details.
 type Conflict = Problem
@@ -615,14 +615,11 @@ type GetPortfolioTransactionsParams struct {
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
 }
 
-// ListStrategiesParams defines parameters for ListStrategies.
-type ListStrategiesParams struct {
-	// Include Set to `unofficial` to include the caller's registered unofficial strategies.
-	Include *ListStrategiesParamsInclude `form:"include,omitempty" json:"include,omitempty"`
+// DescribeStrategyParams defines parameters for DescribeStrategy.
+type DescribeStrategyParams struct {
+	// CloneUrl HTTPS GitHub clone URL.
+	CloneUrl string `form:"cloneUrl" json:"cloneUrl"`
 }
-
-// ListStrategiesParamsInclude defines parameters for ListStrategies.
-type ListStrategiesParamsInclude string
 
 // CreatePortfolioJSONRequestBody defines body for CreatePortfolio for application/json ContentType.
 type CreatePortfolioJSONRequestBody = PortfolioCreateRequest
@@ -630,5 +627,204 @@ type CreatePortfolioJSONRequestBody = PortfolioCreateRequest
 // UpdatePortfolioJSONRequestBody defines body for UpdatePortfolio for application/json ContentType.
 type UpdatePortfolioJSONRequestBody = PortfolioUpdateRequest
 
-// RegisterUnofficialStrategyJSONRequestBody defines body for RegisterUnofficialStrategy for application/json ContentType.
-type RegisterUnofficialStrategyJSONRequestBody = StrategyRegisterRequest
+// AsPortfolioCreateRequest0 returns the union data inside the PortfolioCreateRequest as a PortfolioCreateRequest0
+func (t PortfolioCreateRequest) AsPortfolioCreateRequest0() (PortfolioCreateRequest0, error) {
+	var body PortfolioCreateRequest0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPortfolioCreateRequest0 overwrites any union data inside the PortfolioCreateRequest as the provided PortfolioCreateRequest0
+func (t *PortfolioCreateRequest) FromPortfolioCreateRequest0(v PortfolioCreateRequest0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePortfolioCreateRequest0 performs a merge with any union data inside the PortfolioCreateRequest, using the provided PortfolioCreateRequest0
+func (t *PortfolioCreateRequest) MergePortfolioCreateRequest0(v PortfolioCreateRequest0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPortfolioCreateRequest1 returns the union data inside the PortfolioCreateRequest as a PortfolioCreateRequest1
+func (t PortfolioCreateRequest) AsPortfolioCreateRequest1() (PortfolioCreateRequest1, error) {
+	var body PortfolioCreateRequest1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPortfolioCreateRequest1 overwrites any union data inside the PortfolioCreateRequest as the provided PortfolioCreateRequest1
+func (t *PortfolioCreateRequest) FromPortfolioCreateRequest1(v PortfolioCreateRequest1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePortfolioCreateRequest1 performs a merge with any union data inside the PortfolioCreateRequest, using the provided PortfolioCreateRequest1
+func (t *PortfolioCreateRequest) MergePortfolioCreateRequest1(v PortfolioCreateRequest1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PortfolioCreateRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Benchmark != nil {
+		object["benchmark"], err = json.Marshal(t.Benchmark)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'benchmark': %w", err)
+		}
+	}
+
+	object["mode"], err = json.Marshal(t.Mode)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'mode': %w", err)
+	}
+
+	object["name"], err = json.Marshal(t.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	object["parameters"], err = json.Marshal(t.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'parameters': %w", err)
+	}
+
+	if t.RunNow != nil {
+		object["runNow"], err = json.Marshal(t.RunNow)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'runNow': %w", err)
+		}
+	}
+
+	if t.Schedule != nil {
+		object["schedule"], err = json.Marshal(t.Schedule)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'schedule': %w", err)
+		}
+	}
+
+	if t.StrategyCloneUrl != nil {
+		object["strategyCloneUrl"], err = json.Marshal(t.StrategyCloneUrl)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'strategyCloneUrl': %w", err)
+		}
+	}
+
+	if t.StrategyCode != nil {
+		object["strategyCode"], err = json.Marshal(t.StrategyCode)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'strategyCode': %w", err)
+		}
+	}
+
+	if t.StrategyVer != nil {
+		object["strategyVer"], err = json.Marshal(t.StrategyVer)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'strategyVer': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *PortfolioCreateRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["benchmark"]; found {
+		err = json.Unmarshal(raw, &t.Benchmark)
+		if err != nil {
+			return fmt.Errorf("error reading 'benchmark': %w", err)
+		}
+	}
+
+	if raw, found := object["mode"]; found {
+		err = json.Unmarshal(raw, &t.Mode)
+		if err != nil {
+			return fmt.Errorf("error reading 'mode': %w", err)
+		}
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["parameters"]; found {
+		err = json.Unmarshal(raw, &t.Parameters)
+		if err != nil {
+			return fmt.Errorf("error reading 'parameters': %w", err)
+		}
+	}
+
+	if raw, found := object["runNow"]; found {
+		err = json.Unmarshal(raw, &t.RunNow)
+		if err != nil {
+			return fmt.Errorf("error reading 'runNow': %w", err)
+		}
+	}
+
+	if raw, found := object["schedule"]; found {
+		err = json.Unmarshal(raw, &t.Schedule)
+		if err != nil {
+			return fmt.Errorf("error reading 'schedule': %w", err)
+		}
+	}
+
+	if raw, found := object["strategyCloneUrl"]; found {
+		err = json.Unmarshal(raw, &t.StrategyCloneUrl)
+		if err != nil {
+			return fmt.Errorf("error reading 'strategyCloneUrl': %w", err)
+		}
+	}
+
+	if raw, found := object["strategyCode"]; found {
+		err = json.Unmarshal(raw, &t.StrategyCode)
+		if err != nil {
+			return fmt.Errorf("error reading 'strategyCode': %w", err)
+		}
+	}
+
+	if raw, found := object["strategyVer"]; found {
+		err = json.Unmarshal(raw, &t.StrategyVer)
+		if err != nil {
+			return fmt.Errorf("error reading 'strategyVer': %w", err)
+		}
+	}
+
+	return err
+}
