@@ -98,7 +98,8 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		if opener == nil {
 			opener = snapshot.Opener{}
 		}
-		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, opener, conf.Dispatcher)
+		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, opener, conf.Dispatcher,
+			nil, nil, strategy.EphemeralOptions{}) // Task 10 wires real builder + validator
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))
 

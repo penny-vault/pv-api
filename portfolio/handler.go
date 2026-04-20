@@ -47,6 +47,10 @@ type Handler struct {
 	strategies strategy.ReadStore
 	opener     SnapshotOpener
 	dispatcher Dispatcher
+
+	ephemeralBuilder strategy.BuilderFunc
+	urlValidator     strategy.URLValidatorFunc
+	ephemeralOpts    strategy.EphemeralOptions
 }
 
 // Dispatcher is the subset of backtest.Dispatcher the handler needs.
@@ -55,9 +59,26 @@ type Dispatcher interface {
 }
 
 // NewHandler constructs a handler. strategies is used to validate the
-// referenced strategy at create time.
-func NewHandler(store Store, strategies strategy.ReadStore, opener SnapshotOpener, dispatcher Dispatcher) *Handler {
-	return &Handler{store: store, strategies: strategies, opener: opener, dispatcher: dispatcher}
+// referenced strategy at create time. builder, urlValidator, and
+// ephemeralOpts support unofficial (clone-URL) strategy creation.
+func NewHandler(
+	store Store,
+	strategies strategy.ReadStore,
+	opener SnapshotOpener,
+	dispatcher Dispatcher,
+	builder strategy.BuilderFunc,
+	urlValidator strategy.URLValidatorFunc,
+	ephemeralOpts strategy.EphemeralOptions,
+) *Handler {
+	return &Handler{
+		store:            store,
+		strategies:       strategies,
+		opener:           opener,
+		dispatcher:       dispatcher,
+		ephemeralBuilder: builder,
+		urlValidator:     urlValidator,
+		ephemeralOpts:    ephemeralOpts,
+	}
 }
 
 // List implements GET /portfolios.
@@ -94,7 +115,9 @@ func (h *Handler) Get(c fiber.Ctx) error {
 	return writeJSON(c, fiber.StatusOK, toView(p))
 }
 
-// Create implements POST /portfolios.
+// Create implements POST /portfolios. It dispatches to createOfficial or
+// createUnofficial depending on which of strategyCode / strategyCloneUrl
+// is set. Both set or neither set yields 422.
 func (h *Handler) Create(c fiber.Ctx) error {
 	ownerSub, err := subject(c)
 	if err != nil {
@@ -103,13 +126,30 @@ func (h *Handler) Create(c fiber.Ctx) error {
 
 	var body createBody
 	if err := sonic.Unmarshal(c.Body(), &body); err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", fmt.Sprintf("body is not valid JSON: %v", err))
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+			fmt.Sprintf("body is not valid JSON: %v", err))
 	}
 	req := body.toRequest()
 
+	switch {
+	case req.StrategyCode != "" && req.StrategyCloneURL != "":
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+			"exactly one of strategyCode or strategyCloneUrl is required")
+	case req.StrategyCode == "" && req.StrategyCloneURL == "":
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+			"one of strategyCode or strategyCloneUrl is required")
+	case req.StrategyCloneURL != "":
+		return h.createUnofficial(c, ownerSub, req)
+	default:
+		return h.createOfficial(c, ownerSub, req)
+	}
+}
+
+func (h *Handler) createOfficial(c fiber.Ctx, ownerSub string, req CreateRequest) error {
 	s, err := h.strategies.Get(c.Context(), req.StrategyCode)
 	if errors.Is(err, strategy.ErrNotFound) {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unknown strategy", "no registered strategy with short_code="+req.StrategyCode)
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unknown strategy",
+			"no registered strategy with short_code="+req.StrategyCode)
 	}
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
@@ -120,14 +160,59 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusUnprocessableEntity, "Invalid portfolio", err.Error())
 	}
 
-	p, err := h.buildPortfolio(ownerSub, norm, s)
+	var describe strategy.Describe
+	if err := json.Unmarshal(s.DescribeJSON, &describe); err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
+			errStrategyMalformed.Error())
+	}
+	return h.insertAndDispatch(c, ownerSub, norm, describe, s.CloneURL,
+		append([]byte(nil), s.DescribeJSON...))
+}
+
+func (h *Handler) createUnofficial(c fiber.Ctx, ownerSub string, req CreateRequest) error {
+	if err := h.urlValidator(req.StrategyCloneURL); err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Invalid clone URL", err.Error())
+	}
+
+	opts := h.ephemeralOpts
+	opts.CloneURL = req.StrategyCloneURL
+
+	binPath, cleanup, err := h.ephemeralBuilder(c.Context(), opts)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Build failed", err.Error())
+	}
+	defer cleanup()
+
+	raw, err := strategy.RunDescribe(c.Context(), binPath)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Describe failed", err.Error())
+	}
+	var describe strategy.Describe
+	if err := json.Unmarshal(raw, &describe); err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Describe JSON malformed", err.Error())
+	}
+
+	norm, err := ValidateCreateUnofficial(req, describe)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Invalid portfolio", err.Error())
+	}
+	norm.StrategyCode = describe.ShortCode
+
+	return h.insertAndDispatch(c, ownerSub, norm, describe, req.StrategyCloneURL, raw)
+}
+
+func (h *Handler) insertAndDispatch(c fiber.Ctx, ownerSub string, norm CreateRequest,
+	describe strategy.Describe, cloneURL string, describeJSON []byte) error {
+
+	p, err := h.buildPortfolio(ownerSub, norm, describe, cloneURL, describeJSON)
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 
 	if err := h.store.Insert(c.Context(), p); err != nil {
 		if errors.Is(err, ErrDuplicateSlug) {
-			return writeProblem(c, fiber.StatusConflict, "Conflict", "portfolio with slug "+p.Slug+" already exists for this user")
+			return writeProblem(c, fiber.StatusConflict, "Conflict",
+				"portfolio with slug "+p.Slug+" already exists for this user")
 		}
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
@@ -152,28 +237,29 @@ func (h *Handler) Create(c fiber.Ctx) error {
 }
 
 // buildPortfolio constructs a Portfolio value from a validated create request.
-// For continuous portfolios, next_run_at is bootstrapped to the next
-// tradecron boundary.
-func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy.Strategy) (Portfolio, error) {
-	var describe strategy.Describe
-	if err := json.Unmarshal(s.DescribeJSON, &describe); err != nil {
-		return Portfolio{}, errStrategyMalformed
-	}
+// describe and cloneURL come from either the strategy row (official) or an
+// ephemeral build (unofficial). For continuous portfolios, next_run_at is
+// bootstrapped to the next tradecron boundary.
+func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe strategy.Describe,
+	cloneURL string, describeJSON []byte) (Portfolio, error) {
+
 	slug, err := Slug(norm, describe)
 	if err != nil {
 		return Portfolio{}, err
 	}
 	presetName := presetMatch(norm.Parameters, describe)
 	p := Portfolio{
-		OwnerSub:     ownerSub,
-		Slug:         slug,
-		Name:         norm.Name,
-		StrategyCode: norm.StrategyCode,
-		Parameters:   norm.Parameters,
-		PresetName:   presetName,
-		Benchmark:    norm.Benchmark,
-		Mode:         norm.Mode,
-		Status:       StatusPending,
+		OwnerSub:             ownerSub,
+		Slug:                 slug,
+		Name:                 norm.Name,
+		StrategyCode:         norm.StrategyCode,
+		StrategyCloneURL:     cloneURL,
+		StrategyDescribeJSON: describeJSON,
+		Parameters:           norm.Parameters,
+		PresetName:           presetName,
+		Benchmark:            norm.Benchmark,
+		Mode:                 norm.Mode,
+		Status:               StatusPending,
 	}
 	if norm.StrategyVer != "" {
 		v := norm.StrategyVer
@@ -186,7 +272,6 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, s strategy
 	if norm.Mode == ModeContinuous {
 		tc, err := tradecron.New(norm.Schedule, tradecron.RegularHours)
 		if err != nil {
-			// Unreachable: ValidateCreate already checks this.
 			return Portfolio{}, fmt.Errorf("%w: %w", ErrInvalidSchedule, err)
 		}
 		nextAt := tc.Next(time.Now())
@@ -289,26 +374,28 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 // type keeps JSON-tag details out of CreateRequest (which is the domain
 // type used elsewhere).
 type createBody struct {
-	Name         string         `json:"name"`
-	StrategyCode string         `json:"strategyCode"`
-	StrategyVer  string         `json:"strategyVer,omitempty"`
-	Parameters   map[string]any `json:"parameters"`
-	Benchmark    string         `json:"benchmark,omitempty"`
-	Mode         string         `json:"mode"`
-	Schedule     string         `json:"schedule,omitempty"`
-	RunNow       bool           `json:"runNow,omitempty"`
+	Name             string         `json:"name"`
+	StrategyCode     string         `json:"strategyCode,omitempty"`
+	StrategyCloneURL string         `json:"strategyCloneUrl,omitempty"`
+	StrategyVer      string         `json:"strategyVer,omitempty"`
+	Parameters       map[string]any `json:"parameters"`
+	Benchmark        string         `json:"benchmark,omitempty"`
+	Mode             string         `json:"mode"`
+	Schedule         string         `json:"schedule,omitempty"`
+	RunNow           bool           `json:"runNow,omitempty"`
 }
 
 func (b createBody) toRequest() CreateRequest {
 	return CreateRequest{
-		Name:         b.Name,
-		StrategyCode: b.StrategyCode,
-		StrategyVer:  b.StrategyVer,
-		Parameters:   b.Parameters,
-		Benchmark:    b.Benchmark,
-		Mode:         Mode(b.Mode),
-		Schedule:     b.Schedule,
-		RunNow:       b.RunNow,
+		Name:             b.Name,
+		StrategyCode:     b.StrategyCode,
+		StrategyCloneURL: b.StrategyCloneURL,
+		StrategyVer:      b.StrategyVer,
+		Parameters:       b.Parameters,
+		Benchmark:        b.Benchmark,
+		Mode:             Mode(b.Mode),
+		Schedule:         b.Schedule,
+		RunNow:           b.RunNow,
 	}
 }
 
