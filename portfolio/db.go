@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 // ErrNotFound is returned when a portfolio lookup does not match any row
@@ -273,6 +274,96 @@ func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason stri
 		return 0, err
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// DueContinuous is a portfolio picked up by a scheduler tick, with its new
+// next_run_at already committed inside the claim tx.
+type DueContinuous struct {
+	PortfolioID uuid.UUID
+	Schedule    string
+	NextRunAt   time.Time
+}
+
+// NextRunFunc computes the next scheduled execution time for a tradecron
+// schedule string. Returning an error causes that row to be skipped by
+// ClaimDueContinuous without aborting the batch.
+type NextRunFunc func(schedule string, now time.Time) (time.Time, error)
+
+// ClaimDueContinuous claims up to batchSize due continuous portfolios and
+// advances their next_run_at in a single Postgres transaction. Rows are
+// selected FOR UPDATE SKIP LOCKED so concurrent instances never pick up the
+// same portfolio; the UPDATE inside the same tx means subsequent ticks
+// see the advanced next_run_at.
+//
+// nextRun is invoked per row to compute the new next_run_at. An error from
+// nextRun causes that single row to be skipped (logged); other rows in the
+// batch still process.
+func ClaimDueContinuous(ctx context.Context, pool *pgxpool.Pool, before time.Time,
+	batchSize int, nextRun NextRunFunc) ([]DueContinuous, error) {
+
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+
+	rows, err := tx.Query(ctx, `
+		SELECT id, schedule
+		  FROM portfolios
+		 WHERE mode = 'continuous'
+		   AND status IN ('ready', 'failed')
+		   AND next_run_at IS NOT NULL
+		   AND next_run_at <= $1
+		 ORDER BY next_run_at
+		 LIMIT $2
+		 FOR UPDATE SKIP LOCKED
+	`, before, batchSize)
+	if err != nil {
+		return nil, err
+	}
+
+	type pending struct {
+		id       uuid.UUID
+		schedule string
+	}
+	var pendings []pending
+	for rows.Next() {
+		var p pending
+		if err := rows.Scan(&p.id, &p.schedule); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		pendings = append(pendings, p)
+	}
+	rows.Close()
+
+	var claims []DueContinuous
+	for _, p := range pendings {
+		nextAt, err := nextRun(p.schedule, before)
+		if err != nil {
+			log.Error().Err(err).
+				Stringer("portfolio_id", p.id).
+				Str("schedule", p.schedule).
+				Msg("scheduler: invalid schedule in DB, skipping row")
+			continue
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE portfolios SET next_run_at = $1, updated_at = NOW() WHERE id = $2`,
+			nextAt, p.id,
+		); err != nil {
+			return nil, err
+		}
+		claims = append(claims, DueContinuous{
+			PortfolioID: p.id,
+			Schedule:    p.schedule,
+			NextRunAt:   nextAt,
+		})
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return claims, nil
 }
 
 type scanner interface {

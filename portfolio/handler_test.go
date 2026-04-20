@@ -117,6 +117,12 @@ func (f *fakeStore) GetRun(_ context.Context, _, _ uuid.UUID) (portfolio.Run, er
 	return portfolio.Run{}, portfolio.ErrNotFound
 }
 
+// ClaimDueContinuous stub — handler tests do not exercise the scheduler path.
+func (f *fakeStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int,
+	_ portfolio.NextRunFunc) ([]portfolio.DueContinuous, error) {
+	return nil, nil
+}
+
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
 // strategy; anything else is ErrNotFound.
 type fakeStrategyStore struct {
