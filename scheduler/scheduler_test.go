@@ -27,6 +27,10 @@ import (
 )
 
 var _ = Describe("TradecronNext", func() {
+	// pvbt/tradecron panics when @monthend / @monthbegin / @quarter* schedules
+	// are evaluated without market-holiday data pre-loaded. Production wires
+	// this at startup in cmd/server.go (Plan 6 Task 12); tests pass nil to
+	// disable holiday-aware skipping.
 	BeforeEach(func() {
 		tradecron.SetMarketHolidays(nil)
 	})
