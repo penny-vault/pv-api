@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -35,6 +36,8 @@ func setViperDefaults() {
 	viper.SetDefault("scheduler.tick_interval", "60s")
 	viper.SetDefault("scheduler.batch_size", 32)
 	viper.SetDefault("scheduler.enabled", true)
+	viper.SetDefault("strategy.ephemeral_dir", "/tmp/pvapi-strategies")
+	viper.SetDefault("strategy.ephemeral_install_timeout", 60*time.Second)
 }
 
 func bindPFlagsToViper(cmd *cobra.Command) {

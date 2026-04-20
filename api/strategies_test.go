@@ -43,7 +43,7 @@ var _ = Describe("Strategy handlers", func() {
 			Expect(resp.Header.Get("Content-Type")).To(Equal("application/problem+json"))
 		},
 		Entry("list strategies", "GET", "/strategies"),
-		Entry("register unofficial", "POST", "/strategies"),
+		Entry("describe strategy", "GET", "/strategies/describe"),
 		Entry("get strategy", "GET", "/strategies/adm"),
 	)
 })

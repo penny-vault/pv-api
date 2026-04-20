@@ -39,6 +39,13 @@ var (
 	ErrRegistryGitHubOwner  = errors.New("RegistryConfig.GitHubOwner must not be empty")
 )
 
+// EphemeralConfig holds the ephemeral-build settings forwarded to
+// DescribeHandler and portfolio.Handler.
+type EphemeralConfig struct {
+	Dir     string
+	Timeout time.Duration
+}
+
 // Config holds HTTP-layer configuration.
 type Config struct {
 	Port           int
@@ -48,6 +55,7 @@ type Config struct {
 	Pool           *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
 	Dispatcher     portfolio.Dispatcher // optional: if nil, /runs POST returns 501
 	SnapshotOpener portfolio.SnapshotOpener
+	Ephemeral      EphemeralConfig
 }
 
 // RegistryConfig configures the strategy registry sync and its install
@@ -98,10 +106,23 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		if opener == nil {
 			opener = snapshot.Opener{}
 		}
-		portfolioHandler := portfolio.NewHandler(portfolioStore, strategyStore, opener, conf.Dispatcher,
-			nil, nil, strategy.EphemeralOptions{}) // Task 10 wires real builder + validator
+		ephOpts := strategy.EphemeralOptions{
+			Dir:     conf.Ephemeral.Dir,
+			Timeout: conf.Ephemeral.Timeout,
+		}
+		portfolioHandler := portfolio.NewHandler(
+			portfolioStore, strategyStore, opener, conf.Dispatcher,
+			strategy.EphemeralBuild,
+			strategy.ValidateCloneURL,
+			ephOpts,
+		)
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
-		RegisterStrategyRoutesWith(protected, NewStrategyHandler(strategyStore))
+		RegisterStrategyRoutesWith(protected, NewStrategyHandler(
+			strategyStore,
+			strategy.EphemeralBuild,
+			strategy.ValidateCloneURL,
+			ephOpts,
+		))
 
 		if err := startRegistrySync(ctx, strategyStore, conf.Registry); err != nil {
 			return nil, fmt.Errorf("start registry sync: %w", err)

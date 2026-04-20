@@ -181,6 +181,8 @@ func init() {
 	serverCmd.Flags().Int("strategy-install-concurrency", 2, "maximum concurrent strategy installs")
 	serverCmd.Flags().String("strategy-official-dir", "/var/lib/pvapi/strategies/official", "where installed official strategy binaries live")
 	serverCmd.Flags().String("strategy-github-query", "owner:penny-vault topic:pvbt-strategy", "GitHub search query for official strategies (owner filter applied client-side)")
+	serverCmd.Flags().String("strategy-ephemeral-dir", "/tmp/pvapi-strategies", "ephemeral build dir for unofficial strategies")
+	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 60*time.Second, "max time for one ephemeral clone+build")
 	bindPFlagsToViper(serverCmd)
 }
 
@@ -212,13 +214,21 @@ var serverCmd = &cobra.Command{
 		strategyStore := strategy.PoolStore{Pool: pool}
 
 		resolve := func(resolveCtx context.Context, cloneURL, ver string) (string, func(), error) {
-			// Task 8: minimal adaptation using LookupArtifact(cloneURL, ver).
-			// Task 10 will rewrite this to do cache-or-ephemeral for unofficial strategies.
-			ref, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
-			if err != nil {
-				return "", func() {}, fmt.Errorf("%w: %w", backtest.ErrStrategyNotInstalled, err)
+			if ver != "" {
+				artifact, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
+				if err == nil && artifact != "" {
+					return artifact, func() {}, nil
+				}
+				if err != nil && !errors.Is(err, strategy.ErrNotFound) {
+					return "", nil, err
+				}
 			}
-			return ref, func() {}, nil
+			return strategy.EphemeralBuild(resolveCtx, strategy.EphemeralOptions{
+				CloneURL: cloneURL,
+				Ver:      ver,
+				Dir:      conf.Strategy.EphemeralDir,
+				Timeout:  conf.Strategy.EphemeralInstallTimeout,
+			})
 		}
 
 		runner := &backtest.HostRunner{}
@@ -286,6 +296,10 @@ var serverCmd = &cobra.Command{
 			},
 			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},
+			Ephemeral: api.EphemeralConfig{
+				Dir:     conf.Strategy.EphemeralDir,
+				Timeout: conf.Strategy.EphemeralInstallTimeout,
+			},
 		})
 		if err != nil {
 			return fmt.Errorf("build app: %w", err)

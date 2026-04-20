@@ -50,10 +50,12 @@ type githubConf struct {
 
 // strategyConf controls the registry sync and install coordinator.
 type strategyConf struct {
-	RegistrySyncInterval time.Duration `mapstructure:"registry_sync_interval"`
-	InstallConcurrency   int           `mapstructure:"install_concurrency"`
-	OfficialDir          string        `mapstructure:"official_dir"`
-	GithubQuery          string        `mapstructure:"github_query"`
+	RegistrySyncInterval    time.Duration `mapstructure:"registry_sync_interval"`
+	InstallConcurrency      int           `mapstructure:"install_concurrency"`
+	OfficialDir             string        `mapstructure:"official_dir"`
+	GithubQuery             string        `mapstructure:"github_query"`
+	EphemeralDir            string        `mapstructure:"ephemeral_dir"`
+	EphemeralInstallTimeout time.Duration `mapstructure:"ephemeral_install_timeout"`
 }
 
 // backtestConf controls the backtest runtime.
