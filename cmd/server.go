@@ -234,6 +234,7 @@ var serverCmd = &cobra.Command{
 		tradecron.SetMarketHolidays(nil)
 		log.Info().Msg("tradecron holidays disabled (no data loaded)")
 
+		var schedulerDone chan struct{}
 		if conf.Scheduler.Enabled {
 			schedCfg := scheduler.Config{
 				TickInterval: conf.Scheduler.TickInterval,
@@ -248,7 +249,9 @@ var serverCmd = &cobra.Command{
 				schedulerDispatcherAdapter{bt: dispatcher},
 				scheduler.TradecronNext,
 			)
+			schedulerDone = make(chan struct{})
 			go func() {
+				defer close(schedulerDone)
 				if err := sched.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					log.Error().Err(err).Msg("scheduler exited with error")
 				}
@@ -303,6 +306,13 @@ var serverCmd = &cobra.Command{
 			return nil
 		case <-ctx.Done():
 			log.Info().Msg("shutdown signal received")
+			if schedulerDone != nil {
+				select {
+				case <-schedulerDone:
+				case <-time.After(5 * time.Second):
+					log.Warn().Msg("scheduler drain timeout; proceeding with dispatcher shutdown")
+				}
+			}
 			_ = dispatcher.Shutdown(30 * time.Second)
 			shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer shutCancel()
