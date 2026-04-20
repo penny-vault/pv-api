@@ -177,3 +177,66 @@ var _ = Describe("Schedule validation", func() {
 		Expect(errors.Is(err, portfolio.ErrInvalidSchedule)).To(BeTrue())
 	})
 })
+
+var _ = Describe("ValidateCreateUnofficial", func() {
+	d := strategy.Describe{
+		ShortCode: "fake",
+		Name:      "Fake",
+		Parameters: []strategy.DescribeParameter{
+			{Name: "riskOn", Type: "universe"},
+		},
+		Schedule:  "@monthend",
+		Benchmark: "SPY",
+	}
+
+	It("accepts a well-formed one-shot request", func() {
+		req := portfolio.CreateRequest{
+			Name:       "p",
+			Mode:       portfolio.ModeOneShot,
+			Parameters: map[string]any{"riskOn": "SPY"},
+		}
+		norm, err := portfolio.ValidateCreateUnofficial(req, d)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(norm.Benchmark).To(Equal("SPY"))
+	})
+
+	It("rejects unknown parameter", func() {
+		req := portfolio.CreateRequest{
+			Name:       "p",
+			Mode:       portfolio.ModeOneShot,
+			Parameters: map[string]any{"riskOn": "SPY", "nope": 1},
+		}
+		_, err := portfolio.ValidateCreateUnofficial(req, d)
+		Expect(errors.Is(err, portfolio.ErrUnknownParameter)).To(BeTrue())
+	})
+
+	It("rejects missing parameter", func() {
+		req := portfolio.CreateRequest{
+			Name:       "p",
+			Mode:       portfolio.ModeOneShot,
+			Parameters: map[string]any{},
+		}
+		_, err := portfolio.ValidateCreateUnofficial(req, d)
+		Expect(errors.Is(err, portfolio.ErrMissingParameter)).To(BeTrue())
+	})
+
+	It("rejects live mode", func() {
+		req := portfolio.CreateRequest{
+			Name:       "p",
+			Mode:       portfolio.ModeLive,
+			Parameters: map[string]any{"riskOn": "SPY"},
+		}
+		_, err := portfolio.ValidateCreateUnofficial(req, d)
+		Expect(errors.Is(err, portfolio.ErrLiveNotSupported)).To(BeTrue())
+	})
+
+	It("requires schedule for continuous", func() {
+		req := portfolio.CreateRequest{
+			Name:       "p",
+			Mode:       portfolio.ModeContinuous,
+			Parameters: map[string]any{"riskOn": "SPY"},
+		}
+		_, err := portfolio.ValidateCreateUnofficial(req, d)
+		Expect(errors.Is(err, portfolio.ErrScheduleRequired)).To(BeTrue())
+	})
+})
