@@ -40,6 +40,14 @@ import (
 // ErrDockerBuildFailed wraps errors returned from ImageBuild.
 var ErrDockerBuildFailed = errors.New("strategy: docker image build failed")
 
+// ErrDockerClientNil is returned when InstallDocker or EphemeralImageBuild
+// receive a nil dockercli.Client.
+var ErrDockerClientNil = errors.New("strategy: docker client is nil")
+
+// ErrDescribeNonZeroExit is returned when the describe container exits with a
+// non-zero status code.
+var ErrDescribeNonZeroExit = errors.New("strategy: describe container exited non-zero")
+
 // DockerInstallDeps configures InstallDocker.
 type DockerInstallDeps struct {
 	Client       dockercli.Client
@@ -75,12 +83,12 @@ func ImageTag(prefix, cloneURL, ver string) string {
 //  3. ImageBuild, tag = ImageTag(prefix, CloneURL, Version)
 //  4. docker run --rm <image> describe --json  (via the sdk)
 //  5. validate describe.shortCode matches req.ShortCode
-func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDeps) (*InstallResult, error) {
+func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDeps) (*InstallResult, error) { //nolint:gocyclo // control flow is sequential; refactoring would obscure error handling
 	if req.ShortCode == "" || req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
 		return nil, ErrInstallMissingFields
 	}
 	if deps.Client == nil {
-		return nil, errors.New("InstallDocker: nil Client")
+		return nil, ErrDockerClientNil
 	}
 	if deps.ImagePrefix == "" {
 		deps.ImagePrefix = "pvapi-strategy"
@@ -125,7 +133,7 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDockerBuildFailed, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close is best-effort after read
 	buildOut, bErr := drainBuildStream(resp.Body)
 	if bErr != nil {
 		return nil, fmt.Errorf("%w: %w\n%s", ErrDockerBuildFailed, bErr, buildOut)
@@ -183,7 +191,7 @@ func tarDir(dir string) (io.Reader, error) {
 			if oerr != nil {
 				return oerr
 			}
-			defer f.Close()
+			defer f.Close() //nolint:errcheck // read-only file; close error is not actionable
 			if _, cerr := io.Copy(tw, f); cerr != nil {
 				return cerr
 			}
@@ -216,7 +224,7 @@ func drainBuildStream(r io.Reader) (string, error) {
 		}
 		out.WriteString(frame.Stream)
 		if frame.ErrorDetail != nil {
-			return out.String(), errors.New(frame.ErrorDetail.Message)
+			return out.String(), fmt.Errorf("%w: %s", ErrDockerBuildFailed, frame.ErrorDetail.Message)
 		}
 	}
 	return out.String(), nil
@@ -244,7 +252,7 @@ func runDescribeInContainer(ctx context.Context, c dockercli.Client, image strin
 		return nil, fmt.Errorf("container wait: %w", werr)
 	case st := <-waitCh:
 		if st.StatusCode != 0 {
-			return nil, fmt.Errorf("describe exited %d", st.StatusCode)
+			return nil, fmt.Errorf("%w: exit %d", ErrDescribeNonZeroExit, st.StatusCode)
 		}
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -254,7 +262,7 @@ func runDescribeInContainer(ctx context.Context, c dockercli.Client, image strin
 	if err != nil {
 		return nil, fmt.Errorf("container logs: %w", err)
 	}
-	defer logs.Close()
+	defer logs.Close() //nolint:errcheck // best-effort close on read-only log stream
 
 	var stdout, stderr bytes.Buffer
 	if _, err := stdcopy.StdCopy(&stdout, &stderr, logs); err != nil && !errors.Is(err, io.EOF) {

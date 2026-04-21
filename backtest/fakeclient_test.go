@@ -88,7 +88,9 @@ func (f *fakeDocker) ContainerCreate(_ context.Context, cfg *container.Config, h
 	return container.CreateResponse{ID: fmt.Sprintf("ctr-%d", len(f.CreatedCmds))}, nil
 }
 
-func (f *fakeDocker) ContainerStart(context.Context, string, container.StartOptions) error { return nil }
+func (f *fakeDocker) ContainerStart(context.Context, string, container.StartOptions) error {
+	return nil
+}
 
 func (f *fakeDocker) ContainerLogs(_ context.Context, _ string, _ container.LogsOptions) (io.ReadCloser, error) {
 	f.mu.Lock()

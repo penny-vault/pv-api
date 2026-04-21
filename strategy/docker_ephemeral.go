@@ -49,14 +49,14 @@ type DockerEphemeralOptions struct {
 // cleanup is idempotent, calls ImageRemove(imageRef, force=true), and
 // removes the tempdir. On any error before a successful return the tempdir
 // is removed internally and ("", nil, err) is returned.
-func EphemeralImageBuild(ctx context.Context, opts DockerEphemeralOptions) (string, func(), error) {
+func EphemeralImageBuild(ctx context.Context, opts DockerEphemeralOptions) (string, func(), error) { //nolint:gocyclo // sequential control flow; refactoring would obscure error handling
 	if !opts.SkipURLValidation {
 		if err := ValidateCloneURL(opts.CloneURL); err != nil {
 			return "", nil, err
 		}
 	}
 	if opts.Client == nil {
-		return "", nil, fmt.Errorf("EphemeralImageBuild: nil Client")
+		return "", nil, ErrDockerClientNil
 	}
 	if opts.ImagePrefix == "" {
 		opts.ImagePrefix = "pvapi-strategy"
@@ -134,7 +134,7 @@ func EphemeralImageBuild(ctx context.Context, opts DockerEphemeralOptions) (stri
 		_ = os.RemoveAll(buildDir)
 		return "", nil, fmt.Errorf("%w: %w", ErrDockerBuildFailed, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close is best-effort after read
 	if _, bErr := drainBuildStream(resp.Body); bErr != nil {
 		_ = os.RemoveAll(buildDir)
 		return "", nil, fmt.Errorf("%w: %w", ErrDockerBuildFailed, bErr)
