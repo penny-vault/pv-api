@@ -234,7 +234,7 @@ var serverCmd = &cobra.Command{
 		runner := &backtest.HostRunner{}
 		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
 		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
-		orch := backtest.NewRunner(btCfg, runner, portfolioAdapter, runAdapter, resolve)
+		orch := backtest.NewRunner(btCfg, runner, backtest.ArtifactBinary, portfolioAdapter, runAdapter, resolve)
 		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
 		dispatcher.Start(ctx)
 

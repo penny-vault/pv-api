@@ -29,26 +29,32 @@ import (
 	"github.com/penny-vault/pv-api/snapshot"
 )
 
-// BinaryResolver resolves a strategy binary for the given cloneURL and version.
-// It returns the absolute path to the binary, a cleanup function to call when
-// the binary is no longer needed, and any error. The caller must always call
-// cleanup when err is nil.
-type BinaryResolver func(ctx context.Context, cloneURL, ver string) (binPath string, cleanup func(), err error)
+// ArtifactResolver resolves a strategy artifact (binary path or image ref)
+// for the given cloneURL and version. The semantics of the returned
+// artifactRef depends on the runner wired alongside this resolver at
+// startup: path for HostRunner, image reference for DockerRunner. The
+// orchestrator never interprets artifactRef — it passes it straight into
+// RunRequest.Artifact paired with the runner's declared ArtifactKind.
+// Callers must always call cleanup when err is nil.
+type ArtifactResolver func(ctx context.Context, cloneURL, ver string) (artifactRef string, cleanup func(), err error)
 
 // orchestrator owns a Config, all stores, the runner, and the resolver.
 type orchestrator struct {
-	cfg     Config
-	runner  Runner
-	ps      PortfolioStore
-	rs      RunStore
-	resolve BinaryResolver
+	cfg          Config
+	runner       Runner
+	artifactKind ArtifactKind
+	ps           PortfolioStore
+	rs           RunStore
+	resolve      ArtifactResolver
 }
 
 // NewRunner builds the orchestration object that ties together the runner,
-// portfolio store, run store, and binary resolver.
-func NewRunner(cfg Config, runner Runner, ps PortfolioStore, rs RunStore, resolve BinaryResolver) *orchestrator {
+// portfolio store, run store, and artifact resolver. artifactKind tells the
+// orchestrator which kind of artifact this runner+resolver pair produces; it
+// is stamped onto every RunRequest.
+func NewRunner(cfg Config, runner Runner, artifactKind ArtifactKind, ps PortfolioStore, rs RunStore, resolve ArtifactResolver) *orchestrator {
 	cfg.ApplyDefaults()
-	return &orchestrator{cfg: cfg, runner: runner, ps: ps, rs: rs, resolve: resolve}
+	return &orchestrator{cfg: cfg, runner: runner, artifactKind: artifactKind, ps: ps, rs: rs, resolve: resolve}
 }
 
 // Run orchestrates a single backtest end-to-end for the given portfolio and
@@ -77,7 +83,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark running: %w", err))
 	}
 
-	binary, cleanup, err := o.resolve(ctx, row.StrategyCloneURL, row.StrategyVer)
+	artifact, cleanup, err := o.resolve(ctx, row.StrategyCloneURL, row.StrategyVer)
 	if err != nil {
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("%w: %w", ErrStrategyNotInstalled, err))
 	}
@@ -88,10 +94,11 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	_ = os.Remove(tmp)
 
 	if err := o.runner.Run(ctx, RunRequest{
-		Binary:  binary,
-		Args:    BuildArgs(row.Parameters, row.Benchmark),
-		OutPath: tmp,
-		Timeout: o.cfg.Timeout,
+		Artifact:     artifact,
+		ArtifactKind: o.artifactKind,
+		Args:         BuildArgs(row.Parameters, row.Benchmark),
+		OutPath:      tmp,
+		Timeout:      o.cfg.Timeout,
 	}); err != nil {
 		return o.fail(ctx, portfolioID, runID, started, err)
 	}

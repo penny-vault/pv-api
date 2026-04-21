@@ -48,4 +48,10 @@ var (
 
 	// ErrStrategyNoArtifact is returned when a strategy has no installed binary artifact.
 	ErrStrategyNoArtifact = errors.New("backtest: strategy has no installed binary")
+
+	// ErrArtifactKindMismatch is returned when a runner is handed a RunRequest
+	// whose ArtifactKind does not match what the runner supports. Indicates a
+	// wiring bug at startup (resolver + runner are wired together by
+	// cmd/server.go).
+	ErrArtifactKindMismatch = errors.New("backtest: artifact kind mismatch")
 )
