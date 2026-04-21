@@ -43,8 +43,8 @@ var (
 	// ErrInvalidConcurrency is returned by Config.Validate when MaxConcurrency < 0.
 	ErrInvalidConcurrency = errors.New("backtest: max_concurrency must be >= 0")
 
-	// ErrUnsupportedRunnerMode is returned by Config.Validate when RunnerMode is not "host".
-	ErrUnsupportedRunnerMode = errors.New(`backtest: runner.mode must be "host" in Plan 5 (docker/kubernetes land in Plans 8/9)`)
+	// ErrUnsupportedRunnerMode is returned by Config.Validate when RunnerMode is not "host" or "docker".
+	ErrUnsupportedRunnerMode = errors.New(`backtest: runner.mode must be "host" or "docker" (kubernetes lands in plan 9)`)
 
 	// ErrStrategyNoArtifact is returned when a strategy has no installed binary artifact.
 	ErrStrategyNoArtifact = errors.New("backtest: strategy has no installed binary")
