@@ -29,6 +29,7 @@ import (
 	"github.com/penny-vault/pvbt/tradecron"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/penny-vault/pv-api/api"
 	"github.com/penny-vault/pv-api/backtest"
@@ -183,7 +184,38 @@ func init() {
 	serverCmd.Flags().String("strategy-github-query", "owner:penny-vault topic:pvbt-strategy", "GitHub search query for official strategies (owner filter applied client-side)")
 	serverCmd.Flags().String("strategy-ephemeral-dir", "/tmp/pvapi-strategies", "ephemeral build dir for unofficial strategies")
 	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 60*time.Second, "max time for one ephemeral clone+build")
+	serverCmd.Flags().String("runner-docker-socket", "unix:///var/run/docker.sock", "Docker daemon socket URL")
+	serverCmd.Flags().String("runner-docker-network", "", "Docker network for backtest containers; empty = daemon default")
+	serverCmd.Flags().Float64("runner-docker-cpu-limit", 0.0, "per-container CPU limit in cores; 0 = unlimited")
+	serverCmd.Flags().String("runner-docker-memory-limit", "", "per-container memory limit (e.g. 512Mi, 1Gi); empty = unlimited")
+	serverCmd.Flags().Duration("runner-docker-build-timeout", 10*time.Minute, "max time for one docker image build")
+	serverCmd.Flags().String("runner-docker-image-prefix", "pvapi-strategy", "prefix for strategy image tags")
+	serverCmd.Flags().String("runner-docker-snapshots-host-path", "", "host path that maps to backtest.snapshots_dir when pvapi itself runs in docker; empty = snapshots_dir")
 	bindPFlagsToViper(serverCmd)
+
+	// The auto-transform in bindPFlagsToViper only handles one dash→dot
+	// substitution, so runner.docker.* flags need explicit bindings.
+	if err := viper.BindPFlag("runner.docker.socket", serverCmd.Flags().Lookup("runner-docker-socket")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.network", serverCmd.Flags().Lookup("runner-docker-network")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.cpu_limit", serverCmd.Flags().Lookup("runner-docker-cpu-limit")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.memory_limit", serverCmd.Flags().Lookup("runner-docker-memory-limit")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.build_timeout", serverCmd.Flags().Lookup("runner-docker-build-timeout")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.image_prefix", serverCmd.Flags().Lookup("runner-docker-image-prefix")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("runner.docker.snapshots_host_path", serverCmd.Flags().Lookup("runner-docker-snapshots-host-path")); err != nil {
+		panic(err)
+	}
 }
 
 var serverCmd = &cobra.Command{
