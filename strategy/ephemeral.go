@@ -71,15 +71,15 @@ func EphemeralBuild(ctx context.Context, opts EphemeralOptions) (string, func(),
 
 	// removeOnce guards idempotent cleanup.
 	var (
-		removeMu   sync.Mutex
-		removed    bool
+		removeMu sync.Mutex
+		removed  bool
 	)
 	removeDir := func() {
 		removeMu.Lock()
 		defer removeMu.Unlock()
 		if !removed {
 			removed = true
-			os.RemoveAll(buildDir) //nolint:errcheck // best-effort cleanup
+			_ = os.RemoveAll(buildDir) // best-effort cleanup
 		}
 	}
 

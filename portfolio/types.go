@@ -54,17 +54,17 @@ type Portfolio struct {
 	StrategyCloneURL     string
 	StrategyDescribeJSON []byte
 	Parameters           map[string]any
-	PresetName   *string
-	Benchmark    string
-	Mode         Mode
-	Schedule     *string
-	Status       Status
-	LastRunAt    *time.Time
-	NextRunAt    *time.Time
-	LastError    *string
-	SnapshotPath *string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	PresetName           *string
+	Benchmark            string
+	Mode                 Mode
+	Schedule             *string
+	Status               Status
+	LastRunAt            *time.Time
+	NextRunAt            *time.Time
+	LastError            *string
+	SnapshotPath         *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // CreateRequest is what the POST /portfolios handler hands off to the
