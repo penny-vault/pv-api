@@ -62,12 +62,23 @@ type InstallerFunc func(ctx context.Context, req InstallRequest) (*InstallResult
 
 // SyncerOptions configures NewSyncer.
 type SyncerOptions struct {
-	Discovery   DiscoveryFunc
-	ResolveVer  ResolveVerFunc
-	Installer   InstallerFunc
-	OfficialDir string
-	Concurrency int
-	Interval    time.Duration // 0 = Tick-only; Run reuses this as its period
+	Discovery       DiscoveryFunc
+	ResolveVer      ResolveVerFunc
+	Installer       InstallerFunc // host-mode installer
+	DockerInstaller InstallerFunc // docker-mode installer; required when RunnerMode == "docker"
+	RunnerMode      string        // "host" (default) | "docker"
+	OfficialDir     string
+	Concurrency     int
+	Interval        time.Duration // 0 = Tick-only; Run reuses this as its period
+}
+
+// expectedArtifactKind returns the artifact_kind string the current runner
+// mode produces. Unknown modes treat as "binary" (host default).
+func expectedArtifactKind(mode string) string {
+	if mode == "docker" {
+		return "image"
+	}
+	return "binary"
 }
 
 // Syncer orchestrates periodic registry reconciliation.
@@ -166,7 +177,17 @@ func (s *Syncer) Tick(ctx context.Context) error {
 		}
 
 		if existing.LastAttemptedVer != nil && *existing.LastAttemptedVer == remote {
-			continue
+			// ArtifactKind nil means the row pre-dates kind tracking; treat as
+			// matching so we don't re-install rows that were never stamped.
+			kindMatches := existing.ArtifactKind == nil || *existing.ArtifactKind == expectedArtifactKind(s.opts.RunnerMode)
+			if kindMatches {
+				continue
+			}
+			log.Info().
+				Str("short_code", shortCode).
+				Str("existing_kind", ptrStr(existing.ArtifactKind)).
+				Str("expected_kind", expectedArtifactKind(s.opts.RunnerMode)).
+				Msg("artifact kind mismatch; scheduling reinstall")
 		}
 
 		dest := filepath.Join(s.opts.OfficialDir, l.Owner, l.Name, remote)
@@ -195,14 +216,25 @@ func (s *Syncer) runInstall(ctx context.Context, shortCode, cloneURL, version, d
 		return
 	}
 
-	result, err := s.opts.Installer(ctx, InstallRequest{
+	installer := s.opts.Installer
+	kind := "binary"
+	if s.opts.RunnerMode == "docker" {
+		installer = s.opts.DockerInstaller
+		kind = "image"
+	}
+	if installer == nil {
+		_ = s.store.MarkFailure(ctx, shortCode, version, "no installer wired for runner mode "+s.opts.RunnerMode)
+		return
+	}
+
+	result, err := installer(ctx, InstallRequest{
 		ShortCode: shortCode, CloneURL: cloneURL, Version: version, DestDir: dest,
 	})
 	if err != nil {
 		_ = s.store.MarkFailure(ctx, shortCode, version, err.Error())
 		return
 	}
-	_ = s.store.MarkSuccess(ctx, shortCode, version, "binary", result.BinPath, result.DescribeJSON)
+	_ = s.store.MarkSuccess(ctx, shortCode, version, kind, result.ArtifactRef, result.DescribeJSON)
 }
 
 // ResolveVerWithGit uses `git ls-remote` to discover the most-recent
@@ -247,4 +279,11 @@ func strPtr(s string) *string {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func ptrStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

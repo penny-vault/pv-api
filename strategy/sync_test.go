@@ -131,6 +131,7 @@ var _ = Describe("Syncer.Tick", func() {
 		installer := func(_ context.Context, req strategy.InstallRequest) (*strategy.InstallResult, error) {
 			return &strategy.InstallResult{
 				BinPath:      "/var/lib/pvapi/strategies/official/fake/v1.0.0/fake.bin",
+				ArtifactRef:  "/var/lib/pvapi/strategies/official/fake/v1.0.0/fake.bin",
 				DescribeJSON: []byte(`{"shortCode":"fake","name":"Fake","parameters":[],"schedule":"@monthend","benchmark":"SPY"}`),
 				ShortCode:    "fake",
 			}, nil
@@ -238,5 +239,88 @@ var _ = Describe("Syncer.Tick", func() {
 		})
 		Expect(s.Tick(context.Background())).To(Succeed())
 		Expect(installerCalls).To(Equal(0))
+	})
+
+	It("skips install when non-nil artifact_kind matches current runner mode", func() {
+		store := newFakeStore()
+		kind := "binary"
+		installed := "v1.0.0"
+		attempted := "v1.0.0"
+		store.rows["fake"] = strategy.Strategy{
+			ShortCode:        "fake",
+			IsOfficial:       true,
+			InstalledVer:     &installed,
+			LastAttemptedVer: &attempted,
+			ArtifactKind:     &kind,
+		}
+
+		installerCalls := 0
+		discovery := func(_ context.Context) ([]strategy.Listing, error) {
+			return []strategy.Listing{{Name: "fake", Owner: "penny-vault", CloneURL: "file:///tmp/fake.git"}}, nil
+		}
+		resolveVer := func(_ context.Context, _ string) (string, error) { return "v1.0.0", nil }
+		installer := func(_ context.Context, _ strategy.InstallRequest) (*strategy.InstallResult, error) {
+			installerCalls++
+			return nil, errors.New("should not be called")
+		}
+
+		s := strategy.NewSyncer(store, strategy.SyncerOptions{
+			Discovery:   discovery,
+			ResolveVer:  resolveVer,
+			Installer:   installer,
+			RunnerMode:  "host",
+			OfficialDir: "/tmp",
+			Concurrency: 1,
+		})
+		Expect(s.Tick(context.Background())).To(Succeed())
+		Expect(installerCalls).To(Equal(0))
+	})
+
+	It("reinstalls when runner mode changes and artifact_kind no longer matches", func() {
+		store := newFakeStore()
+		kind := "binary"
+		attempted := "v1.0.0"
+		installed := "v1.0.0"
+		store.rows["adm"] = strategy.Strategy{
+			ShortCode:        "adm",
+			RepoOwner:        "penny-vault",
+			RepoName:         "adm",
+			CloneURL:         "https://github.com/penny-vault/adm",
+			IsOfficial:       true,
+			LastAttemptedVer: &attempted,
+			InstalledVer:     &installed,
+			ArtifactKind:     &kind,
+		}
+
+		var dockerCalls int
+		discovery := func(_ context.Context) ([]strategy.Listing, error) {
+			return []strategy.Listing{{
+				Name: "adm", Owner: "penny-vault",
+				CloneURL: "https://github.com/penny-vault/adm",
+			}}, nil
+		}
+		resolveVer := func(_ context.Context, _ string) (string, error) { return "v1.0.0", nil }
+		dockerInstaller := func(_ context.Context, _ strategy.InstallRequest) (*strategy.InstallResult, error) {
+			dockerCalls++
+			return &strategy.InstallResult{
+				ArtifactRef:  "pvapi-strategy/penny-vault/adm:v1.0.0",
+				DescribeJSON: []byte(`{}`),
+			}, nil
+		}
+
+		s := strategy.NewSyncer(store, strategy.SyncerOptions{
+			Discovery:       discovery,
+			ResolveVer:      resolveVer,
+			DockerInstaller: dockerInstaller,
+			RunnerMode:      "docker",
+			OfficialDir:     "/tmp",
+			Concurrency:     1,
+			Interval:        time.Second,
+		})
+		Expect(s.Tick(context.Background())).To(Succeed())
+		Expect(dockerCalls).To(Equal(1))
+		Expect(store.successes).To(HaveLen(1))
+		Expect(store.successes[0].kind).To(Equal("image"))
+		Expect(store.successes[0].ref).To(Equal("pvapi-strategy/penny-vault/adm:v1.0.0"))
 	})
 })

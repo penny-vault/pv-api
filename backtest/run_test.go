@@ -99,7 +99,7 @@ var _ = Describe("Run orchestration", func() {
 		rs := &fakeRunStoreFull{}
 
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
-			&backtest.HostRunner{}, ps, rs,
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, rs,
 			func(_ context.Context, _, _ string) (string, func(), error) {
 				return fakeStratBin, func() {}, nil
 			})
@@ -131,7 +131,7 @@ var _ = Describe("Run orchestration", func() {
 		rs := &fakeRunStoreFull{}
 
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
-			&backtest.HostRunner{}, ps, rs,
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, rs,
 			func(_ context.Context, _, _ string) (string, func(), error) {
 				return fakeStratBin, func() {}, nil
 			})
@@ -158,7 +158,7 @@ var _ = Describe("Run orchestration", func() {
 
 		var cleanupCalls atomic.Int32
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
-			&backtest.HostRunner{}, ps, rs,
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, rs,
 			func(_ context.Context, _, _ string) (string, func(), error) {
 				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
 			})
@@ -180,7 +180,7 @@ var _ = Describe("Run orchestration", func() {
 
 		var cleanupCalls atomic.Int32
 		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
-			&backtest.HostRunner{}, ps, rs,
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, rs,
 			func(_ context.Context, _, _ string) (string, func(), error) {
 				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
 			})

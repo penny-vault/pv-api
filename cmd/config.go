@@ -67,7 +67,19 @@ type backtestConf struct {
 
 // runnerConf holds the runner execution-mode setting.
 type runnerConf struct {
-	Mode string `mapstructure:"mode"`
+	Mode   string     `mapstructure:"mode"`
+	Docker dockerConf `mapstructure:"docker"`
+}
+
+// dockerConf configures DockerRunner + InstallDocker when runner.mode = "docker".
+type dockerConf struct {
+	Socket            string        `mapstructure:"socket"`
+	Network           string        `mapstructure:"network"`
+	CPULimit          float64       `mapstructure:"cpu_limit"`
+	MemoryLimit       string        `mapstructure:"memory_limit"`
+	BuildTimeout      time.Duration `mapstructure:"build_timeout"`
+	ImagePrefix       string        `mapstructure:"image_prefix"`
+	SnapshotsHostPath string        `mapstructure:"snapshots_host_path"`
 }
 
 // schedulerConf controls the in-process scheduler that picks up due

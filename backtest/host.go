@@ -31,6 +31,10 @@ type HostRunner struct{}
 
 // Run implements Runner.
 func (r *HostRunner) Run(ctx context.Context, req RunRequest) error {
+	if req.ArtifactKind != ArtifactBinary {
+		return fmt.Errorf("%w: HostRunner requires ArtifactBinary, got %d", ErrArtifactKindMismatch, req.ArtifactKind)
+	}
+
 	timeoutCtx := ctx
 	if req.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -39,7 +43,7 @@ func (r *HostRunner) Run(ctx context.Context, req RunRequest) error {
 	}
 
 	args := append([]string{"backtest", "--output", req.OutPath}, req.Args...)
-	cmd := exec.CommandContext(timeoutCtx, req.Binary, args...) //nolint:gosec // G204: binary path comes from admin-controlled strategy registry
+	cmd := exec.CommandContext(timeoutCtx, req.Artifact, args...) //nolint:gosec // G204: artifact path comes from admin-controlled strategy registry
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

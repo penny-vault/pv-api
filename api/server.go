@@ -61,12 +61,14 @@ type Config struct {
 // RegistryConfig configures the strategy registry sync and its install
 // coordinator.
 type RegistryConfig struct {
-	GitHubToken  string
-	SyncInterval time.Duration
-	Concurrency  int
-	OfficialDir  string
-	GitHubOwner  string // "penny-vault" in prod
-	CacheDir     string // GitHub Search cache directory
+	GitHubToken     string
+	SyncInterval    time.Duration
+	Concurrency     int
+	OfficialDir     string
+	GitHubOwner     string // "penny-vault" in prod
+	CacheDir        string // GitHub Search cache directory
+	RunnerMode      string
+	DockerInstaller strategy.InstallerFunc
 }
 
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
@@ -162,12 +164,14 @@ func startRegistrySync(ctx context.Context, store strategy.Store, conf RegistryC
 	}
 
 	syncer := strategy.NewSyncer(store, strategy.SyncerOptions{
-		Discovery:   discovery,
-		ResolveVer:  strategy.ResolveVerWithGit,
-		Installer:   strategy.Install,
-		OfficialDir: conf.OfficialDir,
-		Concurrency: conf.Concurrency,
-		Interval:    conf.SyncInterval,
+		Discovery:       discovery,
+		ResolveVer:      strategy.ResolveVerWithGit,
+		Installer:       strategy.Install,
+		DockerInstaller: conf.DockerInstaller,
+		RunnerMode:      conf.RunnerMode,
+		OfficialDir:     conf.OfficialDir,
+		Concurrency:     conf.Concurrency,
+		Interval:        conf.SyncInterval,
 	})
 	go func() {
 		_ = syncer.Run(ctx)

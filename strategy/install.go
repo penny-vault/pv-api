@@ -42,7 +42,8 @@ type InstallRequest struct {
 
 // InstallResult is what a successful install produces.
 type InstallResult struct {
-	BinPath      string // absolute path to the built binary
+	BinPath      string // absolute path to the built binary (host mode only; "" in docker mode)
+	ArtifactRef  string // image ref in docker mode; same as BinPath in host mode
 	DescribeJSON []byte // raw `<bin> describe --json` output
 	ShortCode    string // parsed from the describe output
 }
@@ -106,6 +107,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 
 	return &InstallResult{
 		BinPath:      binPath,
+		ArtifactRef:  binPath,
 		DescribeJSON: describeBytes,
 		ShortCode:    parsed.ShortCode,
 	}, nil

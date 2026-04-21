@@ -25,7 +25,7 @@ type Config struct {
 	SnapshotsDir   string        // absolute path; required
 	MaxConcurrency int           // 0 -> runtime.NumCPU()
 	Timeout        time.Duration // per-run timeout; 0 -> 15 minutes
-	RunnerMode     string        // "host" only in Plan 5
+	RunnerMode     string        // "host" or "docker"; "kubernetes" lands in plan 9
 }
 
 // ApplyDefaults fills zero-valued fields with their defaults.
@@ -46,7 +46,10 @@ func (c Config) Validate() error {
 	if c.MaxConcurrency < 0 {
 		return ErrInvalidConcurrency
 	}
-	if c.RunnerMode != "host" {
+	switch c.RunnerMode {
+	case "host", "docker":
+		// ok
+	default:
 		return ErrUnsupportedRunnerMode
 	}
 	return nil

@@ -57,10 +57,11 @@ var _ = Describe("HostRunner", func() {
 		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
 
 		err := runner.Run(context.Background(), backtest.RunRequest{
-			Binary:  fakeStratBin,
-			Args:    []string{"--something", "1"},
-			OutPath: out,
-			Timeout: 5 * time.Second,
+			Artifact:     fakeStratBin,
+			ArtifactKind: backtest.ArtifactBinary,
+			Args:         []string{"--something", "1"},
+			OutPath:      out,
+			Timeout:      5 * time.Second,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -77,9 +78,10 @@ var _ = Describe("HostRunner", func() {
 		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
 
 		err := runner.Run(context.Background(), backtest.RunRequest{
-			Binary:  fakeStratBin,
-			OutPath: out,
-			Timeout: 5 * time.Second,
+			Artifact:     fakeStratBin,
+			ArtifactKind: backtest.ArtifactBinary,
+			OutPath:      out,
+			Timeout:      5 * time.Second,
 		})
 		Expect(err).To(MatchError(backtest.ErrRunnerFailed))
 		Expect(err.Error()).To(ContainSubstring("simulated failure"))
@@ -91,9 +93,10 @@ var _ = Describe("HostRunner", func() {
 		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_BEHAVIOR") })
 
 		err := runner.Run(context.Background(), backtest.RunRequest{
-			Binary:  fakeStratBin,
-			OutPath: out,
-			Timeout: 150 * time.Millisecond,
+			Artifact:     fakeStratBin,
+			ArtifactKind: backtest.ArtifactBinary,
+			OutPath:      out,
+			Timeout:      150 * time.Millisecond,
 		})
 		Expect(err).To(MatchError(backtest.ErrTimedOut))
 	})
@@ -110,10 +113,22 @@ var _ = Describe("HostRunner", func() {
 		}()
 
 		err := runner.Run(ctx, backtest.RunRequest{
-			Binary:  fakeStratBin,
-			OutPath: out,
-			Timeout: 5 * time.Second,
+			Artifact:     fakeStratBin,
+			ArtifactKind: backtest.ArtifactBinary,
+			OutPath:      out,
+			Timeout:      5 * time.Second,
 		})
 		Expect(err).To(MatchError(backtest.ErrTimedOut))
+	})
+
+	It("returns ErrArtifactKindMismatch when given an image artifact", func() {
+		out := filepath.Join(GinkgoT().TempDir(), "out.sqlite")
+		err := runner.Run(context.Background(), backtest.RunRequest{
+			Artifact:     "some/image:latest",
+			ArtifactKind: backtest.ArtifactImage,
+			OutPath:      out,
+			Timeout:      time.Second,
+		})
+		Expect(err).To(MatchError(backtest.ErrArtifactKindMismatch))
 	})
 })

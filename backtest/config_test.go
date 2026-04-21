@@ -52,8 +52,13 @@ var _ = Describe("Config", func() {
 			Expect(c.Validate()).To(MatchError(ContainSubstring("snapshots_dir")))
 		})
 
-		It("rejects runner mode other than host in Plan 5", func() {
+		It("accepts docker mode with a snapshots dir", func() {
 			c := backtest.Config{SnapshotsDir: "/tmp/snaps", RunnerMode: "docker"}
+			Expect(c.Validate()).To(Succeed())
+		})
+
+		It("rejects kubernetes mode", func() {
+			c := backtest.Config{SnapshotsDir: "/tmp/snaps", RunnerMode: "kubernetes"}
 			Expect(c.Validate()).To(MatchError(ContainSubstring("runner.mode")))
 		})
 

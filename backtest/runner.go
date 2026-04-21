@@ -18,19 +18,34 @@ package backtest
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// Runner executes a strategy binary and produces a SQLite snapshot at
-// RunRequest.OutPath. Implementations: HostRunner (Plan 5), DockerRunner
-// (Plan 8), KubernetesRunner (Plan 9).
+// Runner executes a strategy artifact and produces a SQLite snapshot at
+// RunRequest.OutPath. Implementations: HostRunner (binary), DockerRunner (image).
 type Runner interface {
 	Run(ctx context.Context, req RunRequest) error
 }
 
+// ArtifactKind selects how the Runner should interpret RunRequest.Artifact.
+type ArtifactKind int
+
+const (
+	// ArtifactBinary means Artifact is an absolute filesystem path to an
+	// executable. Consumed by HostRunner.
+	ArtifactBinary ArtifactKind = iota
+	// ArtifactImage means Artifact is a Docker image reference
+	// ("repo/name:tag"). Consumed by DockerRunner.
+	ArtifactImage
+)
+
 // RunRequest carries everything a Runner needs to produce one snapshot.
 type RunRequest struct {
-	Binary  string        // absolute path to the strategy binary
-	Args    []string      // strategy-specific CLI flags (parameters + benchmark)
-	OutPath string        // absolute path where the snapshot must be written
-	Timeout time.Duration // 0 means use Config.Timeout default
+	RunID        uuid.UUID     // optional; used for container naming / log correlation
+	Artifact     string        // binary path for host; image ref for docker
+	ArtifactKind ArtifactKind  // must match the runner
+	Args         []string      // strategy-specific CLI flags (parameters + benchmark)
+	OutPath      string        // absolute path where the snapshot must be written
+	Timeout      time.Duration // 0 means use Config.Timeout default
 }
