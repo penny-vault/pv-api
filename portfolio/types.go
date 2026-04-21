@@ -45,37 +45,40 @@ const (
 // JSONB blobs) are not exposed here; Plan 5 adds a separate derived-row
 // shape when the runner starts populating those columns.
 type Portfolio struct {
-	ID           uuid.UUID
-	OwnerSub     string
-	Slug         string
-	Name         string
-	StrategyCode string
-	StrategyVer  string
-	Parameters   map[string]any
-	PresetName   *string
-	Benchmark    string
-	Mode         Mode
-	Schedule     *string
-	Status       Status
-	LastRunAt    *time.Time
-	NextRunAt    *time.Time
-	LastError    *string
-	SnapshotPath *string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                   uuid.UUID
+	OwnerSub             string
+	Slug                 string
+	Name                 string
+	StrategyCode         string
+	StrategyVer          *string
+	StrategyCloneURL     string
+	StrategyDescribeJSON []byte
+	Parameters           map[string]any
+	PresetName           *string
+	Benchmark            string
+	Mode                 Mode
+	Schedule             *string
+	Status               Status
+	LastRunAt            *time.Time
+	NextRunAt            *time.Time
+	LastError            *string
+	SnapshotPath         *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // CreateRequest is what the POST /portfolios handler hands off to the
 // domain layer. Mirrors the OpenAPI PortfolioCreateRequest.
 type CreateRequest struct {
-	Name         string
-	StrategyCode string
-	StrategyVer  string // empty → use strategy's installed_ver
-	Parameters   map[string]any
-	Benchmark    string // empty → use strategy's describe.benchmark
-	Mode         Mode
-	Schedule     string // required iff Mode == ModeContinuous
-	RunNow       bool   // accepted but no-op in Plan 4
+	Name             string
+	StrategyCode     string
+	StrategyVer      string // empty → use strategy's installed_ver; stays string (request-shaped)
+	StrategyCloneURL string // empty → official strategy
+	Parameters       map[string]any
+	Benchmark        string // empty → use strategy's describe.benchmark
+	Mode             Mode
+	Schedule         string // required iff Mode == ModeContinuous
+	RunNow           bool   // accepted but no-op in Plan 4
 }
 
 // UpdateRequest is what PATCH /portfolios/{slug} hands off. Name-only.

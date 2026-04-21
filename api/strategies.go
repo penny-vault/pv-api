@@ -22,33 +22,48 @@ import (
 )
 
 // StrategyHandler is the real-handler shim owned by api/. It delegates
-// to strategy.Handler for GET endpoints; POST stays 501 until Plan 7.
+// to strategy.Handler for GET list/get endpoints, and to
+// strategy.DescribeHandler for the describe endpoint.
 type StrategyHandler struct {
-	inner *strategy.Handler
+	inner    *strategy.Handler
+	describe *strategy.DescribeHandler
 }
 
-// NewStrategyHandler builds a StrategyHandler backed by the given read store.
-func NewStrategyHandler(store strategy.ReadStore) *StrategyHandler {
-	return &StrategyHandler{inner: strategy.NewHandler(store)}
+// NewStrategyHandler builds a StrategyHandler backed by the given read store,
+// builder, URL validator, and ephemeral options.
+func NewStrategyHandler(
+	store strategy.ReadStore,
+	builder strategy.BuilderFunc,
+	validator strategy.URLValidatorFunc,
+	opts strategy.EphemeralOptions,
+) *StrategyHandler {
+	return &StrategyHandler{
+		inner: strategy.NewHandler(store),
+		describe: &strategy.DescribeHandler{
+			Builder:       builder,
+			URLValidator:  validator,
+			EphemeralOpts: opts,
+		},
+	}
 }
 
-// RegisterStrategyRoutes mounts the strategy endpoints on the provided
-// router. The zero-value argument keeps compatibility with Plan 2's stub
-// signature; callers that want real handlers use RegisterStrategyRoutesWith.
+// RegisterStrategyRoutes mounts stub strategy endpoints on the provided
+// router. Used when no DB pool is configured (e.g. tests that don't need
+// real handlers).
 func RegisterStrategyRoutes(r fiber.Router) {
 	r.Get("/strategies", stubListStrategies)
-	r.Post("/strategies", stubRegisterUnofficialStrategy)
+	r.Get("/strategies/describe", stubDescribeStrategy)
 	r.Get("/strategies/:shortCode", stubGetStrategy)
 }
 
 // RegisterStrategyRoutesWith mounts the strategy endpoints, delegating to
-// the given handler for GETs. POST stays 501.
+// the given handler.
 func RegisterStrategyRoutesWith(r fiber.Router, h *StrategyHandler) {
 	r.Get("/strategies", h.inner.List)
-	r.Post("/strategies", stubRegisterUnofficialStrategy)
+	r.Get("/strategies/describe", h.describe.Describe)
 	r.Get("/strategies/:shortCode", h.inner.Get)
 }
 
-func stubListStrategies(c fiber.Ctx) error             { return WriteProblem(c, ErrNotImplemented) }
-func stubRegisterUnofficialStrategy(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
-func stubGetStrategy(c fiber.Ctx) error                { return WriteProblem(c, ErrNotImplemented) }
+func stubListStrategies(c fiber.Ctx) error   { return WriteProblem(c, ErrNotImplemented) }
+func stubDescribeStrategy(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
+func stubGetStrategy(c fiber.Ctx) error      { return WriteProblem(c, ErrNotImplemented) }

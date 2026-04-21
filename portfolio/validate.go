@@ -125,3 +125,25 @@ func validateParameters(params map[string]any, d strategy.Describe) error {
 	}
 	return nil
 }
+
+// ValidateCreateUnofficial runs the same mode/schedule/parameter checks
+// as ValidateCreate but takes the describe output inline (from an
+// ephemeral build) rather than pulling it off a strategy row. It skips:
+//   - strategy-installed check (no install lifecycle)
+//   - strategy-version-matches-installed check (no installed version)
+//
+// Returns a normalized CreateRequest with Benchmark filled from the
+// describe when the request left it blank.
+func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateRequest, error) {
+	norm := req
+	if err := validateMode(norm); err != nil {
+		return norm, err
+	}
+	if err := validateParameters(norm.Parameters, d); err != nil {
+		return norm, err
+	}
+	if norm.Benchmark == "" {
+		norm.Benchmark = d.Benchmark
+	}
+	return norm, nil
+}

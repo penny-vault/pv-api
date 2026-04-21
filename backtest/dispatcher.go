@@ -55,13 +55,14 @@ type PortfolioStore interface {
 
 // PortfolioRow carries the fields the orchestrator reads from a portfolio.
 type PortfolioRow struct {
-	ID           uuid.UUID
-	StrategyCode string
-	StrategyVer  string
-	Parameters   map[string]any
-	Benchmark    string
-	Status       string
-	SnapshotPath *string
+	ID               uuid.UUID
+	StrategyCode     string
+	StrategyVer      string
+	StrategyCloneURL string // empty for official strategies
+	Parameters       map[string]any
+	Benchmark        string
+	Status           string
+	SnapshotPath     *string
 }
 
 // SetKpis carries the KPI values written back to the portfolios row after

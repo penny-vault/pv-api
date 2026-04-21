@@ -471,14 +471,6 @@ paths:
       tags: [Strategies]
       operationId: listStrategies
       summary: List strategies in the registry
-      parameters:
-        - name: include
-          in: query
-          required: false
-          description: Set to `unofficial` to include the caller's registered unofficial strategies.
-          schema:
-            type: string
-            enum: [unofficial]
       responses:
         '200':
           description: Array of strategies
@@ -492,27 +484,31 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/ServerError'
-    post:
+
+  /strategies/describe:
+    get:
       tags: [Strategies]
-      operationId: registerUnofficialStrategy
-      summary: Register an unofficial strategy by GitHub clone URL
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StrategyRegisterRequest'
+      operationId: describeStrategy
+      summary: Clone, build, and describe a strategy repository
+      parameters:
+        - name: cloneUrl
+          in: query
+          required: true
+          description: HTTPS GitHub clone URL.
+          schema:
+            type: string
+            format: uri
       responses:
-        '201':
-          description: Registered
+        '200':
+          description: Describe output
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Strategy'
+                $ref: '#/components/schemas/StrategyDescribe'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
@@ -562,6 +558,12 @@ components:
         pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
 
   responses:
+    BadRequest:
+      description: The request was rejected before handler logic ran.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: Missing or invalid bearer token.
       content:
@@ -683,7 +685,7 @@ components:
         - slug
         - name
         - strategyCode
-        - strategyVer
+        - strategyCloneUrl
         - parameters
         - benchmark
         - mode
@@ -699,8 +701,14 @@ components:
           example: 'ADM aggressive'
         strategyCode:
           type: string
+        strategyCloneUrl:
+          type: string
+          format: uri
+          description: Clone URL of the strategy that produced this portfolio.
         strategyVer:
           type: string
+          nullable: true
+          description: Pinned strategy version (NULL for unofficial portfolios).
         parameters:
           type: object
           additionalProperties: true
@@ -1021,7 +1029,10 @@ components:
 
     PortfolioCreateRequest:
       type: object
-      required: [name, strategyCode, parameters, mode]
+      required: [name, parameters, mode]
+      oneOf:
+        - required: [strategyCode]
+        - required: [strategyCloneUrl]
       properties:
         name:
           type: string
@@ -1029,6 +1040,10 @@ components:
         strategyCode:
           type: string
           description: Strategy short code (from `describe` output).
+        strategyCloneUrl:
+          type: string
+          format: uri
+          description: HTTPS GitHub clone URL. Mutually exclusive with strategyCode.
         strategyVer:
           type: string
           description: Specific version to pin; omit for latest installed.
@@ -1083,15 +1098,6 @@ components:
         error:
           type: string
           nullable: true
-
-    StrategyRegisterRequest:
-      type: object
-      required: [cloneUrl]
-      properties:
-        cloneUrl:
-          type: string
-          format: uri
-          description: HTTPS clone URL for the strategy repository.
 
     Strategy:
       type: object

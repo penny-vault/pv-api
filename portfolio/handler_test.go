@@ -21,6 +21,9 @@ import (
 	"errors"
 	"io"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -181,7 +184,7 @@ var _ = Describe("portfolio.Handler", func() {
 				DescribeJSON: admDescribeJSON,
 			},
 		}
-		h := portfolio.NewHandler(store, strategies, nil, nil)
+		h := portfolio.NewHandler(store, strategies, nil, nil, nil, nil, strategy.EphemeralOptions{})
 
 		app = fiber.New()
 		app.Use(func(c fiber.Ctx) error {
@@ -435,7 +438,7 @@ var _ = Describe("Handler.Summary", func() {
 			c.Locals(types.AuthSubjectKey{}, sub)
 			return c.Next()
 		})
-		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, nil)
+		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, nil, nil, nil, strategy.EphemeralOptions{})
 		app.Get("/portfolios/:slug/summary", h.Summary)
 	})
 
@@ -500,7 +503,7 @@ var _ = Describe("Create for continuous portfolios", func() {
 				DescribeJSON: describeJSON,
 			},
 		}
-		h := portfolio.NewHandler(store, strategies, nil, disp)
+		h := portfolio.NewHandler(store, strategies, nil, disp, nil, nil, strategy.EphemeralOptions{})
 
 		app := fiber.New()
 		app.Use(func(c fiber.Ctx) error {
@@ -565,5 +568,74 @@ var _ = Describe("Create for continuous portfolios", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(fiber.StatusServiceUnavailable))
 		Expect(store.rows).To(BeEmpty())
+	})
+})
+
+// buildFakeStrategyBin compiles strategy/testdata/fake-strategy-src into a
+// tempdir and returns the binary path. Caller owns cleanup of filepath.Dir(bin).
+func buildFakeStrategyBin() string {
+	src, err := filepath.Abs("../strategy/testdata/fake-strategy-src")
+	Expect(err).NotTo(HaveOccurred())
+	dir, err := os.MkdirTemp("", "fakebin-*")
+	Expect(err).NotTo(HaveOccurred())
+	bin := filepath.Join(dir, "strategy.bin")
+	cmd := exec.Command("go", "build", "-o", bin, ".") //nolint:gosec // test helper; path is internal
+	cmd.Dir = src
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	Expect(cmd.Run()).To(Succeed(), buf.String())
+	return bin
+}
+
+var _ = Describe("POST /portfolios with strategyCloneUrl", func() {
+	const sub = "auth0|user-1"
+
+	newApp := func(builder strategy.BuilderFunc, urlValidator strategy.URLValidatorFunc) (*fakeStore, *fiber.App) {
+		st := &fakeStore{}
+		h := portfolio.NewHandler(st, &fakeStrategyStore{}, nil, nil,
+			builder, urlValidator, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, sub)
+			return c.Next()
+		})
+		a.Post("/portfolios", h.Create)
+		return st, a
+	}
+
+	It("returns 201 and persists the portfolio on the happy path", func() {
+		fakeBuilder := func(_ context.Context, _ strategy.EphemeralOptions) (string, func(), error) {
+			bin := buildFakeStrategyBin()
+			return bin, func() { os.RemoveAll(filepath.Dir(bin)) }, nil //nolint:errcheck
+		}
+		urlValidator := func(string) error { return nil }
+
+		st, a := newApp(fakeBuilder, urlValidator)
+
+		reqBody := `{"name":"u1","strategyCloneUrl":"https://github.com/foo/bar","parameters":{"riskOn":"SPY"},"mode":"one_shot"}`
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := a.Test(req, fiber.TestConfig{Timeout: 30 * time.Second}) // go build may take a while
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusCreated))
+
+		Expect(st.rows).To(HaveLen(1))
+		row := st.rows[0]
+		Expect(row.StrategyCloneURL).To(Equal("https://github.com/foo/bar"))
+		Expect(row.StrategyVer).To(BeNil())
+		Expect(row.StrategyCode).To(Equal("fake"))
+		Expect(row.StrategyDescribeJSON).NotTo(BeEmpty())
+	})
+
+	It("returns 422 when both strategyCode and strategyCloneUrl are set", func() {
+		_, a := newApp(nil, func(string) error { return nil })
+
+		reqBody := `{"name":"x","strategyCode":"adm","strategyCloneUrl":"https://github.com/foo/bar","parameters":{},"mode":"one_shot"}`
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := a.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusUnprocessableEntity))
 	})
 })
