@@ -24,6 +24,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/client"
+	units "github.com/docker/go-units"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/penny-vault/pvbt/tradecron"
@@ -245,28 +247,102 @@ var serverCmd = &cobra.Command{
 		portfolioStore := portfolio.NewPoolStore(pool)
 		strategyStore := strategy.PoolStore{Pool: pool}
 
-		resolve := func(resolveCtx context.Context, cloneURL, ver string) (string, func(), error) {
-			if ver != "" {
-				artifact, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
-				if err == nil && artifact != "" {
-					return artifact, func() {}, nil
+		var (
+			runner          backtest.Runner
+			artifactKind    backtest.ArtifactKind
+			resolve         backtest.ArtifactResolver
+			dockerInstaller strategy.InstallerFunc
+		)
+
+		switch conf.Runner.Mode {
+		case "host":
+			runner = &backtest.HostRunner{}
+			artifactKind = backtest.ArtifactBinary
+			resolve = func(resolveCtx context.Context, cloneURL, ver string) (string, func(), error) {
+				if ver != "" {
+					artifact, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
+					if err == nil && artifact != "" {
+						return artifact, func() {}, nil
+					}
+					if err != nil && !errors.Is(err, strategy.ErrNotFound) {
+						return "", nil, err
+					}
 				}
-				if err != nil && !errors.Is(err, strategy.ErrNotFound) {
-					return "", nil, err
-				}
+				return strategy.EphemeralBuild(resolveCtx, strategy.EphemeralOptions{
+					CloneURL: cloneURL,
+					Ver:      ver,
+					Dir:      conf.Strategy.EphemeralDir,
+					Timeout:  conf.Strategy.EphemeralInstallTimeout,
+				})
 			}
-			return strategy.EphemeralBuild(resolveCtx, strategy.EphemeralOptions{
-				CloneURL: cloneURL,
-				Ver:      ver,
-				Dir:      conf.Strategy.EphemeralDir,
-				Timeout:  conf.Strategy.EphemeralInstallTimeout,
-			})
+
+		case "docker":
+			dc, err := client.NewClientWithOpts(
+				client.WithHost(conf.Runner.Docker.Socket),
+				client.WithAPIVersionNegotiation(),
+			)
+			if err != nil {
+				log.Fatal().Err(err).Msg("docker client")
+			}
+			var memBytes int64
+			if m := conf.Runner.Docker.MemoryLimit; m != "" && m != "0" {
+				b, mErr := units.RAMInBytes(m)
+				if mErr != nil {
+					log.Fatal().Err(mErr).Msg("parse runner.docker.memory_limit")
+				}
+				memBytes = b
+			}
+			nanoCPUs := int64(conf.Runner.Docker.CPULimit * 1e9)
+			snapHost := conf.Runner.Docker.SnapshotsHostPath
+			if snapHost == "" {
+				snapHost = conf.Backtest.SnapshotsDir
+			}
+			runner = &backtest.DockerRunner{
+				Client:           dc,
+				Network:          conf.Runner.Docker.Network,
+				NanoCPUs:         nanoCPUs,
+				MemoryBytes:      memBytes,
+				SnapshotsHostDir: snapHost,
+				SnapshotsDir:     conf.Backtest.SnapshotsDir,
+			}
+			artifactKind = backtest.ArtifactImage
+			resolve = func(resolveCtx context.Context, cloneURL, ver string) (string, func(), error) {
+				if ver != "" {
+					artifact, err := strategyStore.LookupArtifact(resolveCtx, cloneURL, ver)
+					if err == nil && artifact != "" {
+						return artifact, func() {}, nil
+					}
+					if err != nil && !errors.Is(err, strategy.ErrNotFound) {
+						return "", nil, err
+					}
+				}
+				return strategy.EphemeralImageBuild(resolveCtx, strategy.DockerEphemeralOptions{
+					CloneURL:    cloneURL,
+					Ver:         ver,
+					Dir:         conf.Strategy.EphemeralDir,
+					Timeout:     conf.Strategy.EphemeralInstallTimeout,
+					Client:      dc,
+					ImagePrefix: conf.Runner.Docker.ImagePrefix,
+				})
+			}
+			dockerInstaller = func(instCtx context.Context, req strategy.InstallRequest) (*strategy.InstallResult, error) {
+				return strategy.InstallDocker(instCtx, req, strategy.DockerInstallDeps{
+					Client:       dc,
+					ImagePrefix:  conf.Runner.Docker.ImagePrefix,
+					BuildTimeout: conf.Runner.Docker.BuildTimeout,
+				})
+			}
+
+		case "kubernetes":
+			log.Fatal().Msg("runner.mode = kubernetes lands in plan 9")
+
+		default:
+			log.Fatal().Str("mode", conf.Runner.Mode).Msg("unknown runner.mode")
 		}
 
-		runner := &backtest.HostRunner{}
 		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
 		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
-		orch := backtest.NewRunner(btCfg, runner, backtest.ArtifactBinary, portfolioAdapter, runAdapter, resolve)
+		orch := backtest.NewRunner(btCfg, runner, artifactKind, portfolioAdapter, runAdapter, resolve)
 		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
 		dispatcher.Start(ctx)
 
@@ -320,11 +396,13 @@ var serverCmd = &cobra.Command{
 			},
 			Pool: pool,
 			Registry: api.RegistryConfig{
-				GitHubToken:  conf.GitHub.Token,
-				SyncInterval: conf.Strategy.RegistrySyncInterval,
-				Concurrency:  conf.Strategy.InstallConcurrency,
-				OfficialDir:  conf.Strategy.OfficialDir,
-				GitHubOwner:  "penny-vault",
+				GitHubToken:     conf.GitHub.Token,
+				SyncInterval:    conf.Strategy.RegistrySyncInterval,
+				Concurrency:     conf.Strategy.InstallConcurrency,
+				OfficialDir:     conf.Strategy.OfficialDir,
+				GitHubOwner:     "penny-vault",
+				RunnerMode:      conf.Runner.Mode,
+				DockerInstaller: dockerInstaller,
 			},
 			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},
