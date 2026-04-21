@@ -241,6 +241,41 @@ var _ = Describe("Syncer.Tick", func() {
 		Expect(installerCalls).To(Equal(0))
 	})
 
+	It("skips install when non-nil artifact_kind matches current runner mode", func() {
+		store := newFakeStore()
+		kind := "binary"
+		installed := "v1.0.0"
+		attempted := "v1.0.0"
+		store.rows["fake"] = strategy.Strategy{
+			ShortCode:        "fake",
+			IsOfficial:       true,
+			InstalledVer:     &installed,
+			LastAttemptedVer: &attempted,
+			ArtifactKind:     &kind,
+		}
+
+		installerCalls := 0
+		discovery := func(_ context.Context) ([]strategy.Listing, error) {
+			return []strategy.Listing{{Name: "fake", Owner: "penny-vault", CloneURL: "file:///tmp/fake.git"}}, nil
+		}
+		resolveVer := func(_ context.Context, _ string) (string, error) { return "v1.0.0", nil }
+		installer := func(_ context.Context, _ strategy.InstallRequest) (*strategy.InstallResult, error) {
+			installerCalls++
+			return nil, errors.New("should not be called")
+		}
+
+		s := strategy.NewSyncer(store, strategy.SyncerOptions{
+			Discovery:   discovery,
+			ResolveVer:  resolveVer,
+			Installer:   installer,
+			RunnerMode:  "host",
+			OfficialDir: "/tmp",
+			Concurrency: 1,
+		})
+		Expect(s.Tick(context.Background())).To(Succeed())
+		Expect(installerCalls).To(Equal(0))
+	})
+
 	It("reinstalls when runner mode changes and artifact_kind no longer matches", func() {
 		store := newFakeStore()
 		kind := "binary"

@@ -94,6 +94,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	_ = os.Remove(tmp)
 
 	if err := o.runner.Run(ctx, RunRequest{
+		RunID:        runID,
 		Artifact:     artifact,
 		ArtifactKind: o.artifactKind,
 		Args:         BuildArgs(row.Parameters, row.Benchmark),

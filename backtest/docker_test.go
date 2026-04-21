@@ -95,6 +95,7 @@ var _ = Describe("DockerRunner", func() {
 		})
 		Expect(errors.Is(err, backtest.ErrTimedOut)).To(BeTrue())
 		Expect(fc.KilledIDs).NotTo(BeEmpty())
+		Expect(fc.KilledSignals).To(ContainElement("SIGKILL"))
 	})
 
 	It("uses the Network setting on the host config", func() {

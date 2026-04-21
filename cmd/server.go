@@ -197,27 +197,18 @@ func init() {
 
 	// The auto-transform in bindPFlagsToViper only handles one dash→dot
 	// substitution, so runner.docker.* flags need explicit bindings.
-	if err := viper.BindPFlag("runner.docker.socket", serverCmd.Flags().Lookup("runner-docker-socket")); err != nil {
-		panic(err)
+	mustBindPFlag := func(key, flag string) {
+		if err := viper.BindPFlag(key, serverCmd.Flags().Lookup(flag)); err != nil {
+			panic(err)
+		}
 	}
-	if err := viper.BindPFlag("runner.docker.network", serverCmd.Flags().Lookup("runner-docker-network")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("runner.docker.cpu_limit", serverCmd.Flags().Lookup("runner-docker-cpu-limit")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("runner.docker.memory_limit", serverCmd.Flags().Lookup("runner-docker-memory-limit")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("runner.docker.build_timeout", serverCmd.Flags().Lookup("runner-docker-build-timeout")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("runner.docker.image_prefix", serverCmd.Flags().Lookup("runner-docker-image-prefix")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("runner.docker.snapshots_host_path", serverCmd.Flags().Lookup("runner-docker-snapshots-host-path")); err != nil {
-		panic(err)
-	}
+	mustBindPFlag("runner.docker.socket", "runner-docker-socket")
+	mustBindPFlag("runner.docker.network", "runner-docker-network")
+	mustBindPFlag("runner.docker.cpu_limit", "runner-docker-cpu-limit")
+	mustBindPFlag("runner.docker.memory_limit", "runner-docker-memory-limit")
+	mustBindPFlag("runner.docker.build_timeout", "runner-docker-build-timeout")
+	mustBindPFlag("runner.docker.image_prefix", "runner-docker-image-prefix")
+	mustBindPFlag("runner.docker.snapshots_host_path", "runner-docker-snapshots-host-path")
 }
 
 var serverCmd = &cobra.Command{

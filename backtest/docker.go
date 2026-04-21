@@ -21,10 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/dockercli"
@@ -77,7 +79,7 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 		Tmpfs: map[string]string{"/tmp": "size=256m"},
 	}
 
-	resp, err := r.Client.ContainerCreate(timeoutCtx, cfg, hostCfg, nil, nil, "")
+	resp, err := r.Client.ContainerCreate(timeoutCtx, cfg, hostCfg, nil, nil, containerNameForRun(req.RunID))
 	if err != nil {
 		return fmt.Errorf("%w: container create: %w", ErrRunnerFailed, err)
 	}
@@ -90,9 +92,24 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 	logs, lerr := r.Client.ContainerLogs(timeoutCtx, resp.ID, container.LogsOptions{
 		ShowStdout: true, ShowStderr: true, Follow: true,
 	})
-	var stderrTail bytes.Buffer
+	var tail tailWriter
+	tail.max = 2048
+	var done chan struct{}
 	if lerr == nil {
-		go streamContainerLogs(logs, &stderrTail)
+		done = make(chan struct{})
+		go func() {
+			defer close(done)
+			streamContainerLogs(logs, &tail)
+		}()
+	}
+
+	drainLogs := func() {
+		if logs != nil {
+			_ = logs.Close()
+		}
+		if done != nil {
+			<-done
+		}
 	}
 
 	waitCh, errCh := r.Client.ContainerWait(timeoutCtx, resp.ID, container.WaitConditionNotRunning)
@@ -100,38 +117,46 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 	case werr := <-errCh:
 		if errors.Is(werr, context.DeadlineExceeded) || errors.Is(werr, context.Canceled) {
 			_ = r.Client.ContainerKill(context.Background(), resp.ID, "SIGKILL")
-			return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(stderrTail.String(), 2048))
+			drainLogs()
+			return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(tail.String(), 2048))
 		}
+		drainLogs()
 		return fmt.Errorf("%w: wait: %w", ErrRunnerFailed, werr)
 	case st := <-waitCh:
+		drainLogs()
 		if st.StatusCode != 0 {
-			return fmt.Errorf("%w: exit=%d: %s", ErrRunnerFailed, st.StatusCode, firstNBytes(stderrTail.String(), 2048))
+			return fmt.Errorf("%w: exit=%d: %s", ErrRunnerFailed, st.StatusCode, firstNBytes(tail.String(), 2048))
 		}
 		return nil
 	case <-timeoutCtx.Done():
 		_ = r.Client.ContainerKill(context.Background(), resp.ID, "SIGKILL")
-		return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(stderrTail.String(), 2048))
+		drainLogs()
+		return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(tail.String(), 2048))
 	}
 }
 
 // streamContainerLogs demultiplexes Docker's framed log stream into two
 // zerolog log-writer sinks and keeps a bounded tail of stderr for error
 // messages.
-func streamContainerLogs(r io.ReadCloser, stderrTail *bytes.Buffer) {
+func streamContainerLogs(r io.ReadCloser, tail *tailWriter) {
 	defer r.Close() //nolint:errcheck // log stream close is best-effort
 	stdout := newLogWriter("strategy-stdout")
 	stderr := newLogWriter("strategy-stderr")
-	tail := &tailWriter{buf: stderrTail, max: 2048}
 	_, _ = stdcopy.StdCopy(stdout, io.MultiWriter(stderr, tail), r)
 }
 
-// tailWriter accumulates the last `max` bytes written to it.
+// tailWriter accumulates up to max bytes written to it. All methods are
+// safe for concurrent use from the log-streaming goroutine and the Run
+// method on the main goroutine.
 type tailWriter struct {
-	buf *bytes.Buffer
+	mu  sync.Mutex
+	buf bytes.Buffer
 	max int
 }
 
 func (t *tailWriter) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	remaining := t.max - t.buf.Len()
 	if remaining <= 0 {
 		return len(p), nil
@@ -144,9 +169,25 @@ func (t *tailWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func (t *tailWriter) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.buf.String()
+}
+
 func truncID(s string) string {
 	if len(s) > 12 {
 		return s[:12]
 	}
 	return s
+}
+
+// containerNameForRun derives a container name from a run UUID for easier log
+// correlation. Returns "" when runID is uuid.Nil so Docker auto-generates a
+// name.
+func containerNameForRun(runID uuid.UUID) string {
+	if runID == uuid.Nil {
+		return ""
+	}
+	return "pvapi-bt-" + truncID(runID.String())
 }

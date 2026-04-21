@@ -43,8 +43,9 @@ type fakeDocker struct {
 	DescribeStdout []byte
 	ContainerExit  int64
 
-	WaitDelay time.Duration
-	KilledIDs []string
+	WaitDelay     time.Duration
+	KilledIDs     []string
+	KilledSignals []string
 
 	CreatedImages []string
 	RemovedImages []string
@@ -120,10 +121,11 @@ func (f *fakeDocker) ContainerWait(ctx context.Context, _ string, _ container.Wa
 	return wait, errCh
 }
 
-func (f *fakeDocker) ContainerKill(_ context.Context, id, _ string) error {
+func (f *fakeDocker) ContainerKill(_ context.Context, id, signal string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.KilledIDs = append(f.KilledIDs, id)
+	f.KilledSignals = append(f.KilledSignals, signal)
 	return nil
 }
 

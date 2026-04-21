@@ -18,6 +18,8 @@ package backtest
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Runner executes a strategy artifact and produces a SQLite snapshot at
@@ -40,6 +42,7 @@ const (
 
 // RunRequest carries everything a Runner needs to produce one snapshot.
 type RunRequest struct {
+	RunID        uuid.UUID     // optional; used for container naming / log correlation
 	Artifact     string        // binary path for host; image ref for docker
 	ArtifactKind ArtifactKind  // must match the runner
 	Args         []string      // strategy-specific CLI flags (parameters + benchmark)
