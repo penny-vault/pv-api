@@ -1029,10 +1029,11 @@ components:
 
     PortfolioCreateRequest:
       type: object
+      description: |
+        Exactly one of `strategyCode` or `strategyCloneUrl` must be provided;
+        supplying both or neither returns 422. Enforced by the handler, not
+        by the JSON schema (oneOf omitted to keep the generated Go type flat).
       required: [name, parameters, mode]
-      oneOf:
-        - required: [strategyCode]
-        - required: [strategyCloneUrl]
       properties:
         name:
           type: string

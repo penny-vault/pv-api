@@ -4,11 +4,8 @@
 package openapi
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
-	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -338,7 +335,9 @@ type Portfolio struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// PortfolioCreateRequest defines model for PortfolioCreateRequest.
+// PortfolioCreateRequest Exactly one of `strategyCode` or `strategyCloneUrl` must be provided;
+// supplying both or neither returns 422. Enforced by the handler, not
+// by the JSON schema (oneOf omitted to keep the generated Go type flat).
 type PortfolioCreateRequest struct {
 	Benchmark *string `json:"benchmark,omitempty"`
 
@@ -366,14 +365,7 @@ type PortfolioCreateRequest struct {
 
 	// StrategyVer Specific version to pin; omit for latest installed.
 	StrategyVer *string `json:"strategyVer,omitempty"`
-	union       json.RawMessage
 }
-
-// PortfolioCreateRequest0 defines model for .
-type PortfolioCreateRequest0 = interface{}
-
-// PortfolioCreateRequest1 defines model for .
-type PortfolioCreateRequest1 = interface{}
 
 // PortfolioListItem Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
 type PortfolioListItem struct {
@@ -626,205 +618,3 @@ type CreatePortfolioJSONRequestBody = PortfolioCreateRequest
 
 // UpdatePortfolioJSONRequestBody defines body for UpdatePortfolio for application/json ContentType.
 type UpdatePortfolioJSONRequestBody = PortfolioUpdateRequest
-
-// AsPortfolioCreateRequest0 returns the union data inside the PortfolioCreateRequest as a PortfolioCreateRequest0
-func (t PortfolioCreateRequest) AsPortfolioCreateRequest0() (PortfolioCreateRequest0, error) {
-	var body PortfolioCreateRequest0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPortfolioCreateRequest0 overwrites any union data inside the PortfolioCreateRequest as the provided PortfolioCreateRequest0
-func (t *PortfolioCreateRequest) FromPortfolioCreateRequest0(v PortfolioCreateRequest0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePortfolioCreateRequest0 performs a merge with any union data inside the PortfolioCreateRequest, using the provided PortfolioCreateRequest0
-func (t *PortfolioCreateRequest) MergePortfolioCreateRequest0(v PortfolioCreateRequest0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPortfolioCreateRequest1 returns the union data inside the PortfolioCreateRequest as a PortfolioCreateRequest1
-func (t PortfolioCreateRequest) AsPortfolioCreateRequest1() (PortfolioCreateRequest1, error) {
-	var body PortfolioCreateRequest1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPortfolioCreateRequest1 overwrites any union data inside the PortfolioCreateRequest as the provided PortfolioCreateRequest1
-func (t *PortfolioCreateRequest) FromPortfolioCreateRequest1(v PortfolioCreateRequest1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePortfolioCreateRequest1 performs a merge with any union data inside the PortfolioCreateRequest, using the provided PortfolioCreateRequest1
-func (t *PortfolioCreateRequest) MergePortfolioCreateRequest1(v PortfolioCreateRequest1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PortfolioCreateRequest) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if t.Benchmark != nil {
-		object["benchmark"], err = json.Marshal(t.Benchmark)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'benchmark': %w", err)
-		}
-	}
-
-	object["mode"], err = json.Marshal(t.Mode)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'mode': %w", err)
-	}
-
-	object["name"], err = json.Marshal(t.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
-	}
-
-	object["parameters"], err = json.Marshal(t.Parameters)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'parameters': %w", err)
-	}
-
-	if t.RunNow != nil {
-		object["runNow"], err = json.Marshal(t.RunNow)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'runNow': %w", err)
-		}
-	}
-
-	if t.Schedule != nil {
-		object["schedule"], err = json.Marshal(t.Schedule)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'schedule': %w", err)
-		}
-	}
-
-	if t.StrategyCloneUrl != nil {
-		object["strategyCloneUrl"], err = json.Marshal(t.StrategyCloneUrl)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'strategyCloneUrl': %w", err)
-		}
-	}
-
-	if t.StrategyCode != nil {
-		object["strategyCode"], err = json.Marshal(t.StrategyCode)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'strategyCode': %w", err)
-		}
-	}
-
-	if t.StrategyVer != nil {
-		object["strategyVer"], err = json.Marshal(t.StrategyVer)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'strategyVer': %w", err)
-		}
-	}
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *PortfolioCreateRequest) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["benchmark"]; found {
-		err = json.Unmarshal(raw, &t.Benchmark)
-		if err != nil {
-			return fmt.Errorf("error reading 'benchmark': %w", err)
-		}
-	}
-
-	if raw, found := object["mode"]; found {
-		err = json.Unmarshal(raw, &t.Mode)
-		if err != nil {
-			return fmt.Errorf("error reading 'mode': %w", err)
-		}
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &t.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-	}
-
-	if raw, found := object["parameters"]; found {
-		err = json.Unmarshal(raw, &t.Parameters)
-		if err != nil {
-			return fmt.Errorf("error reading 'parameters': %w", err)
-		}
-	}
-
-	if raw, found := object["runNow"]; found {
-		err = json.Unmarshal(raw, &t.RunNow)
-		if err != nil {
-			return fmt.Errorf("error reading 'runNow': %w", err)
-		}
-	}
-
-	if raw, found := object["schedule"]; found {
-		err = json.Unmarshal(raw, &t.Schedule)
-		if err != nil {
-			return fmt.Errorf("error reading 'schedule': %w", err)
-		}
-	}
-
-	if raw, found := object["strategyCloneUrl"]; found {
-		err = json.Unmarshal(raw, &t.StrategyCloneUrl)
-		if err != nil {
-			return fmt.Errorf("error reading 'strategyCloneUrl': %w", err)
-		}
-	}
-
-	if raw, found := object["strategyCode"]; found {
-		err = json.Unmarshal(raw, &t.StrategyCode)
-		if err != nil {
-			return fmt.Errorf("error reading 'strategyCode': %w", err)
-		}
-	}
-
-	if raw, found := object["strategyVer"]; found {
-		err = json.Unmarshal(raw, &t.StrategyVer)
-		if err != nil {
-			return fmt.Errorf("error reading 'strategyVer': %w", err)
-		}
-	}
-
-	return err
-}
