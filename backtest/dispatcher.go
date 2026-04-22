@@ -63,6 +63,8 @@ type PortfolioRow struct {
 	Benchmark        string
 	Status           string
 	SnapshotPath     *string
+	StartDate        *time.Time
+	EndDate          *time.Time
 }
 
 // SetKpis carries the KPI values written back to the portfolios row after
