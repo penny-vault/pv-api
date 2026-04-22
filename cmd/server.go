@@ -162,7 +162,7 @@ func init() {
 	serverCmd.Flags().String("data-dir", "/var/lib/pvapi", "base directory for all pvapi data; individual dir flags override this")
 	serverCmd.Flags().String("db-url", "", "PostgreSQL connection string")
 	serverCmd.Flags().Int("server-port", 3000, "port to bind the HTTP server to")
-	serverCmd.Flags().String("server-allow-origins", "http://localhost:9000", "single CORS origin to allow; empty disables CORS")
+	serverCmd.Flags().String("server-allow-origins", "http://localhost:5174,http://localhost:9000", "comma-separated CORS origins to allow; empty disables CORS")
 	serverCmd.Flags().String("auth-jwks-url", "", "JWKS endpoint for JWT verification")
 	serverCmd.Flags().String("auth-audience", "", "expected JWT audience")
 	serverCmd.Flags().String("auth-issuer", "", "expected JWT issuer URL")

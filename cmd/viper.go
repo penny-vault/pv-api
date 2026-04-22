@@ -30,6 +30,7 @@ import (
 // override runs.
 func setViperDefaults() {
 	viper.SetDefault("data_dir", "/var/lib/pvapi")
+	viper.SetDefault("server.allow_origins", "http://localhost:5174,http://localhost:9000")
 	viper.SetDefault("backtest.max_concurrency", 0)
 	viper.SetDefault("backtest.timeout", "15m")
 	viper.SetDefault("runner.mode", "host")

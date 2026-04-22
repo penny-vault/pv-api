@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -86,14 +87,19 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	app := fiber.New(fiber.Config{
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
+		IdleTimeout: 5 * time.Second,
 	})
 
 	app.Use(requestIDMiddleware())
 	app.Use(timerMiddleware())
 
 	if conf.AllowOrigins != "" {
+		origins := strings.Split(conf.AllowOrigins, ",")
+		for i, o := range origins {
+			origins[i] = strings.TrimSpace(o)
+		}
 		app.Use(cors.New(cors.Config{
-			AllowOrigins: []string{conf.AllowOrigins},
+			AllowOrigins: origins,
 		}))
 	}
 
