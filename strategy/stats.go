@@ -64,8 +64,6 @@ type StatsRefresherConfig struct {
 	RefreshTime string
 	// TickInterval is how often the ticker checks the clock (default 5m).
 	TickInterval time.Duration
-	// Concurrency is the max number of parallel stats runs (default 1).
-	Concurrency int
 	// SnapshotDir is the parent for temporary snapshot files ("" = OS default).
 	SnapshotDir string
 }
@@ -89,14 +87,15 @@ func NewStatsRefresher(store StatsStore, runner StatRunner, readKpis SnapshotKpi
 	if cfg.TickInterval == 0 {
 		cfg.TickInterval = 5 * time.Minute
 	}
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 1
-	}
 	if cfg.StartDate.IsZero() {
 		cfg.StartDate = time.Date(2010, 1, 1, 0, 0, 0, 0, time.UTC)
 	}
 	if cfg.RefreshTime == "" {
 		cfg.RefreshTime = "17:00"
+	}
+	var h, m int
+	if n, err := fmt.Sscanf(cfg.RefreshTime, "%d:%d", &h, &m); err != nil || n != 2 || h < 0 || h > 23 || m < 0 || m > 59 {
+		return nil, fmt.Errorf("invalid RefreshTime %q: expected HH:MM", cfg.RefreshTime)
 	}
 	return &StatsRefresher{store: store, runner: runner, readKpis: readKpis, cfg: cfg, loc: loc}, nil
 }
