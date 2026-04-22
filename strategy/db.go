@@ -192,7 +192,10 @@ func UpdateStats(ctx context.Context, pool *pgxpool.Pool, shortCode string, r St
 		        stats_error=NULL, updated_at=NOW()
 		  WHERE short_code=$1`,
 		shortCode, r.CAGR, r.MaxDrawdown, r.Sharpe, r.AsOf)
-	return err
+	if err != nil {
+		return fmt.Errorf("update stats %s: %w", shortCode, err)
+	}
+	return nil
 }
 
 // MarkStatsError records a stats failure without touching existing stats values.
@@ -200,7 +203,10 @@ func MarkStatsError(ctx context.Context, pool *pgxpool.Pool, shortCode, errText 
 	_, err := pool.Exec(ctx,
 		`UPDATE strategies SET stats_error=$2, updated_at=NOW() WHERE short_code=$1`,
 		shortCode, errText)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark stats error %s: %w", shortCode, err)
+	}
+	return nil
 }
 
 // LookupArtifact returns the artifact_ref for an official strategy matching the
