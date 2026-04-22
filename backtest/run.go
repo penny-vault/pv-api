@@ -97,7 +97,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		RunID:        runID,
 		Artifact:     artifact,
 		ArtifactKind: o.artifactKind,
-		Args:         BuildArgs(row.Parameters, row.Benchmark),
+		Args:         BuildArgs(row.Parameters, row.Benchmark, nil, nil),
 		OutPath:      tmp,
 		Timeout:      o.cfg.Timeout,
 	}); err != nil {

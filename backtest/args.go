@@ -19,26 +19,32 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 )
 
-// BuildArgs converts a portfolio's parameter map and benchmark into the
-// strategy-binary CLI flags documented in the design spec
-// ("Parameter mapping"). Returns a flat []string suitable for appending
-// to the "backtest --output <path>" base command.
+// BuildArgs converts a portfolio's parameter map, benchmark, and optional date
+// window into the strategy-binary CLI flags. Returns a flat []string suitable
+// for appending to the "backtest --output <path>" base command.
 //
-// Order is deterministic: parameter keys sorted ascending; --benchmark
-// last (if non-empty).
-func BuildArgs(params map[string]any, benchmark string) []string {
+// Order: parameter keys sorted ascending; --start (if set); --end (if set);
+// --benchmark last (if non-empty).
+func BuildArgs(params map[string]any, benchmark string, startDate, endDate *time.Time) []string {
 	keys := make([]string, 0, len(params))
 	for k := range params {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	out := make([]string, 0, 2*len(keys)+2)
+	out := make([]string, 0, 2*len(keys)+6)
 	for _, k := range keys {
 		out = append(out, "--"+toKebab(k), stringify(params[k]))
+	}
+	if startDate != nil {
+		out = append(out, "--start", startDate.Format("2006-01-02"))
+	}
+	if endDate != nil {
+		out = append(out, "--end", endDate.Format("2006-01-02"))
 	}
 	if benchmark != "" {
 		out = append(out, "--benchmark", benchmark)
