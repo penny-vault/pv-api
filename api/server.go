@@ -150,8 +150,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 type hostStatRunner struct{}
 
 func (h hostStatRunner) Run(ctx context.Context, req strategy.StatRunRequest) error {
-	inner := &backtest.HostRunner{}
-	return inner.Run(ctx, backtest.RunRequest{
+	return (&backtest.HostRunner{}).Run(ctx, backtest.RunRequest{
 		Artifact:     req.Artifact,
 		ArtifactKind: backtest.ArtifactBinary,
 		Args:         req.Args,

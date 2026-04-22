@@ -71,11 +71,13 @@ type StatsRefresherConfig struct {
 // StatsRefresher runs a default-parameter backtest for every installed strategy
 // and writes cagr/max_drawdown/sharpe/stats_as_of back to the strategies table.
 type StatsRefresher struct {
-	store     StatsStore
-	runner    StatRunner
-	readKpis  SnapshotKpisFunc
-	cfg       StatsRefresherConfig
-	loc       *time.Location
+	store       StatsStore
+	runner      StatRunner
+	readKpis    SnapshotKpisFunc
+	cfg         StatsRefresherConfig
+	loc         *time.Location
+	refreshHour int
+	refreshMin  int
 }
 
 // NewStatsRefresher constructs a StatsRefresher with applied defaults.
@@ -97,7 +99,15 @@ func NewStatsRefresher(store StatsStore, runner StatRunner, readKpis SnapshotKpi
 	if n, err := fmt.Sscanf(cfg.RefreshTime, "%d:%d", &h, &m); err != nil || n != 2 || h < 0 || h > 23 || m < 0 || m > 59 {
 		return nil, fmt.Errorf("invalid RefreshTime %q: expected HH:MM", cfg.RefreshTime)
 	}
-	return &StatsRefresher{store: store, runner: runner, readKpis: readKpis, cfg: cfg, loc: loc}, nil
+	return &StatsRefresher{
+		store:       store,
+		runner:      runner,
+		readKpis:    readKpis,
+		cfg:         cfg,
+		loc:         loc,
+		refreshHour: h,
+		refreshMin:  m,
+	}, nil
 }
 
 // Run starts the daily stats refresh loop. Blocks until ctx is cancelled.
@@ -121,9 +131,7 @@ func (r *StatsRefresher) Run(ctx context.Context) {
 // the configured RefreshTime. Exported for testing.
 func (r *StatsRefresher) PastRefreshTime() bool {
 	now := time.Now().In(r.loc)
-	var h, m int
-	_, _ = fmt.Sscanf(r.cfg.RefreshTime, "%d:%d", &h, &m)
-	threshold := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, r.loc)
+	threshold := time.Date(now.Year(), now.Month(), now.Day(), r.refreshHour, r.refreshMin, 0, 0, r.loc)
 	return !now.Before(threshold)
 }
 

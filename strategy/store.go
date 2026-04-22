@@ -42,10 +42,6 @@ func (p PoolStore) Upsert(ctx context.Context, s Strategy) error {
 	return Upsert(ctx, p.Pool, s)
 }
 
-func (p PoolStore) MarkAttempt(ctx context.Context, shortCode, version string) error {
-	return MarkAttempt(ctx, p.Pool, shortCode, version)
-}
-
 func (p PoolStore) MarkSuccess(ctx context.Context, shortCode, version, kind, ref string, describe []byte) error {
 	return MarkSuccess(ctx, p.Pool, shortCode, version, kind, ref, describe)
 }
@@ -79,3 +75,4 @@ func (p PoolStore) MarkStatsError(ctx context.Context, shortCode, errText string
 }
 
 var _ StatsStore = PoolStore{}
+var _ Store = PoolStore{}

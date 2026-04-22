@@ -32,14 +32,12 @@ import (
 type fakeStore struct {
 	rows         map[string]strategy.Strategy
 	upserts      []string
-	attempts     []attemptCall
 	successes    []successCall
 	failures     []failureCall
 	statsUpdates []statsUpdateCall
 	statsErrors  []statsErrorCall
 }
 
-type attemptCall struct{ shortCode, version string }
 type successCall struct {
 	shortCode, version, kind, ref string
 	describeLen                   int
@@ -95,15 +93,6 @@ func (f *fakeStore) Upsert(_ context.Context, s strategy.Strategy) error {
 		s.DiscoveredAt = existing.DiscoveredAt
 	}
 	f.rows[s.ShortCode] = s
-	return nil
-}
-
-func (f *fakeStore) MarkAttempt(_ context.Context, sc, ver string) error {
-	f.attempts = append(f.attempts, attemptCall{sc, ver})
-	r := f.rows[sc]
-	r.LastAttemptedVer = &ver
-	r.InstallError = nil
-	f.rows[sc] = r
 	return nil
 }
 
