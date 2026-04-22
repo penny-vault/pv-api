@@ -28,8 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/penny-vault/pvbt/tradecron"
-
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
@@ -129,7 +127,15 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
 			fmt.Sprintf("body is not valid JSON: %v", err))
 	}
-	req := body.toRequest()
+	startDate, err := parseDate(body.StartDate)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
+	}
+	endDate, err := parseDate(body.EndDate)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
+	}
+	req := body.toRequest(startDate, endDate)
 
 	switch {
 	case req.StrategyCode != "" && req.StrategyCloneURL != "":
@@ -237,9 +243,6 @@ func (h *Handler) insertAndDispatch(c fiber.Ctx, ownerSub string, norm CreateReq
 }
 
 // buildPortfolio constructs a Portfolio value from a validated create request.
-// describe and cloneURL come from either the strategy row (official) or an
-// ephemeral build (unofficial). For continuous portfolios, next_run_at is
-// bootstrapped to the next tradecron boundary.
 func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe strategy.Describe,
 	cloneURL string, describeJSON []byte) (Portfolio, error) {
 
@@ -258,49 +261,33 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 		Parameters:           norm.Parameters,
 		PresetName:           presetName,
 		Benchmark:            norm.Benchmark,
-		Mode:                 norm.Mode,
+		StartDate:            norm.StartDate,
+		EndDate:              norm.EndDate,
 		Status:               StatusPending,
 	}
 	if norm.StrategyVer != "" {
 		v := norm.StrategyVer
 		p.StrategyVer = &v
 	}
-	if norm.Schedule != "" {
-		sch := norm.Schedule
-		p.Schedule = &sch
-	}
-	if norm.Mode == ModeContinuous {
-		tc, err := tradecron.New(norm.Schedule, tradecron.RegularHours)
-		if err != nil {
-			return Portfolio{}, fmt.Errorf("%w: %w", ErrInvalidSchedule, err)
-		}
-		nextAt := tc.Next(time.Now())
-		p.NextRunAt = &nextAt
-	}
 	return p, nil
 }
 
-// autoTriggerOrProblem dispatches a backtest run for modes that require one
-// and returns a problem status + body on failure. A zero status means the
-// caller should proceed normally.
+// autoTriggerOrProblem dispatches an immediate backtest run on creation.
+// Returns a non-zero status + body on failure; zero status means proceed.
 func (h *Handler) autoTriggerOrProblem(c fiber.Ctx, created Portfolio) (int, problemBody) {
 	if h.dispatcher == nil {
-		// Runner not wired — Plan 4 behavior. Caller proceeds as 201.
 		return 0, problemBody{}
 	}
-	switch created.Mode {
-	case ModeOneShot, ModeContinuous:
-		if _, err := h.dispatcher.Submit(c.Context(), created.ID); err != nil {
-			if errors.Is(err, ErrQueueFull) {
-				return fiber.StatusServiceUnavailable, problemBody{
-					title:  "Service Unavailable",
-					detail: "backtest queue is full, try again later",
-				}
+	if _, err := h.dispatcher.Submit(c.Context(), created.ID); err != nil {
+		if errors.Is(err, ErrQueueFull) {
+			return fiber.StatusServiceUnavailable, problemBody{
+				title:  "Service Unavailable",
+				detail: "backtest queue is full, try again later",
 			}
-			return fiber.StatusInternalServerError, problemBody{
-				title:  "Internal Server Error",
-				detail: err.Error(),
-			}
+		}
+		return fiber.StatusInternalServerError, problemBody{
+			title:  "Internal Server Error",
+			detail: err.Error(),
 		}
 	}
 	return 0, problemBody{}
@@ -311,39 +298,65 @@ type problemBody struct {
 	detail string
 }
 
-// Patch implements PATCH /portfolios/{slug} (name-only).
+// Patch implements PATCH /portfolios/{slug}.
+// Allows updating: name, startDate, endDate.
 func (h *Handler) Patch(c fiber.Ctx) error {
 	ownerSub, err := subject(c)
 	if err != nil {
 		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
 	}
-	slug := c.Params("slug")
+	slug := string([]byte(c.Params("slug")))
 
-	// Strict decode: only `name` is allowed. Any other field is a 422.
 	var raw map[string]json.RawMessage
 	if err := sonic.Unmarshal(c.Body(), &raw); err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", fmt.Sprintf("body is not valid JSON: %v", err))
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+			fmt.Sprintf("body is not valid JSON: %v", err))
 	}
+	allowed := map[string]bool{"name": true, "startDate": true, "endDate": true}
 	for k := range raw {
-		if k != "name" {
-			return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", "only `name` may be updated; rejected field: "+k)
+		if !allowed[k] {
+			return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+				"only `name`, `startDate`, `endDate` may be updated; rejected field: "+k)
 		}
-	}
-	var body struct {
-		Name string `json:"name"`
-	}
-	if err := sonic.Unmarshal(c.Body(), &body); err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", fmt.Sprintf("body is not valid JSON: %v", err))
-	}
-	if body.Name == "" {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", "`name` must be non-empty")
 	}
 
-	if err := h.store.UpdateName(c.Context(), ownerSub, slug, body.Name); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	var body struct {
+		Name      string `json:"name"`
+		StartDate string `json:"startDate"`
+		EndDate   string `json:"endDate"`
+	}
+	if err := sonic.Unmarshal(c.Body(), &body); err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
+			fmt.Sprintf("body is not valid JSON: %v", err))
+	}
+
+	startDate, err := parseDate(body.StartDate)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
+	}
+	endDate, err := parseDate(body.EndDate)
+	if err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
+	}
+	if err := validateDates(startDate, endDate); err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
+	}
+
+	if body.Name != "" {
+		if err := h.store.UpdateName(c.Context(), ownerSub, slug, body.Name); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+			}
+			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 		}
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if startDate != nil || endDate != nil {
+		if err := h.store.UpdateDates(c.Context(), ownerSub, slug, startDate, endDate); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+			}
+			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+		}
 	}
 
 	p, err := h.store.Get(c.Context(), ownerSub, slug)
@@ -370,9 +383,7 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// createBody mirrors the OpenAPI PortfolioCreateRequest shape. A separate
-// type keeps JSON-tag details out of CreateRequest (which is the domain
-// type used elsewhere).
+// createBody mirrors the OpenAPI PortfolioCreateRequest shape.
 type createBody struct {
 	Name             string         `json:"name"`
 	StrategyCode     string         `json:"strategyCode,omitempty"`
@@ -380,12 +391,11 @@ type createBody struct {
 	StrategyVer      string         `json:"strategyVer,omitempty"`
 	Parameters       map[string]any `json:"parameters"`
 	Benchmark        string         `json:"benchmark,omitempty"`
-	Mode             string         `json:"mode"`
-	Schedule         string         `json:"schedule,omitempty"`
-	RunNow           bool           `json:"runNow,omitempty"`
+	StartDate        string         `json:"startDate,omitempty"`
+	EndDate          string         `json:"endDate,omitempty"`
 }
 
-func (b createBody) toRequest() CreateRequest {
+func (b createBody) toRequest(startDate, endDate *time.Time) CreateRequest {
 	return CreateRequest{
 		Name:             b.Name,
 		StrategyCode:     b.StrategyCode,
@@ -393,10 +403,22 @@ func (b createBody) toRequest() CreateRequest {
 		StrategyVer:      b.StrategyVer,
 		Parameters:       b.Parameters,
 		Benchmark:        b.Benchmark,
-		Mode:             Mode(b.Mode),
-		Schedule:         b.Schedule,
-		RunNow:           b.RunNow,
+		StartDate:        startDate,
+		EndDate:          endDate,
 	}
+}
+
+// parseDate parses an optional YYYY-MM-DD string into a *time.Time.
+// Returns nil, nil for empty strings.
+func parseDate(s string) (*time.Time, error) {
+	if s == "" {
+		return nil, nil
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid date %q: must be YYYY-MM-DD", s)
+	}
+	return &t, nil
 }
 
 // portfolioView mirrors the OpenAPI Portfolio schema (config only).
@@ -409,8 +431,8 @@ type portfolioView struct {
 	Parameters       map[string]any `json:"parameters"`
 	PresetName       *string        `json:"presetName"`
 	Benchmark        string         `json:"benchmark"`
-	Mode             string         `json:"mode"`
-	Schedule         *string        `json:"schedule"`
+	StartDate        *string        `json:"startDate,omitempty"`
+	EndDate          *string        `json:"endDate,omitempty"`
 	Status           string         `json:"status"`
 	CreatedAt        string         `json:"createdAt"`
 	UpdatedAt        string         `json:"updatedAt"`
@@ -428,12 +450,18 @@ func toView(p Portfolio) portfolioView {
 		Parameters:       p.Parameters,
 		PresetName:       p.PresetName,
 		Benchmark:        p.Benchmark,
-		Mode:             string(p.Mode),
-		Schedule:         p.Schedule,
 		Status:           string(p.Status),
 		CreatedAt:        p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:        p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		LastError:        p.LastError,
+	}
+	if p.StartDate != nil {
+		d := p.StartDate.Format("2006-01-02")
+		v.StartDate = &d
+	}
+	if p.EndDate != nil {
+		d := p.EndDate.Format("2006-01-02")
+		v.EndDate = &d
 	}
 	if p.LastRunAt != nil {
 		t := p.LastRunAt.UTC().Format("2006-01-02T15:04:05Z")

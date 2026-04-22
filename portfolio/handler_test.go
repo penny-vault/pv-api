@@ -32,7 +32,6 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/penny-vault/pvbt/tradecron"
 
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/portfolio"
@@ -136,10 +135,13 @@ func (f *fakeStore) GetRun(_ context.Context, _, _ uuid.UUID) (portfolio.Run, er
 	return portfolio.Run{}, portfolio.ErrNotFound
 }
 
-// ClaimDueContinuous stub — handler tests do not exercise the scheduler path.
-func (f *fakeStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int,
-	_ portfolio.NextRunFunc) ([]portfolio.DueContinuous, error) {
+// ClaimDue stub — handler tests do not exercise the scheduler path.
+func (f *fakeStore) ClaimDue(_ context.Context, _ int) ([]uuid.UUID, error) {
 	return nil, nil
+}
+
+func (f *fakeStore) UpdateDates(_ context.Context, _, _ string, _, _ *time.Time) error {
+	return nil
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
@@ -229,7 +231,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "ADM standard",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "VFINX,PRIDX,QQQ"},
-			"mode":         "one_shot",
 		})
 		Expect(status).To(Equal(201))
 		var out map[string]any
@@ -240,23 +241,11 @@ var _ = Describe("portfolio.Handler", func() {
 		Expect(out["benchmark"]).To(Equal("SPY"))
 	})
 
-	It("rejects mode=live with 422 problem+json", func() {
-		status, _, ct := request("POST", "/portfolios", sub1, map[string]any{
-			"name":         "live",
-			"strategyCode": "adm",
-			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "live",
-		})
-		Expect(status).To(Equal(422))
-		Expect(ct).To(Equal("application/problem+json"))
-	})
-
 	It("rejects an unknown strategy code with 422", func() {
 		status, _, _ := request("POST", "/portfolios", sub1, map[string]any{
 			"name":         "x",
 			"strategyCode": "nope",
 			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "one_shot",
 		})
 		Expect(status).To(Equal(422))
 	})
@@ -266,7 +255,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "ADM standard",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "VFINX,PRIDX,QQQ"},
-			"mode":         "one_shot",
 		}
 		status, _, _ := request("POST", "/portfolios", sub1, body)
 		Expect(status).To(Equal(201))
@@ -279,7 +267,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "ADM standard",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "VFINX,PRIDX,QQQ"},
-			"mode":         "one_shot",
 		}
 		s1, _, _ := request("POST", "/portfolios", sub1, body)
 		s2, _, _ := request("POST", "/portfolios", sub2, body)
@@ -292,7 +279,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "mine",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "one_shot",
 		}
 		_, _, _ = request("POST", "/portfolios", sub1, body)
 		_, _, _ = request("POST", "/portfolios", sub2, body)
@@ -310,7 +296,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "mine",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "VFINX,PRIDX,QQQ"},
-			"mode":         "one_shot",
 		}
 		_, createdBody, _ := request("POST", "/portfolios", sub1, body)
 		var created map[string]any
@@ -326,7 +311,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "before",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "one_shot",
 		})
 		var created map[string]any
 		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
@@ -344,7 +328,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "x",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "one_shot",
 		})
 		var created map[string]any
 		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
@@ -362,7 +345,6 @@ var _ = Describe("portfolio.Handler", func() {
 			"name":         "goner",
 			"strategyCode": "adm",
 			"parameters":   map[string]any{"riskOn": "SPY"},
-			"mode":         "one_shot",
 		})
 		var created map[string]any
 		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
@@ -481,17 +463,9 @@ var _ = Describe("Handler.Summary", func() {
 	})
 })
 
-var _ = Describe("Create for continuous portfolios", func() {
+var _ = Describe("Create with date period", func() {
 	installedVer := "v1.0.0"
 	describeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[{"name":"standard","parameters":{"riskOn":"VFINX,PRIDX,QQQ"}}],"schedule":"@monthend","benchmark":"SPY"}`)
-
-	body := `{
-		"name": "test",
-		"strategyCode": "adm",
-		"parameters": {"riskOn": "VFINX,PRIDX,QQQ"},
-		"mode": "continuous",
-		"schedule": "@monthend"
-	}`
 
 	newSetup := func(disp portfolio.Dispatcher) (*fakeStore, *fiber.App) {
 		store := &fakeStore{}
@@ -504,7 +478,6 @@ var _ = Describe("Create for continuous portfolios", func() {
 			},
 		}
 		h := portfolio.NewHandler(store, strategies, nil, disp, nil, nil, strategy.EphemeralOptions{})
-
 		app := fiber.New()
 		app.Use(func(c fiber.Ctx) error {
 			c.Locals(types.AuthSubjectKey{}, "auth0|user-1")
@@ -514,14 +487,11 @@ var _ = Describe("Create for continuous portfolios", func() {
 		return store, app
 	}
 
-	BeforeEach(func() {
-		tradecron.SetMarketHolidays(nil)
-	})
-
-	It("submits a run even when runNow is omitted", func() {
+	It("always submits a run on creation", func() {
 		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
 		_, app := newSetup(disp)
 
+		body := `{"name":"test","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"}}`
 		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -530,38 +500,52 @@ var _ = Describe("Create for continuous portfolios", func() {
 		Expect(disp.calls.Load()).To(Equal(int64(1)))
 	})
 
-	It("bootstraps next_run_at on the inserted portfolio", func() {
+	It("stores startDate and endDate on the portfolio", func() {
 		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
 		store, app := newSetup(disp)
 
+		body := `{"name":"dated","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"},"startDate":"2020-01-01","endDate":"2024-12-31"}`
 		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(fiber.StatusCreated))
 		Expect(store.rows).To(HaveLen(1))
-		Expect(store.rows[0].NextRunAt).NotTo(BeNil())
-		Expect(store.rows[0].NextRunAt.After(time.Now().Add(-time.Minute))).To(BeTrue())
+		Expect(store.rows[0].StartDate).NotTo(BeNil())
+		Expect(store.rows[0].StartDate.Format("2006-01-02")).To(Equal("2020-01-01"))
+		Expect(store.rows[0].EndDate).NotTo(BeNil())
+		Expect(store.rows[0].EndDate.Format("2006-01-02")).To(Equal("2024-12-31"))
 	})
 
-	It("returns 422 for an invalid schedule", func() {
+	It("returns 422 for an invalid startDate format", func() {
 		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
-		store, app := newSetup(disp)
+		_, app := newSetup(disp)
 
-		badBody := `{"name":"x","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"},"mode":"continuous","schedule":"garbage"}`
-		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(badBody))
+		body := `{"name":"x","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"},"startDate":"not-a-date"}`
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(fiber.StatusUnprocessableEntity))
-		Expect(store.rows).To(BeEmpty())
-		Expect(disp.calls.Load()).To(Equal(int64(0)))
+	})
+
+	It("returns 422 when endDate is before startDate", func() {
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		_, app := newSetup(disp)
+
+		body := `{"name":"x","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"},"startDate":"2024-01-01","endDate":"2020-01-01"}`
+		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusUnprocessableEntity))
 	})
 
 	It("rolls back the portfolio row and returns 503 when dispatcher is full", func() {
 		disp := &countingDispatcher{err: portfolio.ErrQueueFull}
 		store, app := newSetup(disp)
 
+		body := `{"name":"test","strategyCode":"adm","parameters":{"riskOn":"VFINX,PRIDX,QQQ"}}`
 		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -613,7 +597,7 @@ var _ = Describe("POST /portfolios with strategyCloneUrl", func() {
 
 		st, a := newApp(fakeBuilder, urlValidator)
 
-		reqBody := `{"name":"u1","strategyCloneUrl":"https://github.com/foo/bar","parameters":{"riskOn":"SPY"},"mode":"one_shot"}`
+		reqBody := `{"name":"u1","strategyCloneUrl":"https://github.com/foo/bar","parameters":{"riskOn":"SPY"}}`
 		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := a.Test(req, fiber.TestConfig{Timeout: 30 * time.Second}) // go build may take a while
@@ -631,7 +615,7 @@ var _ = Describe("POST /portfolios with strategyCloneUrl", func() {
 	It("returns 422 when both strategyCode and strategyCloneUrl are set", func() {
 		_, a := newApp(nil, func(string) error { return nil })
 
-		reqBody := `{"name":"x","strategyCode":"adm","strategyCloneUrl":"https://github.com/foo/bar","parameters":{},"mode":"one_shot"}`
+		reqBody := `{"name":"x","strategyCode":"adm","strategyCloneUrl":"https://github.com/foo/bar","parameters":{}}`
 		req := httptest.NewRequest("POST", "/portfolios", bytes.NewBufferString(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := a.Test(req)

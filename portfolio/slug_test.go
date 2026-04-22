@@ -36,7 +36,6 @@ var _ = Describe("Slug", func() {
 		slug, err := portfolio.Slug(portfolio.CreateRequest{
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
-			Mode:         portfolio.ModeOneShot,
 			Benchmark:    "SPY",
 		}, admDescribe)
 		Expect(err).NotTo(HaveOccurred())
@@ -48,7 +47,6 @@ var _ = Describe("Slug", func() {
 		slug, err := portfolio.Slug(portfolio.CreateRequest{
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "NVDA,AMD"},
-			Mode:         portfolio.ModeOneShot,
 			Benchmark:    "SPY",
 		}, admDescribe)
 		Expect(err).NotTo(HaveOccurred())
@@ -59,8 +57,6 @@ var _ = Describe("Slug", func() {
 		req := portfolio.CreateRequest{
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
-			Mode:         portfolio.ModeContinuous,
-			Schedule:     "@monthend",
 			Benchmark:    "SPY",
 		}
 		a, err := portfolio.Slug(req, admDescribe)
@@ -70,16 +66,14 @@ var _ = Describe("Slug", func() {
 		Expect(a).To(Equal(b))
 	})
 
-	It("differs when schedule differs even with the same preset", func() {
+	It("differs when benchmark differs", func() {
 		base := portfolio.CreateRequest{
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
-			Mode:         portfolio.ModeContinuous,
 			Benchmark:    "SPY",
 		}
-		base.Schedule = "@monthend"
 		a, _ := portfolio.Slug(base, admDescribe)
-		base.Schedule = "@daily"
+		base.Benchmark = "QQQ"
 		b, _ := portfolio.Slug(base, admDescribe)
 		Expect(a).NotTo(Equal(b))
 	})
@@ -87,12 +81,12 @@ var _ = Describe("Slug", func() {
 	It("canonicalizes parameter key order (same map order-independent)", func() {
 		d := strategy.Describe{ShortCode: "x"}
 		a, err := portfolio.Slug(portfolio.CreateRequest{
-			StrategyCode: "x", Mode: portfolio.ModeOneShot, Benchmark: "SPY",
+			StrategyCode: "x", Benchmark: "SPY",
 			Parameters: map[string]any{"a": 1, "b": 2},
 		}, d)
 		Expect(err).NotTo(HaveOccurred())
 		b, err := portfolio.Slug(portfolio.CreateRequest{
-			StrategyCode: "x", Mode: portfolio.ModeOneShot, Benchmark: "SPY",
+			StrategyCode: "x", Benchmark: "SPY",
 			Parameters: map[string]any{"b": 2, "a": 1},
 		}, d)
 		Expect(err).NotTo(HaveOccurred())
@@ -109,7 +103,6 @@ var _ = Describe("Slug", func() {
 		slug, err := portfolio.Slug(portfolio.CreateRequest{
 			StrategyCode: "foo",
 			Parameters:   map[string]any{"k": "v"},
-			Mode:         portfolio.ModeOneShot,
 			Benchmark:    "SPY",
 		}, d)
 		Expect(err).NotTo(HaveOccurred())

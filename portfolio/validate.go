@@ -19,52 +19,34 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/penny-vault/pvbt/tradecron"
+	"time"
 
 	"github.com/penny-vault/pv-api/strategy"
 )
 
-// Validation sentinels. Each maps to a distinct error message via
-// fmt.Errorf("%w: ...") so callers get a 422 detail while retaining
-// errors.Is behavior.
 var (
-	ErrLiveNotSupported        = errors.New("live mode unavailable")
-	ErrScheduleRequired        = errors.New("schedule required for continuous mode")
-	ErrScheduleForbidden       = errors.New("schedule forbidden for non-continuous mode")
-	ErrInvalidSchedule         = errors.New("invalid schedule")
 	ErrStrategyNotReady        = errors.New("strategy not installed")
 	ErrStrategyVersionMismatch = errors.New("strategy version not installed")
 	ErrUnknownParameter        = errors.New("unknown parameter")
 	ErrMissingParameter        = errors.New("missing required parameter")
 	ErrInvalidStrategyDescribe = errors.New("strategy describe JSON is malformed")
-	ErrUnsupportedMode         = errors.New("unsupported mode")
+	ErrInvalidDate             = errors.New("invalid date")
+	ErrEndBeforeStart          = errors.New("endDate must be on or after startDate")
 )
 
-// ValidateCreate runs every check from the spec's "Create-portfolio
-// validation" subsection against req + the caller-supplied strategy row.
-// On success, it returns a normalized CreateRequest with
-// StrategyVer and Benchmark filled from the strategy's describe output
-// when the request left them blank.
+// ValidateCreate validates and normalises an official-strategy create request.
 func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, error) {
 	norm := req
 
-	if err := validateMode(norm); err != nil {
-		return norm, err
-	}
-
-	// strategy installed
 	if s.InstalledVer == nil || len(s.DescribeJSON) == 0 {
 		return norm, fmt.Errorf("%w: %s is still installing — try again shortly", ErrStrategyNotReady, s.ShortCode)
 	}
-
-	// strategy version matches installed
 	if norm.StrategyVer != "" && norm.StrategyVer != *s.InstalledVer {
-		return norm, fmt.Errorf("%w: want %s, installed is %s", ErrStrategyVersionMismatch, norm.StrategyVer, *s.InstalledVer)
+		return norm, fmt.Errorf("%w: want %s, installed is %s",
+			ErrStrategyVersionMismatch, norm.StrategyVer, *s.InstalledVer)
 	}
 	norm.StrategyVer = *s.InstalledVer
 
-	// parameters validate against describe
 	var d strategy.Describe
 	if err := json.Unmarshal(s.DescribeJSON, &d); err != nil {
 		return norm, fmt.Errorf("%w: %w", ErrInvalidStrategyDescribe, err)
@@ -72,42 +54,41 @@ func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, erro
 	if err := validateParameters(norm.Parameters, d); err != nil {
 		return norm, err
 	}
-
-	// default benchmark
 	if norm.Benchmark == "" {
 		norm.Benchmark = d.Benchmark
 	}
-
+	if err := validateDates(norm.StartDate, norm.EndDate); err != nil {
+		return norm, err
+	}
 	return norm, nil
 }
 
-// validateMode enforces the live / schedule rules from the spec.
-func validateMode(req CreateRequest) error {
-	if req.Mode == ModeLive {
-		return fmt.Errorf("%w: live trading is not yet supported", ErrLiveNotSupported)
+// ValidateCreateUnofficial validates an unofficial (clone-URL) strategy create
+// request. Skips the install-lifecycle checks.
+func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateRequest, error) {
+	norm := req
+	if err := validateParameters(norm.Parameters, d); err != nil {
+		return norm, err
 	}
-	switch req.Mode {
-	case ModeContinuous:
-		if req.Schedule == "" {
-			return fmt.Errorf("%w", ErrScheduleRequired)
-		}
-		if _, err := tradecron.New(req.Schedule, tradecron.RegularHours); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidSchedule, err)
-		}
-	case ModeOneShot:
-		if req.Schedule != "" {
-			return fmt.Errorf("%w", ErrScheduleForbidden)
-		}
-	case ModeLive:
-		// handled above
-	default:
-		return fmt.Errorf("%w: %q", ErrUnsupportedMode, req.Mode)
+	if norm.Benchmark == "" {
+		norm.Benchmark = d.Benchmark
+	}
+	if err := validateDates(norm.StartDate, norm.EndDate); err != nil {
+		return norm, err
+	}
+	return norm, nil
+}
+
+// validateDates checks that endDate is not before startDate.
+func validateDates(start, end *time.Time) error {
+	if start != nil && end != nil && end.Before(*start) {
+		return fmt.Errorf("%w", ErrEndBeforeStart)
 	}
 	return nil
 }
 
-// validateParameters enforces that every declared parameter is present and
-// that no unknown parameters are supplied.
+// validateParameters enforces that every declared parameter is present and no
+// unknown parameters are supplied.
 func validateParameters(params map[string]any, d strategy.Describe) error {
 	declared := make(map[string]struct{}, len(d.Parameters))
 	for _, p := range d.Parameters {
@@ -124,26 +105,4 @@ func validateParameters(params map[string]any, d strategy.Describe) error {
 		}
 	}
 	return nil
-}
-
-// ValidateCreateUnofficial runs the same mode/schedule/parameter checks
-// as ValidateCreate but takes the describe output inline (from an
-// ephemeral build) rather than pulling it off a strategy row. It skips:
-//   - strategy-installed check (no install lifecycle)
-//   - strategy-version-matches-installed check (no installed version)
-//
-// Returns a normalized CreateRequest with Benchmark filled from the
-// describe when the request left it blank.
-func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateRequest, error) {
-	norm := req
-	if err := validateMode(norm); err != nil {
-		return norm, err
-	}
-	if err := validateParameters(norm.Parameters, d); err != nil {
-		return norm, err
-	}
-	if norm.Benchmark == "" {
-		norm.Benchmark = d.Benchmark
-	}
-	return norm, nil
 }

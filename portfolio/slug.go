@@ -58,10 +58,6 @@ func Slug(req CreateRequest, d strategy.Describe) (string, error) {
 	h := fnv.New32a()
 	_, _ = h.Write(canon)
 	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(string(req.Mode)))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(req.Schedule))
-	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(req.Benchmark))
 
 	sum := h.Sum32() & 0xFFFFF // low 20 bits

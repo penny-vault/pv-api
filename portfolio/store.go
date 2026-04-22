@@ -30,8 +30,9 @@ type Store interface {
 	Get(ctx context.Context, ownerSub, slug string) (Portfolio, error)
 	Insert(ctx context.Context, p Portfolio) error
 	UpdateName(ctx context.Context, ownerSub, slug, name string) error
+	UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error
 	Delete(ctx context.Context, ownerSub, slug string) error
-	ClaimDueContinuous(ctx context.Context, before time.Time, batchSize int, nextRun NextRunFunc) ([]DueContinuous, error)
+	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -111,9 +112,12 @@ func (p PoolStore) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUI
 	return MarkFailedTx(ctx, p.Pool, portfolioID, runID, errMsg, durationMs)
 }
 
-// ClaimDueContinuous claims due continuous portfolios for the scheduler and
-// advances their next_run_at in the same tx.
-func (p PoolStore) ClaimDueContinuous(ctx context.Context, before time.Time,
-	batchSize int, nextRun NextRunFunc) ([]DueContinuous, error) {
-	return ClaimDueContinuous(ctx, p.Pool, before, batchSize, nextRun)
+// UpdateDates updates a portfolio's start_date and/or end_date.
+func (p PoolStore) UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error {
+	return UpdateDates(ctx, p.Pool, ownerSub, slug, startDate, endDate)
+}
+
+// ClaimDue returns open-ended portfolio IDs not yet run today.
+func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
+	return ClaimDue(ctx, p.Pool, batchSize)
 }

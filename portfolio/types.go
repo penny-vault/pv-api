@@ -21,15 +21,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Mode mirrors the portfolio_mode enum.
-type Mode string
-
-const (
-	ModeOneShot    Mode = "one_shot"
-	ModeContinuous Mode = "continuous"
-	ModeLive       Mode = "live"
-)
-
 // Status mirrors the portfolio_status enum.
 type Status string
 
@@ -40,10 +31,7 @@ const (
 	StatusFailed  Status = "failed"
 )
 
-// Portfolio is the internal representation of a portfolios row — config
-// fields only. Derived summary columns (`current_value`, `ytd_return`,
-// JSONB blobs) are not exposed here; Plan 5 adds a separate derived-row
-// shape when the runner starts populating those columns.
+// Portfolio is the internal representation of a portfolios row.
 type Portfolio struct {
 	ID                   uuid.UUID
 	OwnerSub             string
@@ -56,32 +44,31 @@ type Portfolio struct {
 	Parameters           map[string]any
 	PresetName           *string
 	Benchmark            string
-	Mode                 Mode
-	Schedule             *string
+	StartDate            *time.Time
+	EndDate              *time.Time
 	Status               Status
 	LastRunAt            *time.Time
-	NextRunAt            *time.Time
 	LastError            *string
 	SnapshotPath         *string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
 
-// CreateRequest is what the POST /portfolios handler hands off to the
-// domain layer. Mirrors the OpenAPI PortfolioCreateRequest.
+// CreateRequest is what the POST /portfolios handler passes to the domain layer.
 type CreateRequest struct {
 	Name             string
 	StrategyCode     string
-	StrategyVer      string // empty → use strategy's installed_ver; stays string (request-shaped)
-	StrategyCloneURL string // empty → official strategy
+	StrategyVer      string
+	StrategyCloneURL string
 	Parameters       map[string]any
-	Benchmark        string // empty → use strategy's describe.benchmark
-	Mode             Mode
-	Schedule         string // required iff Mode == ModeContinuous
-	RunNow           bool   // accepted but no-op in Plan 4
+	Benchmark        string
+	StartDate        *time.Time
+	EndDate          *time.Time
 }
 
-// UpdateRequest is what PATCH /portfolios/{slug} hands off. Name-only.
+// UpdateRequest is what PATCH /portfolios/{slug} passes to the domain layer.
 type UpdateRequest struct {
-	Name string
+	Name      string
+	StartDate *time.Time
+	EndDate   *time.Time
 }

@@ -17,6 +17,7 @@ package portfolio_test
 
 import (
 	"errors"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,12 +42,11 @@ var _ = Describe("ValidateCreate", func() {
 		}
 	}
 
-	It("accepts a valid one_shot request", func() {
+	It("accepts a valid request and normalises StrategyVer and Benchmark", func() {
 		req := portfolio.CreateRequest{
 			Name:         "foo",
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "SPY"},
-			Mode:         portfolio.ModeOneShot,
 		}
 		norm, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(err).NotTo(HaveOccurred())
@@ -59,50 +59,18 @@ var _ = Describe("ValidateCreate", func() {
 			Name:         "foo",
 			StrategyCode: "adm",
 			Parameters:   map[string]any{"riskOn": "SPY"},
-			Mode:         portfolio.ModeOneShot,
 		}
 		norm, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(norm.Benchmark).To(Equal("SPY"))
 	})
 
-	It("rejects mode=live with ErrLiveNotSupported", func() {
-		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{"riskOn": "SPY"},
-			Mode:       portfolio.ModeLive,
-		}
-		_, err := portfolio.ValidateCreate(req, makeStrategy())
-		Expect(errors.Is(err, portfolio.ErrLiveNotSupported)).To(BeTrue())
-	})
-
-	It("rejects mode=continuous without a schedule", func() {
-		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{"riskOn": "SPY"},
-			Mode:       portfolio.ModeContinuous,
-		}
-		_, err := portfolio.ValidateCreate(req, makeStrategy())
-		Expect(errors.Is(err, portfolio.ErrScheduleRequired)).To(BeTrue())
-	})
-
-	It("rejects mode=one_shot with a schedule", func() {
-		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{"riskOn": "SPY"},
-			Mode:       portfolio.ModeOneShot,
-			Schedule:   "@monthend",
-		}
-		_, err := portfolio.ValidateCreate(req, makeStrategy())
-		Expect(errors.Is(err, portfolio.ErrScheduleForbidden)).To(BeTrue())
-	})
-
 	It("rejects a strategy version that does not match installed_ver", func() {
 		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			StrategyVer: "v9.9.9",
-			Parameters:  map[string]any{"riskOn": "SPY"},
-			Mode:        portfolio.ModeOneShot,
+			Name:         "foo",
+			StrategyCode: "adm",
+			StrategyVer:  "v9.9.9",
+			Parameters:   map[string]any{"riskOn": "SPY"},
 		}
 		_, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(errors.Is(err, portfolio.ErrStrategyVersionMismatch)).To(BeTrue())
@@ -113,9 +81,9 @@ var _ = Describe("ValidateCreate", func() {
 		s.InstalledVer = nil
 		s.DescribeJSON = nil
 		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{"riskOn": "SPY"},
-			Mode:       portfolio.ModeOneShot,
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY"},
 		}
 		_, err := portfolio.ValidateCreate(req, s)
 		Expect(errors.Is(err, portfolio.ErrStrategyNotReady)).To(BeTrue())
@@ -123,9 +91,9 @@ var _ = Describe("ValidateCreate", func() {
 
 	It("rejects unknown parameter keys", func() {
 		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{"riskOn": "SPY", "bogus": 42},
-			Mode:       portfolio.ModeOneShot,
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY", "bogus": 42},
 		}
 		_, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(errors.Is(err, portfolio.ErrUnknownParameter)).To(BeTrue())
@@ -134,47 +102,54 @@ var _ = Describe("ValidateCreate", func() {
 
 	It("rejects missing required parameters", func() {
 		req := portfolio.CreateRequest{
-			Name: "foo", StrategyCode: "adm",
-			Parameters: map[string]any{},
-			Mode:       portfolio.ModeOneShot,
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{},
 		}
 		_, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(errors.Is(err, portfolio.ErrMissingParameter)).To(BeTrue())
 		Expect(err.Error()).To(ContainSubstring("riskOn"))
 	})
-})
 
-var _ = Describe("Schedule validation", func() {
-	strategyFixture := func() strategy.Strategy {
-		ver := "v1.0.0"
-		return strategy.Strategy{
-			ShortCode:    "adm",
-			InstalledVer: &ver,
-			DescribeJSON: []byte(`{
-				"shortCode": "adm",
-				"benchmark": "SPY",
-				"parameters": [],
-				"presets": []
-			}`),
-		}
-	}
-
-	It("accepts a valid tradecron schedule on continuous", func() {
+	It("accepts valid startDate and endDate", func() {
+		start := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
 		req := portfolio.CreateRequest{
-			Name: "x", StrategyCode: "adm", Parameters: map[string]any{},
-			Mode: portfolio.ModeContinuous, Schedule: "@daily",
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY"},
+			StartDate:    &start,
+			EndDate:      &end,
 		}
-		_, err := portfolio.ValidateCreate(req, strategyFixture())
+		_, err := portfolio.ValidateCreate(req, makeStrategy())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("rejects an invalid schedule on continuous with ErrInvalidSchedule", func() {
+	It("rejects endDate before startDate with ErrEndBeforeStart", func() {
+		start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 		req := portfolio.CreateRequest{
-			Name: "x", StrategyCode: "adm", Parameters: map[string]any{},
-			Mode: portfolio.ModeContinuous, Schedule: "garbage",
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY"},
+			StartDate:    &start,
+			EndDate:      &end,
 		}
-		_, err := portfolio.ValidateCreate(req, strategyFixture())
-		Expect(errors.Is(err, portfolio.ErrInvalidSchedule)).To(BeTrue())
+		_, err := portfolio.ValidateCreate(req, makeStrategy())
+		Expect(errors.Is(err, portfolio.ErrEndBeforeStart)).To(BeTrue())
+	})
+
+	It("accepts equal startDate and endDate", func() {
+		d := time.Date(2022, 6, 1, 0, 0, 0, 0, time.UTC)
+		req := portfolio.CreateRequest{
+			Name:         "foo",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY"},
+			StartDate:    &d,
+			EndDate:      &d,
+		}
+		_, err := portfolio.ValidateCreate(req, makeStrategy())
+		Expect(err).NotTo(HaveOccurred())
 	})
 })
 
@@ -189,10 +164,9 @@ var _ = Describe("ValidateCreateUnofficial", func() {
 		Benchmark: "SPY",
 	}
 
-	It("accepts a well-formed one-shot request", func() {
+	It("accepts a well-formed request", func() {
 		req := portfolio.CreateRequest{
 			Name:       "p",
-			Mode:       portfolio.ModeOneShot,
 			Parameters: map[string]any{"riskOn": "SPY"},
 		}
 		norm, err := portfolio.ValidateCreateUnofficial(req, d)
@@ -203,7 +177,6 @@ var _ = Describe("ValidateCreateUnofficial", func() {
 	It("rejects unknown parameter", func() {
 		req := portfolio.CreateRequest{
 			Name:       "p",
-			Mode:       portfolio.ModeOneShot,
 			Parameters: map[string]any{"riskOn": "SPY", "nope": 1},
 		}
 		_, err := portfolio.ValidateCreateUnofficial(req, d)
@@ -213,30 +186,22 @@ var _ = Describe("ValidateCreateUnofficial", func() {
 	It("rejects missing parameter", func() {
 		req := portfolio.CreateRequest{
 			Name:       "p",
-			Mode:       portfolio.ModeOneShot,
 			Parameters: map[string]any{},
 		}
 		_, err := portfolio.ValidateCreateUnofficial(req, d)
 		Expect(errors.Is(err, portfolio.ErrMissingParameter)).To(BeTrue())
 	})
 
-	It("rejects live mode", func() {
+	It("rejects endDate before startDate", func() {
+		start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 		req := portfolio.CreateRequest{
 			Name:       "p",
-			Mode:       portfolio.ModeLive,
 			Parameters: map[string]any{"riskOn": "SPY"},
+			StartDate:  &start,
+			EndDate:    &end,
 		}
 		_, err := portfolio.ValidateCreateUnofficial(req, d)
-		Expect(errors.Is(err, portfolio.ErrLiveNotSupported)).To(BeTrue())
-	})
-
-	It("requires schedule for continuous", func() {
-		req := portfolio.CreateRequest{
-			Name:       "p",
-			Mode:       portfolio.ModeContinuous,
-			Parameters: map[string]any{"riskOn": "SPY"},
-		}
-		_, err := portfolio.ValidateCreateUnofficial(req, d)
-		Expect(errors.Is(err, portfolio.ErrScheduleRequired)).To(BeTrue())
+		Expect(errors.Is(err, portfolio.ErrEndBeforeStart)).To(BeTrue())
 	})
 })
