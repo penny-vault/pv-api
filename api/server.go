@@ -27,6 +27,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/penny-vault/pv-api/alert"
 	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/strategy"
@@ -119,6 +120,9 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 			ephOpts,
 		)
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
+		alertStore := alert.NewPoolStore(conf.Pool)
+		alertHandler := alert.NewAlertHandler(portfolioStore, alertStore)
+		RegisterAlertRoutesWith(protected, alertHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(
 			strategyStore,
 			strategy.EphemeralBuild,

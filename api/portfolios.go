@@ -18,6 +18,7 @@ package api
 import (
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/penny-vault/pv-api/alert"
 	"github.com/penny-vault/pv-api/portfolio"
 )
 
@@ -62,6 +63,14 @@ func RegisterPortfolioRoutesWith(r fiber.Router, h *portfolio.Handler) {
 	r.Post("/portfolios/:slug/run", h.CreateRun)
 	r.Get("/portfolios/:slug/runs", h.ListRuns)
 	r.Get("/portfolios/:slug/runs/:runId", h.GetRun)
+}
+
+// RegisterAlertRoutesWith mounts alert CRUD endpoints backed by h.
+func RegisterAlertRoutesWith(r fiber.Router, h *alert.AlertHandler) {
+	r.Post("/portfolios/:slug/alerts", h.Create)
+	r.Get("/portfolios/:slug/alerts", h.List)
+	r.Patch("/portfolios/:slug/alerts/:alertId", h.Update)
+	r.Delete("/portfolios/:slug/alerts/:alertId", h.Delete)
 }
 
 func stubPortfolio(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
