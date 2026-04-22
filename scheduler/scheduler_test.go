@@ -25,48 +25,22 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/penny-vault/pvbt/tradecron"
-
 	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/scheduler"
 )
 
-var _ = Describe("TradecronNext", func() {
-	// pvbt/tradecron panics when @monthend / @monthbegin / @quarter* schedules
-	// are evaluated without market-holiday data pre-loaded. Production wires
-	// this at startup in cmd/server.go (Plan 6 Task 12); tests pass nil to
-	// disable holiday-aware skipping.
-	BeforeEach(func() {
-		tradecron.SetMarketHolidays(nil)
-	})
-
-	It("returns a future time for @monthend", func() {
-		now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
-		next, err := scheduler.TradecronNext("@monthend", now)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(next.After(now)).To(BeTrue())
-	})
-
-	It("returns an error for an unparseable schedule", func() {
-		_, err := scheduler.TradecronNext("not-a-schedule", time.Now())
-		Expect(err).To(HaveOccurred())
-	})
-})
-
-// --- Scheduler.Run tests ---
-
 type stubStore struct {
 	claimCalls atomic.Int64
-	claims     []scheduler.Claim
+	ids        []uuid.UUID
 	err        error
 }
 
-func (s *stubStore) ClaimDueContinuous(_ context.Context, _ time.Time, _ int, _ scheduler.NextRunFunc) ([]scheduler.Claim, error) {
+func (s *stubStore) ClaimDue(_ context.Context, _ int) ([]uuid.UUID, error) {
 	s.claimCalls.Add(1)
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.claims, nil
+	return s.ids, nil
 }
 
 type stubDispatcher struct {
@@ -82,33 +56,24 @@ func (d *stubDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, erro
 	return uuid.Must(uuid.NewV7()), nil
 }
 
-func stubNextRun(_ string, now time.Time) (time.Time, error) {
-	return now.Add(time.Hour), nil
-}
-
 var _ = Describe("Scheduler.Run", func() {
 	It("exits cleanly when context is cancelled", func() {
 		store := &stubStore{}
 		disp := &stubDispatcher{}
-		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // cancel immediately
+		cancel()
 
 		err := sched.Run(ctx)
 		Expect(errors.Is(err, context.Canceled)).To(BeTrue())
 	})
 
 	It("dispatches each claimed portfolio on the initial tick", func() {
-		claims := []scheduler.Claim{
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@monthend", NextRunAt: time.Now().Add(time.Hour)},
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily", NextRunAt: time.Now().Add(24 * time.Hour)},
-		}
-		store := &stubStore{claims: claims}
+		ids := []uuid.UUID{uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())}
+		store := &stubStore{ids: ids}
 		disp := &stubDispatcher{}
-		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -123,14 +88,10 @@ var _ = Describe("Scheduler.Run", func() {
 	})
 
 	It("continues past ErrQueueFull and dispatches remaining claims", func() {
-		claims := []scheduler.Claim{
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
-		}
-		store := &stubStore{claims: claims}
+		ids := []uuid.UUID{uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())}
+		store := &stubStore{ids: ids}
 		disp := &stubDispatcher{err: backtest.ErrQueueFull}
-		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -143,14 +104,10 @@ var _ = Describe("Scheduler.Run", func() {
 	})
 
 	It("continues past a generic dispatcher error", func() {
-		claims := []scheduler.Claim{
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
-		}
-		store := &stubStore{claims: claims}
+		ids := []uuid.UUID{uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())}
+		store := &stubStore{ids: ids}
 		disp := &stubDispatcher{err: errors.New("pool closed")}
-		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -162,11 +119,10 @@ var _ = Describe("Scheduler.Run", func() {
 		Expect(<-done).To(MatchError(context.Canceled))
 	})
 
-	It("does not panic or exit when ClaimDueContinuous errors", func() {
+	It("does not panic or exit when ClaimDue errors", func() {
 		store := &stubStore{err: errors.New("db down")}
 		disp := &stubDispatcher{}
-		sched := scheduler.New(scheduler.Config{TickInterval: 10 * time.Millisecond, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: 10 * time.Millisecond, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
@@ -177,15 +133,10 @@ var _ = Describe("Scheduler.Run", func() {
 	})
 
 	It("fires the first tick immediately without waiting for TickInterval", func() {
-		claims := []scheduler.Claim{
-			{PortfolioID: uuid.Must(uuid.NewV7()), Schedule: "@daily"},
-		}
-		store := &stubStore{claims: claims}
+		ids := []uuid.UUID{uuid.Must(uuid.NewV7())}
+		store := &stubStore{ids: ids}
 		disp := &stubDispatcher{}
-		// TickInterval far in the future; the only way Submit fires is the
-		// initial tick before the ticker.
-		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32},
-			store, disp, stubNextRun)
+		sched := scheduler.New(scheduler.Config{TickInterval: time.Hour, BatchSize: 32}, store, disp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
