@@ -49,7 +49,6 @@ type Store interface {
 	Get(ctx context.Context, shortCode string) (Strategy, error)
 	GetByCloneURL(ctx context.Context, cloneURL string) (Strategy, error)
 	Upsert(ctx context.Context, s Strategy) error
-	MarkAttempt(ctx context.Context, shortCode, version string) error
 	MarkSuccess(ctx context.Context, shortCode, version, kind, ref string, describe []byte) error
 	MarkFailure(ctx context.Context, shortCode, version, errText string) error
 	LookupArtifact(ctx context.Context, cloneURL, ver string) (string, error)
@@ -93,7 +92,6 @@ func expectedArtifactKind(mode string) string {
 type Syncer struct {
 	store Store
 	opts  SyncerOptions
-	stats StatsRunner
 }
 
 // NewSyncer constructs a Syncer. Install concurrency of 0 is replaced with 1.
@@ -101,7 +99,7 @@ func NewSyncer(store Store, opts SyncerOptions) *Syncer {
 	if opts.Concurrency < 1 {
 		opts.Concurrency = 1
 	}
-	return &Syncer{store: store, opts: opts, stats: opts.Stats}
+	return &Syncer{store: store, opts: opts}
 }
 
 // Run ticks on the configured Interval until ctx is cancelled. The first
@@ -288,10 +286,10 @@ func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string
 		log.Warn().Err(err).Str("short_code", shortCode).Msg("mark success failed")
 		return
 	}
-	if s.stats != nil {
+	if s.opts.Stats != nil {
 		sc := shortCode
 		go func() {
-			if err := s.stats.RunOne(context.Background(), sc); err != nil {
+			if err := s.opts.Stats.RunOne(context.Background(), sc); err != nil {
 				log.Warn().Err(err).Str("short_code", sc).Msg("post-install stats failed")
 			}
 		}()
