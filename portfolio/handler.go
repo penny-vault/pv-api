@@ -298,6 +298,55 @@ type problemBody struct {
 	detail string
 }
 
+// patchBody holds the fields accepted by PATCH /portfolios/{slug}.
+type patchBody struct {
+	Name      string `json:"name"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+}
+
+// parsePatchBody validates that the request contains only allowed fields and
+// returns the decoded body plus parsed date pointers.
+func parsePatchBody(data []byte) (patchBody, *time.Time, *time.Time, error) {
+	var raw map[string]json.RawMessage
+	if err := sonic.Unmarshal(data, &raw); err != nil {
+		return patchBody{}, nil, nil, fmt.Errorf("body is not valid JSON: %w", err)
+	}
+	allowed := map[string]bool{"name": true, "startDate": true, "endDate": true}
+	for k := range raw {
+		if !allowed[k] {
+			return patchBody{}, nil, nil, fmt.Errorf("rejected field %q: %w", k, ErrImmutableField)
+		}
+	}
+	var body patchBody
+	if err := sonic.Unmarshal(data, &body); err != nil {
+		return patchBody{}, nil, nil, fmt.Errorf("body is not valid JSON: %w", err)
+	}
+	startDate, err := parseDate(body.StartDate)
+	if err != nil {
+		return patchBody{}, nil, nil, err
+	}
+	endDate, err := parseDate(body.EndDate)
+	if err != nil {
+		return patchBody{}, nil, nil, err
+	}
+	if err := validateDates(startDate, endDate); err != nil {
+		return patchBody{}, nil, nil, err
+	}
+	return body, startDate, endDate, nil
+}
+
+// applyStoreUpdate calls fn and maps ErrNotFound to a 404 problem response.
+func applyStoreUpdate(c fiber.Ctx, slug string, fn func() error) error {
+	if err := fn(); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+		}
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	return nil
+}
+
 // Patch implements PATCH /portfolios/{slug}.
 // Allows updating: name, startDate, endDate.
 func (h *Handler) Patch(c fiber.Ctx) error {
@@ -307,55 +356,23 @@ func (h *Handler) Patch(c fiber.Ctx) error {
 	}
 	slug := string([]byte(c.Params("slug")))
 
-	var raw map[string]json.RawMessage
-	if err := sonic.Unmarshal(c.Body(), &raw); err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
-			fmt.Sprintf("body is not valid JSON: %v", err))
-	}
-	allowed := map[string]bool{"name": true, "startDate": true, "endDate": true}
-	for k := range raw {
-		if !allowed[k] {
-			return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
-				"only `name`, `startDate`, `endDate` may be updated; rejected field: "+k)
-		}
-	}
-
-	var body struct {
-		Name      string `json:"name"`
-		StartDate string `json:"startDate"`
-		EndDate   string `json:"endDate"`
-	}
-	if err := sonic.Unmarshal(c.Body(), &body); err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity",
-			fmt.Sprintf("body is not valid JSON: %v", err))
-	}
-
-	startDate, err := parseDate(body.StartDate)
+	body, startDate, endDate, err := parsePatchBody(c.Body())
 	if err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
-	}
-	endDate, err := parseDate(body.EndDate)
-	if err != nil {
-		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
-	}
-	if err := validateDates(startDate, endDate); err != nil {
 		return writeProblem(c, fiber.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
 	}
 
 	if body.Name != "" {
-		if err := h.store.UpdateName(c.Context(), ownerSub, slug, body.Name); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
-			}
-			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+		if err := applyStoreUpdate(c, slug, func() error {
+			return h.store.UpdateName(c.Context(), ownerSub, slug, body.Name)
+		}); err != nil {
+			return err
 		}
 	}
 	if startDate != nil || endDate != nil {
-		if err := h.store.UpdateDates(c.Context(), ownerSub, slug, startDate, endDate); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
-			}
-			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+		if err := applyStoreUpdate(c, slug, func() error {
+			return h.store.UpdateDates(c.Context(), ownerSub, slug, startDate, endDate)
+		}); err != nil {
+			return err
 		}
 	}
 
@@ -416,7 +433,7 @@ func parseDate(s string) (*time.Time, error) {
 	}
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date %q: must be YYYY-MM-DD", s)
+		return nil, fmt.Errorf("%q: %w", s, ErrInvalidDate)
 	}
 	return &t, nil
 }
