@@ -29,6 +29,11 @@ import (
 	"github.com/penny-vault/pv-api/snapshot"
 )
 
+// Notifier is called after each run completes. alert.Checker implements this.
+type Notifier interface {
+	NotifyRunComplete(ctx context.Context, portfolioID, runID uuid.UUID, success bool) error
+}
+
 // ArtifactResolver resolves a strategy artifact (binary path or image ref)
 // for the given cloneURL and version. The semantics of the returned
 // artifactRef depends on the runner wired alongside this resolver at
@@ -46,6 +51,7 @@ type orchestrator struct {
 	ps           PortfolioStore
 	rs           RunStore
 	resolve      ArtifactResolver
+	notifier     Notifier
 }
 
 // NewRunner builds the orchestration object that ties together the runner,
@@ -55,6 +61,12 @@ type orchestrator struct {
 func NewRunner(cfg Config, runner Runner, artifactKind ArtifactKind, ps PortfolioStore, rs RunStore, resolve ArtifactResolver) *orchestrator {
 	cfg.ApplyDefaults()
 	return &orchestrator{cfg: cfg, runner: runner, artifactKind: artifactKind, ps: ps, rs: rs, resolve: resolve}
+}
+
+// WithNotifier attaches an optional Notifier that will be called after each run completes.
+func (o *orchestrator) WithNotifier(n Notifier) *orchestrator {
+	o.notifier = n
+	return o
 }
 
 // Run orchestrates a single backtest end-to-end for the given portfolio and
@@ -118,6 +130,11 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		kp.InceptionDate, durationMs(time.Since(started))); err != nil {
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark ready: %w", err))
 	}
+	if o.notifier != nil {
+		if err := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, true); err != nil {
+			log.Warn().Err(err).Stringer("portfolio_id", portfolioID).Msg("alert notification failed")
+		}
+	}
 	log.Info().Stringer("portfolio_id", portfolioID).Stringer("run_id", runID).Msg("backtest succeeded")
 	return nil
 }
@@ -177,6 +194,11 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 		msg = msg[:2048]
 	}
 	_ = o.ps.MarkFailedTx(ctx, portfolioID, runID, msg, durationMs(time.Since(started)))
+	if o.notifier != nil {
+		if notifyErr := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, false); notifyErr != nil {
+			log.Warn().Err(notifyErr).Stringer("portfolio_id", portfolioID).Msg("alert notification failed")
+		}
+	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return fmt.Errorf("%w: %s", ErrTimedOut, msg)
 	}
