@@ -18,6 +18,7 @@ package strategy_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -171,6 +172,18 @@ func (f *fakeStore) MarkStatsError(_ context.Context, shortCode, errText string)
 	row := f.rows[shortCode]
 	row.StatsError = &errText
 	f.rows[shortCode] = row
+	return nil
+}
+
+type fakeStatsRefresher struct {
+	mu          sync.Mutex
+	runOneCalls []string
+}
+
+func (f *fakeStatsRefresher) RunOne(_ context.Context, sc string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runOneCalls = append(f.runOneCalls, sc)
 	return nil
 }
 
@@ -335,6 +348,43 @@ var _ = Describe("Syncer.Tick", func() {
 		})
 		Expect(s.Tick(context.Background())).To(Succeed())
 		Expect(installerCalls).To(Equal(0))
+	})
+
+	It("calls StatsRefresher.RunOne after a successful install", func() {
+		store := newFakeStore()
+
+		discovery := func(_ context.Context) ([]strategy.Listing, error) {
+			return []strategy.Listing{{
+				Name: "fake", Owner: "penny-vault", CloneURL: "file:///tmp/fake.git",
+			}}, nil
+		}
+		resolveVer := func(_ context.Context, _ string) (string, error) { return "v1.0.0", nil }
+		installer := func(_ context.Context, _ strategy.InstallRequest) (*strategy.InstallResult, error) {
+			return &strategy.InstallResult{
+				BinPath:      "/tmp/fake/fake.bin",
+				ArtifactRef:  "/tmp/fake/fake.bin",
+				DescribeJSON: []byte(`{"shortcode":"fake","name":"Fake","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`),
+				ShortCode:    "fake",
+			}, nil
+		}
+
+		fakeStats := &fakeStatsRefresher{}
+
+		s := strategy.NewSyncer(store, strategy.SyncerOptions{
+			Discovery:   discovery,
+			ResolveVer:  resolveVer,
+			Installer:   installer,
+			OfficialDir: "/tmp",
+			Concurrency: 1,
+			Stats:       fakeStats,
+		})
+		Expect(s.Tick(context.Background())).To(Succeed())
+
+		Eventually(func() []string {
+			fakeStats.mu.Lock()
+			defer fakeStats.mu.Unlock()
+			return fakeStats.runOneCalls
+		}, "2s").Should(ConsistOf("fake"))
 	})
 
 	It("reinstalls when runner mode changes and artifact_kind no longer matches", func() {
