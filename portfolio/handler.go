@@ -433,7 +433,6 @@ type portfolioView struct {
 	Benchmark        string         `json:"benchmark"`
 	StartDate        *string        `json:"startDate,omitempty"`
 	EndDate          *string        `json:"endDate,omitempty"`
-	Status           string         `json:"status"`
 	CreatedAt        string         `json:"createdAt"`
 	UpdatedAt        string         `json:"updatedAt"`
 	LastRunAt        *string        `json:"lastRunAt"`
@@ -450,7 +449,6 @@ func toView(p Portfolio) portfolioView {
 		Parameters:       p.Parameters,
 		PresetName:       p.PresetName,
 		Benchmark:        p.Benchmark,
-		Status:           string(p.Status),
 		CreatedAt:        p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:        p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		LastError:        p.LastError,
