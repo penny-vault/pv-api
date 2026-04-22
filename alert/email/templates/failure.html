@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;max-width:600px;width:100%;">
+
+  <!-- Header -->
+  <tr><td style="background:#0f172a;padding:28px 32px;">
+    <p style="margin:0;color:#f8fafc;font-size:20px;font-weight:700;letter-spacing:-0.3px;">{{.PortfolioName}}</p>
+    <p style="margin:6px 0 0;color:#94a3b8;font-size:13px;">
+      {{.StrategyCode}} &middot; {{.RunDate}}
+      &nbsp;<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;">Error</span>
+    </p>
+  </td></tr>
+
+  <!-- Error -->
+  <tr><td style="padding:28px 32px;">
+    {{if .LastKnownValue}}
+    <p style="margin:0 0 4px;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">Last Known Value</p>
+    <p style="margin:0 0 24px;color:#0f172a;font-size:28px;font-weight:700;">{{.LastKnownValue}}</p>
+    {{end}}
+    <p style="margin:0 0 8px;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">Error</p>
+    <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:14px 16px;border-radius:4px;">
+      <p style="margin:0;color:#7f1d1d;font-size:14px;line-height:1.5;font-family:monospace;">{{.ErrorMessage}}</p>
+    </div>
+    <p style="margin:16px 0 0;color:#64748b;font-size:13px;">No trades were executed. The previous allocation remains unchanged.</p>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+    <p style="margin:0;color:#94a3b8;font-size:12px;text-align:center;">Penny Vault &middot; Portfolio Alerts</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

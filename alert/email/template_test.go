@@ -1,0 +1,114 @@
+package email_test
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/penny-vault/pv-api/alert/email"
+)
+
+func successPayload() email.Payload {
+	return email.Payload{
+		PortfolioName: "My Portfolio",
+		StrategyCode:  "rsi-mean-reversion",
+		RunDate:       "Monday, April 21, 2026",
+		Success:       true,
+		CurrentValue:  "$103,240",
+		HasDelta:      true,
+		DeltaPct:      "+12.0%",
+		DeltaAbs:      "+$1,240",
+		SinceLabel:    "Tuesday",
+		DeltaColor:    "#22c55e",
+		Benchmark:     "SPY",
+		BenchmarkDeltaPct: "+10.8%",
+		RelativeDelta: "+1.2%",
+		RelativeColor: "#22c55e",
+		Trades: []email.TradeRow{
+			{Ticker: "VTI", Action: "Buy", ActionColor: "#22c55e", Shares: "12", Value: "$2,400"},
+			{Ticker: "BND", Action: "Sell", ActionColor: "#ef4444", Shares: "5", Value: "$450"},
+		},
+		Holdings: []email.HoldingRow{
+			{Ticker: "VTI", WeightPct: "90.0", Value: "$92,916"},
+			{Ticker: "$CASH", WeightPct: "10.0", Value: "$10,324"},
+		},
+	}
+}
+
+func TestRenderSuccess(t *testing.T) {
+	p := successPayload()
+	html, text, err := email.Render(p)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	checks := []string{
+		"My Portfolio",
+		"$103,240",
+		"+12.0%",
+		"+$1,240",
+		"since Tuesday",
+		"SPY",
+		"+10.8%",
+		"VTI",
+		"Buy",
+		"BND",
+		"Sell",
+		"90.0%",
+	}
+	for _, want := range checks {
+		if !strings.Contains(html, want) {
+			t.Errorf("success HTML missing %q", want)
+		}
+		if !strings.Contains(text, want) {
+			t.Errorf("success text missing %q", want)
+		}
+	}
+}
+
+func TestRenderFailure(t *testing.T) {
+	p := email.Payload{
+		PortfolioName:  "My Portfolio",
+		StrategyCode:   "rsi-mean-reversion",
+		RunDate:        "Monday, April 21, 2026",
+		Success:        false,
+		LastKnownValue: "$101,000",
+		ErrorMessage:   "strategy binary exited with code 1",
+	}
+	html, text, err := email.Render(p)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	for _, want := range []string{"My Portfolio", "Error", "strategy binary exited with code 1", "$101,000"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("failure HTML missing %q", want)
+		}
+	}
+	if !strings.Contains(text, "ERROR:") {
+		t.Error("failure plaintext missing ERROR: prefix")
+	}
+}
+
+func TestFormatDelta(t *testing.T) {
+	lastSent := time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)
+
+	pct, abs, color, since, hasDelta := email.FormatDelta(103240, 102000, lastSent)
+	if !hasDelta {
+		t.Fatal("expected hasDelta=true")
+	}
+	if !strings.HasPrefix(pct, "+") {
+		t.Errorf("pct = %q; want positive", pct)
+	}
+	if color != "#22c55e" {
+		t.Errorf("color = %q; want green", color)
+	}
+	_ = abs
+	_ = since
+
+	pct2, _, color2, _, _ := email.FormatDelta(99000, 102000, lastSent)
+	if !strings.HasPrefix(pct2, "-") {
+		t.Errorf("pct = %q; want negative", pct2)
+	}
+	if color2 != "#ef4444" {
+		t.Errorf("color = %q; want red", color2)
+	}
+}
