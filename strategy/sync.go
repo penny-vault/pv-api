@@ -35,14 +35,20 @@ var (
 	ErrNoTagsFound = errors.New("no tags found")
 )
 
+// StatsRunner is the interface the Syncer uses to trigger a post-install stats
+// computation. The narrow interface avoids importing stats.go's concrete type.
+type StatsRunner interface {
+	RunOne(ctx context.Context, shortCode string) error
+}
+
 // Store is the subset of strategy.db operations the Syncer needs. The
 // production implementation wraps `*pgxpool.Pool`; tests pass an in-memory
 // fake.
 type Store interface {
 	List(ctx context.Context) ([]Strategy, error)
 	Get(ctx context.Context, shortCode string) (Strategy, error)
+	GetByCloneURL(ctx context.Context, cloneURL string) (Strategy, error)
 	Upsert(ctx context.Context, s Strategy) error
-	MarkAttempt(ctx context.Context, shortCode, version string) error
 	MarkSuccess(ctx context.Context, shortCode, version, kind, ref string, describe []byte) error
 	MarkFailure(ctx context.Context, shortCode, version, errText string) error
 	LookupArtifact(ctx context.Context, cloneURL, ver string) (string, error)
@@ -70,6 +76,7 @@ type SyncerOptions struct {
 	OfficialDir     string
 	Concurrency     int
 	Interval        time.Duration // 0 = Tick-only; Run reuses this as its period
+	Stats           StatsRunner   // optional; if set, RunOne is called after each successful install
 }
 
 // expectedArtifactKind returns the artifact_kind string the current runner
@@ -124,55 +131,27 @@ func (s *Syncer) Tick(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("discovery: %w", err)
 	}
+	log.Info().Int("count", len(listings)).Msg("strategy sync tick: discovered listings")
 
 	type job struct {
-		shortCode string
-		cloneURL  string
-		version   string
-		dest      string
+		listing Listing
+		version string
+		dest    string
 	}
 	var jobs []job
 
 	for _, l := range listings {
-		shortCode := l.Name
-
-		// Read existing row before upsert so install-tracking fields are
-		// available for the skip-if-unchanged check below. ErrNotFound is
-		// expected for brand-new listings and is not an error.
-		existing, err := s.store.Get(ctx, shortCode)
+		// Look up by clone URL so we find the row by its repository identity,
+		// not by an assumed short code. ErrNotFound is expected for new listings.
+		existing, err := s.store.GetByCloneURL(ctx, l.CloneURL)
 		if err != nil && !errors.Is(err, ErrNotFound) {
-			log.Warn().Err(err).Str("short_code", shortCode).Msg("get strategy row failed")
-			continue
-		}
-
-		row := Strategy{
-			ShortCode:   shortCode,
-			RepoOwner:   l.Owner,
-			RepoName:    l.Name,
-			CloneURL:    l.CloneURL,
-			IsOfficial:  true,
-			Description: strPtr(l.Description),
-			Categories:  l.Categories,
-			Stars:       intPtr(l.Stars),
-			// Preserve install-tracking fields so an in-memory Store (which
-			// does a full row replace on Upsert) behaves like the DB (which
-			// only updates metadata columns via ON CONFLICT DO UPDATE).
-			InstalledVer:     existing.InstalledVer,
-			InstalledAt:      existing.InstalledAt,
-			LastAttemptedVer: existing.LastAttemptedVer,
-			InstallError:     existing.InstallError,
-			ArtifactKind:     existing.ArtifactKind,
-			ArtifactRef:      existing.ArtifactRef,
-			DescribeJSON:     existing.DescribeJSON,
-		}
-		if err := s.store.Upsert(ctx, row); err != nil {
-			log.Warn().Err(err).Str("short_code", shortCode).Msg("upsert failed")
+			log.Warn().Err(err).Str("clone_url", l.CloneURL).Msg("get strategy row failed")
 			continue
 		}
 
 		remote, err := s.opts.ResolveVer(ctx, l.CloneURL)
 		if err != nil {
-			log.Warn().Err(err).Str("short_code", shortCode).Msg("resolve remote version failed")
+			log.Warn().Err(err).Str("clone_url", l.CloneURL).Msg("resolve remote version failed")
 			continue
 		}
 
@@ -181,18 +160,28 @@ func (s *Syncer) Tick(ctx context.Context) error {
 			// matching so we don't re-install rows that were never stamped.
 			kindMatches := existing.ArtifactKind == nil || *existing.ArtifactKind == expectedArtifactKind(s.opts.RunnerMode)
 			if kindMatches {
+				log.Debug().
+					Str("repo", l.Owner+"/"+l.Name).
+					Str("version", remote).
+					Msg("strategy up to date; skipping")
 				continue
 			}
 			log.Info().
-				Str("short_code", shortCode).
+				Str("short_code", existing.ShortCode).
 				Str("existing_kind", ptrStr(existing.ArtifactKind)).
 				Str("expected_kind", expectedArtifactKind(s.opts.RunnerMode)).
 				Msg("artifact kind mismatch; scheduling reinstall")
 		}
 
+		log.Info().
+			Str("repo", l.Owner+"/"+l.Name).
+			Str("version", remote).
+			Msg("strategy queued for install")
 		dest := filepath.Join(s.opts.OfficialDir, l.Owner, l.Name, remote)
-		jobs = append(jobs, job{shortCode: shortCode, cloneURL: l.CloneURL, version: remote, dest: dest})
+		jobs = append(jobs, job{listing: l, version: remote, dest: dest})
 	}
+
+	log.Info().Int("queued", len(jobs)).Msg("strategy sync tick: install queue ready")
 
 	sem := make(chan struct{}, s.opts.Concurrency)
 	var wg sync.WaitGroup
@@ -203,38 +192,108 @@ func (s *Syncer) Tick(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			s.runInstall(ctx, j.shortCode, j.cloneURL, j.version, j.dest)
+			s.runInstall(ctx, j.listing, j.version, j.dest)
 		}()
 	}
 	wg.Wait()
 	return nil
 }
 
-func (s *Syncer) runInstall(ctx context.Context, shortCode, cloneURL, version, dest string) {
-	if err := s.store.MarkAttempt(ctx, shortCode, version); err != nil {
-		log.Warn().Err(err).Str("short_code", shortCode).Msg("mark attempt failed")
-		return
-	}
-
+func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string) {
 	installer := s.opts.Installer
 	kind := "binary"
 	if s.opts.RunnerMode == "docker" {
 		installer = s.opts.DockerInstaller
 		kind = "image"
 	}
+
+	// failureKey is a best-effort key used only for failure rows where we could
+	// not determine the real short code from the binary.
+	failureKey := l.Name
+
+	recordFailure := func(errText string) {
+		failRow := Strategy{
+			ShortCode:   failureKey,
+			RepoOwner:   l.Owner,
+			RepoName:    l.Name,
+			CloneURL:    l.CloneURL,
+			IsOfficial:  true,
+			Description: strPtr(l.Description),
+			Categories:  l.Categories,
+			Stars:       intPtr(l.Stars),
+		}
+		_ = s.store.Upsert(ctx, failRow)
+		_ = s.store.MarkFailure(ctx, failureKey, version, errText)
+	}
+
 	if installer == nil {
-		_ = s.store.MarkFailure(ctx, shortCode, version, "no installer wired for runner mode "+s.opts.RunnerMode)
+		log.Error().
+			Str("repo", l.Owner+"/"+l.Name).
+			Str("runner_mode", s.opts.RunnerMode).
+			Msg("no installer wired for runner mode")
+		recordFailure("no installer wired for runner mode " + s.opts.RunnerMode)
 		return
 	}
 
+	log.Info().
+		Str("repo", l.Owner+"/"+l.Name).
+		Str("version", version).
+		Str("dest", dest).
+		Msg("cloning and building strategy")
+
 	result, err := installer(ctx, InstallRequest{
-		ShortCode: shortCode, CloneURL: cloneURL, Version: version, DestDir: dest,
+		CloneURL: l.CloneURL, Version: version, DestDir: dest,
 	})
 	if err != nil {
-		_ = s.store.MarkFailure(ctx, shortCode, version, err.Error())
+		log.Warn().
+			Err(err).
+			Str("repo", l.Owner+"/"+l.Name).
+			Str("version", version).
+			Msg("strategy install failed")
+		recordFailure(err.Error())
 		return
 	}
-	_ = s.store.MarkSuccess(ctx, shortCode, version, kind, result.ArtifactRef, result.DescribeJSON)
+
+	// Use the short code reported by the binary; fall back to repo name only
+	// if the installer did not populate it (e.g. incomplete mocks in tests).
+	shortCode := result.ShortCode
+	if shortCode == "" {
+		shortCode = l.Name
+	}
+
+	log.Info().
+		Str("short_code", shortCode).
+		Str("repo", l.Owner+"/"+l.Name).
+		Str("version", version).
+		Str("artifact_ref", result.ArtifactRef).
+		Msg("strategy installed successfully")
+
+	row := Strategy{
+		ShortCode:   shortCode,
+		RepoOwner:   l.Owner,
+		RepoName:    l.Name,
+		CloneURL:    l.CloneURL,
+		IsOfficial:  true,
+		Description: strPtr(l.Description),
+		Categories:  l.Categories,
+		Stars:       intPtr(l.Stars),
+	}
+	if err := s.store.Upsert(ctx, row); err != nil {
+		log.Warn().Err(err).Str("short_code", shortCode).Msg("upsert after install failed")
+		return
+	}
+	if err := s.store.MarkSuccess(ctx, shortCode, version, kind, result.ArtifactRef, result.DescribeJSON); err != nil {
+		log.Warn().Err(err).Str("short_code", shortCode).Msg("mark success failed")
+		return
+	}
+	if s.opts.Stats != nil {
+		sc := shortCode
+		go func() {
+			if err := s.opts.Stats.RunOne(context.Background(), sc); err != nil {
+				log.Warn().Err(err).Str("short_code", sc).Msg("post-install stats failed")
+			}
+		}()
+	}
 }
 
 // ResolveVerWithGit uses `git ls-remote` to discover the most-recent

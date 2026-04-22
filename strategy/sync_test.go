@@ -18,6 +18,7 @@ package strategy_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,19 +30,24 @@ import (
 // fakeStore implements strategy.Store for unit-testing the sync loop
 // without a live Postgres. Mirrors pool-backed behavior in memory.
 type fakeStore struct {
-	rows      map[string]strategy.Strategy
-	upserts   []string
-	attempts  []attemptCall
-	successes []successCall
-	failures  []failureCall
+	rows         map[string]strategy.Strategy
+	upserts      []string
+	successes    []successCall
+	failures     []failureCall
+	statsUpdates []statsUpdateCall
+	statsErrors  []statsErrorCall
 }
 
-type attemptCall struct{ shortCode, version string }
 type successCall struct {
 	shortCode, version, kind, ref string
 	describeLen                   int
 }
 type failureCall struct{ shortCode, version, err string }
+type statsUpdateCall struct {
+	shortCode string
+	result    strategy.StatsResult
+}
+type statsErrorCall struct{ shortCode, err string }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{rows: make(map[string]strategy.Strategy)}
@@ -63,18 +69,30 @@ func (f *fakeStore) Get(_ context.Context, sc string) (strategy.Strategy, error)
 	return v, nil
 }
 
-func (f *fakeStore) Upsert(_ context.Context, s strategy.Strategy) error {
-	f.upserts = append(f.upserts, s.ShortCode)
-	f.rows[s.ShortCode] = s
-	return nil
+func (f *fakeStore) GetByCloneURL(_ context.Context, cloneURL string) (strategy.Strategy, error) {
+	for _, v := range f.rows {
+		if v.CloneURL == cloneURL {
+			return v, nil
+		}
+	}
+	return strategy.Strategy{}, strategy.ErrNotFound
 }
 
-func (f *fakeStore) MarkAttempt(_ context.Context, sc, ver string) error {
-	f.attempts = append(f.attempts, attemptCall{sc, ver})
-	r := f.rows[sc]
-	r.LastAttemptedVer = &ver
-	r.InstallError = nil
-	f.rows[sc] = r
+func (f *fakeStore) Upsert(_ context.Context, s strategy.Strategy) error {
+	f.upserts = append(f.upserts, s.ShortCode)
+	// Preserve install-tracking fields to mirror ON CONFLICT DO UPDATE behavior
+	// in the real DB, which only updates metadata columns.
+	if existing, ok := f.rows[s.ShortCode]; ok {
+		s.InstalledVer = existing.InstalledVer
+		s.InstalledAt = existing.InstalledAt
+		s.LastAttemptedVer = existing.LastAttemptedVer
+		s.InstallError = existing.InstallError
+		s.ArtifactKind = existing.ArtifactKind
+		s.ArtifactRef = existing.ArtifactRef
+		s.DescribeJSON = existing.DescribeJSON
+		s.DiscoveredAt = existing.DiscoveredAt
+	}
+	f.rows[s.ShortCode] = s
 	return nil
 }
 
@@ -82,6 +100,7 @@ func (f *fakeStore) MarkSuccess(_ context.Context, sc, ver, kind, ref string, de
 	f.successes = append(f.successes, successCall{sc, ver, kind, ref, len(describe)})
 	r := f.rows[sc]
 	r.InstalledVer = &ver
+	r.LastAttemptedVer = &ver
 	now := time.Now()
 	r.InstalledAt = &now
 	k := kind
@@ -115,6 +134,48 @@ func (f *fakeStore) LookupArtifact(_ context.Context, cloneURL, ver string) (str
 	return "", strategy.ErrNotFound
 }
 
+func (f *fakeStore) ListInstalled(_ context.Context) ([]strategy.Strategy, error) {
+	var out []strategy.Strategy
+	for _, v := range f.rows {
+		if v.ArtifactRef != nil {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) UpdateStats(_ context.Context, shortCode string, r strategy.StatsResult) error {
+	f.statsUpdates = append(f.statsUpdates, statsUpdateCall{shortCode, r})
+	row := f.rows[shortCode]
+	row.CAGR = &r.CAGR
+	row.MaxDrawdown = &r.MaxDrawdown
+	row.Sharpe = &r.Sharpe
+	now := r.AsOf
+	row.StatsAsOf = &now
+	f.rows[shortCode] = row
+	return nil
+}
+
+func (f *fakeStore) MarkStatsError(_ context.Context, shortCode, errText string) error {
+	f.statsErrors = append(f.statsErrors, statsErrorCall{shortCode, errText})
+	row := f.rows[shortCode]
+	row.StatsError = &errText
+	f.rows[shortCode] = row
+	return nil
+}
+
+type fakeStatsRefresher struct {
+	mu          sync.Mutex
+	runOneCalls []string
+}
+
+func (f *fakeStatsRefresher) RunOne(_ context.Context, sc string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runOneCalls = append(f.runOneCalls, sc)
+	return nil
+}
+
 var _ = Describe("Syncer.Tick", func() {
 	It("inserts a new listing, attempts install, records success", func() {
 		store := newFakeStore()
@@ -132,7 +193,7 @@ var _ = Describe("Syncer.Tick", func() {
 			return &strategy.InstallResult{
 				BinPath:      "/var/lib/pvapi/strategies/official/fake/v1.0.0/fake.bin",
 				ArtifactRef:  "/var/lib/pvapi/strategies/official/fake/v1.0.0/fake.bin",
-				DescribeJSON: []byte(`{"shortCode":"fake","name":"Fake","parameters":[],"schedule":"@monthend","benchmark":"SPY"}`),
+				DescribeJSON: []byte(`{"shortcode":"fake","name":"Fake","parameters":[],"schedule":"@monthend","benchmark":"SPY"}`),
 				ShortCode:    "fake",
 			}, nil
 		}
@@ -147,8 +208,6 @@ var _ = Describe("Syncer.Tick", func() {
 		Expect(s.Tick(context.Background())).To(Succeed())
 
 		Expect(store.upserts).To(ConsistOf("fake"))
-		Expect(store.attempts).To(HaveLen(1))
-		Expect(store.attempts[0]).To(Equal(attemptCall{"fake", "v1.0.0"}))
 		Expect(store.successes).To(HaveLen(1))
 		Expect(store.successes[0].ref).To(ContainSubstring("fake"))
 	})
@@ -159,6 +218,7 @@ var _ = Describe("Syncer.Tick", func() {
 		prev := "v0.9.0"
 		store.rows["fake"] = strategy.Strategy{
 			ShortCode:        "fake",
+			CloneURL:         "file:///tmp/fake.git",
 			IsOfficial:       true,
 			InstalledVer:     &prev,
 			LastAttemptedVer: &prev,
@@ -189,6 +249,7 @@ var _ = Describe("Syncer.Tick", func() {
 		installed := "v1.0.0"
 		store.rows["fake"] = strategy.Strategy{
 			ShortCode:        "fake",
+			CloneURL:         "file:///tmp/fake.git",
 			IsOfficial:       true,
 			InstalledVer:     &installed,
 			LastAttemptedVer: &installed,
@@ -218,6 +279,7 @@ var _ = Describe("Syncer.Tick", func() {
 		failed := "build failed"
 		store.rows["fake"] = strategy.Strategy{
 			ShortCode:        "fake",
+			CloneURL:         "file:///tmp/fake.git",
 			IsOfficial:       true,
 			LastAttemptedVer: &attempted,
 			InstallError:     &failed,
@@ -248,6 +310,7 @@ var _ = Describe("Syncer.Tick", func() {
 		attempted := "v1.0.0"
 		store.rows["fake"] = strategy.Strategy{
 			ShortCode:        "fake",
+			CloneURL:         "file:///tmp/fake.git",
 			IsOfficial:       true,
 			InstalledVer:     &installed,
 			LastAttemptedVer: &attempted,
@@ -274,6 +337,43 @@ var _ = Describe("Syncer.Tick", func() {
 		})
 		Expect(s.Tick(context.Background())).To(Succeed())
 		Expect(installerCalls).To(Equal(0))
+	})
+
+	It("calls StatsRefresher.RunOne after a successful install", func() {
+		store := newFakeStore()
+
+		discovery := func(_ context.Context) ([]strategy.Listing, error) {
+			return []strategy.Listing{{
+				Name: "fake", Owner: "penny-vault", CloneURL: "file:///tmp/fake.git",
+			}}, nil
+		}
+		resolveVer := func(_ context.Context, _ string) (string, error) { return "v1.0.0", nil }
+		installer := func(_ context.Context, _ strategy.InstallRequest) (*strategy.InstallResult, error) {
+			return &strategy.InstallResult{
+				BinPath:      "/tmp/fake/fake.bin",
+				ArtifactRef:  "/tmp/fake/fake.bin",
+				DescribeJSON: []byte(`{"shortcode":"fake","name":"Fake","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`),
+				ShortCode:    "fake",
+			}, nil
+		}
+
+		fakeStats := &fakeStatsRefresher{}
+
+		s := strategy.NewSyncer(store, strategy.SyncerOptions{
+			Discovery:   discovery,
+			ResolveVer:  resolveVer,
+			Installer:   installer,
+			OfficialDir: "/tmp",
+			Concurrency: 1,
+			Stats:       fakeStats,
+		})
+		Expect(s.Tick(context.Background())).To(Succeed())
+
+		Eventually(func() []string {
+			fakeStats.mu.Lock()
+			defer fakeStats.mu.Unlock()
+			return fakeStats.runOneCalls
+		}, "2s").Should(ConsistOf("fake"))
 	})
 
 	It("reinstalls when runner mode changes and artifact_kind no longer matches", func() {

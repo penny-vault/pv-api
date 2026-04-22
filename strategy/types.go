@@ -15,7 +15,9 @@
 
 package strategy
 
-import "time"
+import (
+	"time"
+)
 
 // InstallState captures where a strategy row sits in the install lifecycle.
 type InstallState string
@@ -49,8 +51,18 @@ type Strategy struct {
 	MaxDrawdown      *float64
 	Sharpe           *float64
 	StatsAsOf        *time.Time
+	// StatsError is write-only at the DB layer; not included in strategyColumns/scan.
+	StatsError       *string
 	DiscoveredAt     time.Time
 	UpdatedAt        time.Time
+}
+
+// StatsResult holds the performance metrics written back to the strategies table.
+type StatsResult struct {
+	CAGR        float64
+	MaxDrawdown float64
+	Sharpe      float64
+	AsOf        time.Time
 }
 
 // DeriveInstallState reports the lifecycle state implied by the row's
@@ -83,7 +95,7 @@ type Listing struct {
 // Describe mirrors pvbt's `describe --json` output, parsed from the raw
 // bytes stored in Strategy.DescribeJSON.
 type Describe struct {
-	ShortCode   string              `json:"shortCode"`
+	ShortCode   string              `json:"shortcode"`
 	Name        string              `json:"name"`
 	Description string              `json:"description"`
 	Parameters  []DescribeParameter `json:"parameters"`
