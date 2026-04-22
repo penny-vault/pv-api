@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/penny-vault/pv-api/openapi"
 )
@@ -47,12 +48,21 @@ func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error)
 	}, nil
 }
 
-// readMetric returns the value of the full-window metric named name, or
-// 0 if the row is absent.
-func (r *Reader) readMetric(ctx context.Context, name string) (float64, error) {
+// readMetric returns the value of the full-window metric for any of the given names,
+// or 0 if absent. Accepts aliases to support both legacy snake_case names (window='full')
+// and pvbt PascalCase names (window='since_inception').
+func (r *Reader) readMetric(ctx context.Context, name string, aliases ...string) (float64, error) {
+	allNames := append([]string{name}, aliases...)
+	ph := make([]string, len(allNames))
+	args := make([]any, len(allNames))
+	for i, n := range allNames {
+		ph[i] = "?"
+		args[i] = n
+	}
 	var v float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM metrics WHERE name = ? AND window='full' LIMIT 1`, name).Scan(&v)
+		fmt.Sprintf(`SELECT value FROM metrics WHERE name IN (%s) AND window IN ('full','since_inception') ORDER BY date DESC LIMIT 1`,
+			strings.Join(ph, ",")), args...).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}

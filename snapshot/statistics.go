@@ -24,24 +24,25 @@ import (
 
 var statisticMeta = []struct {
 	Name   string
+	Alias  string // pvbt PascalCase name (window='since_inception')
 	Label  string
 	Format openapi.MetricFormat
 }{
-	{"sharpe_ratio", "Sharpe Ratio", openapi.Number},
-	{"sortino_ratio", "Sortino Ratio", openapi.Number},
-	{"beta", "Beta", openapi.Number},
-	{"alpha", "Alpha", openapi.Percent},
-	{"std_dev", "Standard Deviation", openapi.Percent},
-	{"ulcer_index", "Ulcer Index", openapi.Number},
-	{"tax_cost_ratio", "Tax Cost Ratio", openapi.Percent},
-	{"max_drawdown", "Max Drawdown", openapi.Percent},
+	{"sharpe_ratio", "Sharpe", "Sharpe Ratio", openapi.Number},
+	{"sortino_ratio", "Sortino", "Sortino Ratio", openapi.Number},
+	{"beta", "Beta", "Beta", openapi.Number},
+	{"alpha", "Alpha", "Alpha", openapi.Percent},
+	{"std_dev", "StdDev", "Standard Deviation", openapi.Percent},
+	{"ulcer_index", "UlcerIndex", "Ulcer Index", openapi.Number},
+	{"tax_cost_ratio", "TaxCostRatio", "Tax Cost Ratio", openapi.Percent},
+	{"max_drawdown", "MaxDrawdown", "Max Drawdown", openapi.Percent},
 }
 
 // Statistics returns the risk/style statistic rows for the UI panel.
 func (r *Reader) Statistics(ctx context.Context) ([]openapi.PortfolioStatistic, error) {
 	out := make([]openapi.PortfolioStatistic, 0, len(statisticMeta))
 	for _, m := range statisticMeta {
-		v, err := r.readMetric(ctx, m.Name)
+		v, err := r.readMetric(ctx, m.Name, m.Alias)
 		if err != nil {
 			return nil, fmt.Errorf("statistics %s: %w", m.Name, err)
 		}

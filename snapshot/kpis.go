@@ -69,14 +69,23 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 		cagr = math.Pow(curVal/startVal, 1/years) - 1
 	}
 
-	names := []string{"sharpe_ratio", "sortino_ratio", "beta", "alpha", "std_dev", "ulcer_index", "tax_cost_ratio", "max_drawdown"}
+	metricAliases := [][2]string{
+		{"sharpe_ratio", "Sharpe"},
+		{"sortino_ratio", "Sortino"},
+		{"beta", "Beta"},
+		{"alpha", "Alpha"},
+		{"std_dev", "StdDev"},
+		{"ulcer_index", "UlcerIndex"},
+		{"tax_cost_ratio", "TaxCostRatio"},
+		{"max_drawdown", "MaxDrawdown"},
+	}
 	vals := map[string]float64{}
-	for _, n := range names {
-		v, err := r.readMetric(ctx, n)
+	for _, pair := range metricAliases {
+		v, err := r.readMetric(ctx, pair[0], pair[1])
 		if err != nil {
 			return Kpis{}, err
 		}
-		vals[n] = v
+		vals[pair[0]] = v
 	}
 
 	return Kpis{
@@ -96,15 +105,16 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 	}, nil
 }
 
-// kpisPortfolioValues returns the most-recent and oldest portfolio_value rows.
+// kpisPortfolioValues returns the most-recent and oldest portfolio equity rows.
+// Accepts both legacy metric name 'portfolio_value' and pvbt name 'PortfolioEquity'.
 func (r *Reader) kpisPortfolioValues(ctx context.Context) (curVal, startVal float64, err error) {
 	if scanErr := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date DESC LIMIT 1`).
+		`SELECT value FROM perf_data WHERE metric IN ('portfolio_value','PortfolioEquity') ORDER BY date DESC LIMIT 1`).
 		Scan(&curVal); scanErr != nil && !errors.Is(scanErr, sql.ErrNoRows) {
 		return 0, 0, fmt.Errorf("kpis current value: %w", scanErr)
 	}
 	if scanErr := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' ORDER BY date ASC LIMIT 1`).
+		`SELECT value FROM perf_data WHERE metric IN ('portfolio_value','PortfolioEquity') ORDER BY date ASC LIMIT 1`).
 		Scan(&startVal); scanErr != nil && !errors.Is(scanErr, sql.ErrNoRows) {
 		return 0, 0, fmt.Errorf("kpis start value: %w", scanErr)
 	}
@@ -116,7 +126,7 @@ func (r *Reader) kpisYTDReturn(ctx context.Context, curVal, startVal float64) (f
 	ytdStart := time.Date(time.Now().Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 	var ytdBaseline float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date >= ?
+		`SELECT value FROM perf_data WHERE metric IN ('portfolio_value','PortfolioEquity') AND date >= ?
 		  ORDER BY date ASC LIMIT 1`, ytdStart.Format(dateLayout)).Scan(&ytdBaseline)
 	if errors.Is(err, sql.ErrNoRows) {
 		ytdBaseline = startVal
@@ -134,7 +144,7 @@ func (r *Reader) kpisOneYearReturn(ctx context.Context, curVal, startVal float64
 	cutoff := time.Now().AddDate(-1, 0, 0)
 	var oneYearBaseline float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric='portfolio_value' AND date <= ?
+		`SELECT value FROM perf_data WHERE metric IN ('portfolio_value','PortfolioEquity') AND date <= ?
 		  ORDER BY date DESC LIMIT 1`, cutoff.Format(dateLayout)).Scan(&oneYearBaseline)
 	if errors.Is(err, sql.ErrNoRows) {
 		oneYearBaseline = startVal

@@ -317,7 +317,7 @@ func (r *Reader) readBatchAnnotations(ctx context.Context, batchID int64) (map[s
 func (r *Reader) readEndDate(ctx context.Context) (time.Time, error) {
 	var s string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM metadata WHERE key='end_date'`).Scan(&s)
+		`SELECT value FROM metadata WHERE key IN ('end_date','run.end') ORDER BY key LIMIT 1`).Scan(&s)
 	if errors.Is(err, sql.ErrNoRows) {
 		return time.Time{}, ErrNotFound
 	}
@@ -328,8 +328,9 @@ func (r *Reader) readEndDate(ctx context.Context) (time.Time, error) {
 }
 
 func (r *Reader) readDateWindow(ctx context.Context) (time.Time, time.Time, error) {
+	// pvbt binaries write run.start/run.end; older fixtures use start_date/end_date.
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT key, value FROM metadata WHERE key IN ('start_date','end_date')`)
+		`SELECT key, value FROM metadata WHERE key IN ('start_date','end_date','run.start','run.end')`)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("read window: %w", err)
 	}
@@ -344,7 +345,7 @@ func (r *Reader) readDateWindow(ctx context.Context) (time.Time, time.Time, erro
 		if perr != nil {
 			return time.Time{}, time.Time{}, perr
 		}
-		if k == "start_date" {
+		if k == "start_date" || k == "run.start" {
 			start = t
 		} else {
 			end = t
