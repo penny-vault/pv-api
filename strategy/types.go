@@ -51,6 +51,7 @@ type Strategy struct {
 	MaxDrawdown      *float64
 	Sharpe           *float64
 	StatsAsOf        *time.Time
+	// StatsError is write-only at the DB layer; not included in strategyColumns/scan.
 	StatsError       *string
 	DiscoveredAt     time.Time
 	UpdatedAt        time.Time

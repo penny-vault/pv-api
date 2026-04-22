@@ -181,7 +181,10 @@ func ListInstalled(ctx context.Context, pool *pgxpool.Pool) ([]Strategy, error) 
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating installed strategies: %w", err)
+	}
+	return out, nil
 }
 
 // UpdateStats writes performance stats and clears any previous stats_error.
