@@ -111,7 +111,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build auth middleware: %w", err)
 	}
-	protected := app.Group("", auth)
+	protected := app.Group("/api/v3", auth)
 
 	if conf.Pool != nil {
 		portfolioStore := portfolio.NewPoolStore(conf.Pool)
