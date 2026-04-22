@@ -15,19 +15,30 @@
 
 package cmd
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 // Config is the top-level pvapi configuration shape. New sections are added
 // as later plans land (runner, scheduler, ...).
 type Config struct {
+	DataDir   string `mapstructure:"data_dir"`
 	Log       logConf
+	DB        dbConf
 	Server    serverConf
-	Auth0     auth0Conf
+	Auth      authConf
 	GitHub    githubConf
 	Strategy  strategyConf
 	Backtest  backtestConf
 	Runner    runnerConf
 	Scheduler schedulerConf
+	Mailgun   mailgunConf
+}
+
+// dbConf holds the PostgreSQL connection string.
+type dbConf struct {
+	URL string
 }
 
 // serverConf holds HTTP server settings.
@@ -36,8 +47,8 @@ type serverConf struct {
 	AllowOrigins string `mapstructure:"allow_origins"`
 }
 
-// auth0Conf configures the JWT-verification middleware.
-type auth0Conf struct {
+// authConf configures the JWT-verification middleware.
+type authConf struct {
 	JWKSURL  string `mapstructure:"jwks_url"`
 	Audience string
 	Issuer   string
@@ -82,6 +93,13 @@ type dockerConf struct {
 	SnapshotsHostPath string        `mapstructure:"snapshots_host_path"`
 }
 
+// mailgunConf holds Mailgun credentials for outbound alert emails.
+type mailgunConf struct {
+	Domain      string `mapstructure:"domain"`
+	APIKey      string `mapstructure:"api_key"`
+	FromAddress string `mapstructure:"from_address"`
+}
+
 // schedulerConf controls the in-process scheduler that picks up due
 // continuous portfolios and submits them to the backtest dispatcher.
 type schedulerConf struct {
@@ -91,3 +109,18 @@ type schedulerConf struct {
 }
 
 var conf Config
+
+// applyDataDirFallbacks fills any unset data directory fields with paths
+// derived from Config.DataDir.
+func applyDataDirFallbacks(c *Config) {
+	base := c.DataDir
+	if c.Backtest.SnapshotsDir == "" {
+		c.Backtest.SnapshotsDir = filepath.Join(base, "snapshots")
+	}
+	if c.Strategy.OfficialDir == "" {
+		c.Strategy.OfficialDir = filepath.Join(base, "strategies", "official")
+	}
+	if c.Strategy.EphemeralDir == "" {
+		c.Strategy.EphemeralDir = filepath.Join(base, "strategies", "ephemeral")
+	}
+}

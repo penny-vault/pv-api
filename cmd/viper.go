@@ -29,7 +29,7 @@ import (
 // root.go's init() so they are in place before any config file or env var
 // override runs.
 func setViperDefaults() {
-	viper.SetDefault("backtest.snapshots_dir", "/var/lib/pvapi/snapshots")
+	viper.SetDefault("data_dir", "/var/lib/pvapi")
 	viper.SetDefault("backtest.max_concurrency", 0)
 	viper.SetDefault("backtest.timeout", "15m")
 	viper.SetDefault("runner.mode", "host")
@@ -43,8 +43,10 @@ func setViperDefaults() {
 	viper.SetDefault("scheduler.tick_interval", "60s")
 	viper.SetDefault("scheduler.batch_size", 32)
 	viper.SetDefault("scheduler.enabled", true)
-	viper.SetDefault("strategy.ephemeral_dir", "/tmp/pvapi-strategies")
 	viper.SetDefault("strategy.ephemeral_install_timeout", 60*time.Second)
+	viper.SetDefault("mailgun.domain", "")
+	viper.SetDefault("mailgun.api_key", "")
+	viper.SetDefault("mailgun.from_address", "Penny Vault <no-reply@mg.pennyvault.com>")
 }
 
 func bindPFlagsToViper(cmd *cobra.Command) {

@@ -32,6 +32,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/penny-vault/pv-api/alert"
+	alertEmail "github.com/penny-vault/pv-api/alert/email"
 	"github.com/penny-vault/pv-api/api"
 	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/portfolio"
@@ -157,18 +159,21 @@ func (a schedulerDispatcherAdapter) Submit(ctx context.Context, id uuid.UUID) (u
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
+	serverCmd.Flags().String("data-dir", "/var/lib/pvapi", "base directory for all pvapi data; individual dir flags override this")
+	serverCmd.Flags().String("db-url", "", "PostgreSQL connection string")
 	serverCmd.Flags().Int("server-port", 3000, "port to bind the HTTP server to")
 	serverCmd.Flags().String("server-allow-origins", "http://localhost:9000", "single CORS origin to allow; empty disables CORS")
-	serverCmd.Flags().String("auth0-jwks-url", "", "Auth0 JWKS URL for JWT verification")
-	serverCmd.Flags().String("auth0-audience", "", "Auth0 API audience")
-	serverCmd.Flags().String("auth0-issuer", "", "Auth0 issuer URL")
+	serverCmd.Flags().String("auth-jwks-url", "", "JWKS endpoint for JWT verification")
+	serverCmd.Flags().String("auth-audience", "", "expected JWT audience")
+	serverCmd.Flags().String("auth-issuer", "", "expected JWT issuer URL")
 	serverCmd.Flags().String("github-token", "", "GitHub API token; empty uses unauthenticated Search")
 	serverCmd.Flags().Duration("strategy-registry-sync-interval", time.Hour, "how often to poll GitHub for strategy updates")
 	serverCmd.Flags().Int("strategy-install-concurrency", 2, "maximum concurrent strategy installs")
-	serverCmd.Flags().String("strategy-official-dir", "/var/lib/pvapi/strategies/official", "where installed official strategy binaries live")
+	serverCmd.Flags().String("strategy-official-dir", "", "where installed official strategy binaries live (default: <data-dir>/strategies/official)")
 	serverCmd.Flags().String("strategy-github-query", "owner:penny-vault topic:pvbt-strategy", "GitHub search query for official strategies (owner filter applied client-side)")
-	serverCmd.Flags().String("strategy-ephemeral-dir", "/tmp/pvapi-strategies", "ephemeral build dir for unofficial strategies")
+	serverCmd.Flags().String("strategy-ephemeral-dir", "", "ephemeral build dir for unofficial strategies (default: <data-dir>/strategies/ephemeral)")
 	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 60*time.Second, "max time for one ephemeral clone+build")
+	serverCmd.Flags().String("backtest-snapshots-dir", "", "directory where backtest snapshot files are stored (default: <data-dir>/snapshots)")
 	serverCmd.Flags().String("runner-docker-socket", "unix:///var/run/docker.sock", "Docker daemon socket URL")
 	serverCmd.Flags().String("runner-docker-network", "", "Docker network for backtest containers; empty = daemon default")
 	serverCmd.Flags().Float64("runner-docker-cpu-limit", 0.0, "per-container CPU limit in cores; 0 = unlimited")
@@ -176,6 +181,9 @@ func init() {
 	serverCmd.Flags().Duration("runner-docker-build-timeout", 10*time.Minute, "max time for one docker image build")
 	serverCmd.Flags().String("runner-docker-image-prefix", "pvapi-strategy", "prefix for strategy image tags")
 	serverCmd.Flags().String("runner-docker-snapshots-host-path", "", "host path that maps to backtest.snapshots_dir when pvapi itself runs in docker; empty = snapshots_dir")
+	serverCmd.Flags().String("mailgun-domain", "", "Mailgun sending domain")
+	serverCmd.Flags().String("mailgun-api-key", "", "Mailgun API key; empty disables email alerts")
+	serverCmd.Flags().String("mailgun-from-address", "Penny Vault <no-reply@mg.pennyvault.com>", "From address for alert emails")
 	bindPFlagsToViper(serverCmd)
 
 	// The auto-transform in bindPFlagsToViper only handles one dash→dot
@@ -195,13 +203,15 @@ func init() {
 }
 
 var serverCmd = &cobra.Command{
-	Use:   "server",
+	Use:   "serve",
 	Short: "Run the pvapi HTTP server",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		pool := sql.Instance(ctx)
+		pool := sql.Instance(ctx, conf.DB.URL)
+
+		applyDataDirFallbacks(&conf)
 
 		// Build backtest config from viper and apply defaults.
 		btCfg := backtest.Config{
@@ -317,6 +327,12 @@ var serverCmd = &cobra.Command{
 		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
 		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
 		orch := backtest.NewRunner(btCfg, runner, artifactKind, portfolioAdapter, runAdapter, resolve)
+		checker := alert.NewChecker(pool, alertEmail.Config{
+			Domain:      conf.Mailgun.Domain,
+			APIKey:      conf.Mailgun.APIKey,
+			FromAddress: conf.Mailgun.FromAddress,
+		})
+		orch.WithNotifier(checker)
 		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
 		dispatcher.Start(ctx)
 
@@ -357,9 +373,9 @@ var serverCmd = &cobra.Command{
 			Port:         conf.Server.Port,
 			AllowOrigins: conf.Server.AllowOrigins,
 			Auth: api.AuthConfig{
-				JWKSURL:  conf.Auth0.JWKSURL,
-				Audience: conf.Auth0.Audience,
-				Issuer:   conf.Auth0.Issuer,
+				JWKSURL:  conf.Auth.JWKSURL,
+				Audience: conf.Auth.Audience,
+				Issuer:   conf.Auth.Issuer,
 			},
 			Pool: pool,
 			Registry: api.RegistryConfig{
