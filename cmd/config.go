@@ -67,6 +67,9 @@ type strategyConf struct {
 	GithubQuery             string        `mapstructure:"github_query"`
 	EphemeralDir            string        `mapstructure:"ephemeral_dir"`
 	EphemeralInstallTimeout time.Duration `mapstructure:"ephemeral_install_timeout"`
+	StatsRefreshTime        string        `mapstructure:"stats_refresh_time"`
+	StatsStartDate          string        `mapstructure:"stats_start_date"`
+	StatsTickInterval       time.Duration `mapstructure:"stats_tick_interval"`
 }
 
 // backtestConf controls the backtest runtime.

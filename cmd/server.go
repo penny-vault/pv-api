@@ -202,6 +202,19 @@ func init() {
 	mustBindPFlag("runner.docker.snapshots_host_path", "runner-docker-snapshots-host-path")
 }
 
+// parseStatsStartDate parses a "YYYY-MM-DD" string into a time.Time in UTC.
+// Returns 2010-01-01 when the string is empty or cannot be parsed.
+func parseStatsStartDate(s string) time.Time {
+	if s == "" {
+		return time.Date(2010, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return time.Date(2010, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+	return t
+}
+
 var serverCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Run the pvapi HTTP server",
@@ -379,13 +392,16 @@ var serverCmd = &cobra.Command{
 			},
 			Pool: pool,
 			Registry: api.RegistryConfig{
-				GitHubToken:     conf.GitHub.Token,
-				SyncInterval:    conf.Strategy.RegistrySyncInterval,
-				Concurrency:     conf.Strategy.InstallConcurrency,
-				OfficialDir:     conf.Strategy.OfficialDir,
-				GitHubOwner:     "penny-vault",
-				RunnerMode:      conf.Runner.Mode,
-				DockerInstaller: dockerInstaller,
+				GitHubToken:       conf.GitHub.Token,
+				SyncInterval:      conf.Strategy.RegistrySyncInterval,
+				Concurrency:       conf.Strategy.InstallConcurrency,
+				OfficialDir:       conf.Strategy.OfficialDir,
+				GitHubOwner:       "penny-vault",
+				RunnerMode:        conf.Runner.Mode,
+				DockerInstaller:   dockerInstaller,
+				StatsRefreshTime:  conf.Strategy.StatsRefreshTime,
+				StatsStartDate:    parseStatsStartDate(conf.Strategy.StatsStartDate),
+				StatsTickInterval: conf.Strategy.StatsTickInterval,
 			},
 			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},

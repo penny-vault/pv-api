@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/penny-vault/pv-api/alert"
+	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/strategy"
@@ -70,6 +71,10 @@ type RegistryConfig struct {
 	CacheDir        string // GitHub Search cache directory
 	RunnerMode      string
 	DockerInstaller strategy.InstallerFunc
+	// Stats configuration
+	StatsRefreshTime  string        // US Eastern "HH:MM"; default "17:00"
+	StatsStartDate    time.Time     // backtest start; default 2010-01-01
+	StatsTickInterval time.Duration // ticker cadence; default 5m
 }
 
 // NewApp builds a Fiber v3 app with pvapi's middleware stack and routes.
@@ -130,7 +135,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 			ephOpts,
 		))
 
-		if err := startRegistrySync(ctx, strategyStore, conf.Registry); err != nil {
+		if err := startRegistrySync(ctx, strategyStore, strategyStore, conf.Registry); err != nil {
 			return nil, fmt.Errorf("start registry sync: %w", err)
 		}
 	} else {
@@ -141,10 +146,41 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	return app, nil
 }
 
+// hostStatRunner adapts backtest.HostRunner to strategy.StatRunner.
+type hostStatRunner struct{}
+
+func (h hostStatRunner) Run(ctx context.Context, req strategy.StatRunRequest) error {
+	inner := &backtest.HostRunner{}
+	return inner.Run(ctx, backtest.RunRequest{
+		Artifact:     req.Artifact,
+		ArtifactKind: backtest.ArtifactBinary,
+		Args:         req.Args,
+		OutPath:      req.OutPath,
+	})
+}
+
+// snapshotKpis reads KPI metrics from a snapshot file at the given path.
+func snapshotKpis(ctx context.Context, path string) (strategy.StatKpis, error) {
+	reader, err := snapshot.Open(path)
+	if err != nil {
+		return strategy.StatKpis{}, fmt.Errorf("open stats snapshot: %w", err)
+	}
+	defer func() { _ = reader.Close() }()
+	kpis, err := reader.Kpis(ctx)
+	if err != nil {
+		return strategy.StatKpis{}, fmt.Errorf("read stats kpis: %w", err)
+	}
+	return strategy.StatKpis{
+		CAGR:        kpis.Cagr,
+		MaxDrawdown: kpis.MaxDrawdown,
+		Sharpe:      kpis.Sharpe,
+	}, nil
+}
+
 // startRegistrySync spins off a goroutine that runs the strategy.Syncer
 // on conf.SyncInterval. Runs independently of the HTTP server; errors are
 // logged but never propagated.
-func startRegistrySync(ctx context.Context, store strategy.Store, conf RegistryConfig) error {
+func startRegistrySync(ctx context.Context, store strategy.Store, statsStore strategy.StatsStore, conf RegistryConfig) error {
 	if conf.SyncInterval <= 0 {
 		return ErrRegistrySyncInterval
 	}
@@ -167,6 +203,20 @@ func startRegistrySync(ctx context.Context, store strategy.Store, conf RegistryC
 		})
 	}
 
+	statsRefresher, err := strategy.NewStatsRefresher(
+		statsStore,
+		hostStatRunner{},
+		snapshotKpis,
+		strategy.StatsRefresherConfig{
+			StartDate:    conf.StatsStartDate,
+			RefreshTime:  conf.StatsRefreshTime,
+			TickInterval: conf.StatsTickInterval,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("building stats refresher: %w", err)
+	}
+
 	syncer := strategy.NewSyncer(store, strategy.SyncerOptions{
 		Discovery:       discovery,
 		ResolveVer:      strategy.ResolveVerWithGit,
@@ -176,9 +226,9 @@ func startRegistrySync(ctx context.Context, store strategy.Store, conf RegistryC
 		OfficialDir:     conf.OfficialDir,
 		Concurrency:     conf.Concurrency,
 		Interval:        conf.SyncInterval,
+		Stats:           statsRefresher,
 	})
-	go func() {
-		_ = syncer.Run(ctx)
-	}()
+	go func() { _ = syncer.Run(ctx) }()
+	go func() { statsRefresher.Run(ctx) }()
 	return nil
 }
