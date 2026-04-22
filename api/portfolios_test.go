@@ -51,7 +51,7 @@ var _ = Describe("Portfolio handlers", func() {
 		Entry("get performance", "GET", "/portfolios/adm-standard-aq35/performance"),
 		Entry("get transactions", "GET", "/portfolios/adm-standard-aq35/transactions"),
 		Entry("get holdings history", "GET", "/portfolios/adm-standard-aq35/holdings/history"),
-		Entry("trigger run", "POST", "/portfolios/adm-standard-aq35/runs"),
+		Entry("trigger run", "POST", "/portfolios/adm-standard-aq35/run"),
 		Entry("list runs", "GET", "/portfolios/adm-standard-aq35/runs"),
 		Entry("get run", "GET", "/portfolios/adm-standard-aq35/runs/019d9a15-54cc-7db7-84cc-a5b6875bf27d"),
 	)
