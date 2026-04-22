@@ -126,3 +126,18 @@ func (r *Reader) perfAsOf(ctx context.Context, metric string, t time.Time, onOrA
 	}
 	return 0, err
 }
+
+// PortfolioValueAt returns the portfolio_value at or before t.
+func (r *Reader) PortfolioValueAt(ctx context.Context, t time.Time) (float64, error) {
+	return r.perfAsOf(ctx, "portfolio_value", t, false)
+}
+
+// BenchmarkCurrentValue returns the most recent benchmark_value in the snapshot.
+func (r *Reader) BenchmarkCurrentValue(ctx context.Context) (float64, error) {
+	return r.latestPerf(ctx, "benchmark_value")
+}
+
+// BenchmarkValueAt returns the benchmark_value at or before t.
+func (r *Reader) BenchmarkValueAt(ctx context.Context, t time.Time) (float64, error) {
+	return r.perfAsOf(ctx, "benchmark_value", t, false)
+}
