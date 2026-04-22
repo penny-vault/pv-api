@@ -34,6 +34,10 @@ func (p PoolStore) Get(ctx context.Context, shortCode string) (Strategy, error) 
 	return Get(ctx, p.Pool, shortCode)
 }
 
+func (p PoolStore) GetByCloneURL(ctx context.Context, cloneURL string) (Strategy, error) {
+	return GetByCloneURL(ctx, p.Pool, cloneURL)
+}
+
 func (p PoolStore) Upsert(ctx context.Context, s Strategy) error {
 	return Upsert(ctx, p.Pool, s)
 }
@@ -53,3 +57,25 @@ func (p PoolStore) MarkFailure(ctx context.Context, shortCode, version, errText 
 func (p PoolStore) LookupArtifact(ctx context.Context, cloneURL, ver string) (string, error) {
 	return LookupArtifact(ctx, p.Pool, cloneURL, ver)
 }
+
+// StatsStore is the persistence contract for the StatsRefresher.
+type StatsStore interface {
+	Get(ctx context.Context, shortCode string) (Strategy, error)
+	ListInstalled(ctx context.Context) ([]Strategy, error)
+	UpdateStats(ctx context.Context, shortCode string, r StatsResult) error
+	MarkStatsError(ctx context.Context, shortCode, errText string) error
+}
+
+func (p PoolStore) ListInstalled(ctx context.Context) ([]Strategy, error) {
+	return ListInstalled(ctx, p.Pool)
+}
+
+func (p PoolStore) UpdateStats(ctx context.Context, shortCode string, r StatsResult) error {
+	return UpdateStats(ctx, p.Pool, shortCode, r)
+}
+
+func (p PoolStore) MarkStatsError(ctx context.Context, shortCode, errText string) error {
+	return MarkStatsError(ctx, p.Pool, shortCode, errText)
+}
+
+var _ StatsStore = PoolStore{}

@@ -71,6 +71,21 @@ func Get(ctx context.Context, pool *pgxpool.Pool, shortCode string) (Strategy, e
 	return s, err
 }
 
+// GetByCloneURL returns the strategy row whose clone_url matches. Used by the
+// sync loop to look up existing records by repository identity rather than
+// short code, since the short code is authoritative from the binary itself.
+func GetByCloneURL(ctx context.Context, pool *pgxpool.Pool, cloneURL string) (Strategy, error) {
+	row := pool.QueryRow(ctx,
+		`SELECT `+strategyColumns+` FROM strategies WHERE clone_url = $1 LIMIT 1`,
+		cloneURL,
+	)
+	s, err := scan(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Strategy{}, ErrNotFound
+	}
+	return s, err
+}
+
 // Upsert inserts or updates a strategy row based on short_code. Used by the
 // sync loop to reconcile discovered listings.
 func Upsert(ctx context.Context, pool *pgxpool.Pool, s Strategy) error {
@@ -112,19 +127,20 @@ func MarkAttempt(ctx context.Context, pool *pgxpool.Pool, shortCode, version str
 }
 
 // MarkSuccess records a successful install. Sets installed_ver, installed_at,
-// artifact_kind, artifact_ref, describe_json. Clears install_error.
+// last_attempted_ver, artifact_kind, artifact_ref, describe_json. Clears install_error.
 func MarkSuccess(ctx context.Context, pool *pgxpool.Pool,
 	shortCode, version, artifactKind, artifactRef string, describeJSON []byte,
 ) error {
 	_, err := pool.Exec(ctx, `
 		UPDATE strategies
-		   SET installed_ver  = $2,
-		       installed_at   = NOW(),
-		       artifact_kind  = $3,
-		       artifact_ref   = $4,
-		       describe_json  = $5,
-		       install_error  = NULL,
-		       updated_at     = NOW()
+		   SET installed_ver      = $2,
+		       installed_at       = NOW(),
+		       last_attempted_ver = $2,
+		       artifact_kind      = $3,
+		       artifact_ref       = $4,
+		       describe_json      = $5,
+		       install_error      = NULL,
+		       updated_at         = NOW()
 		 WHERE short_code = $1
 	`, shortCode, version, artifactKind, artifactRef, describeJSON)
 	if err != nil {
@@ -147,6 +163,44 @@ func MarkFailure(ctx context.Context, pool *pgxpool.Pool, shortCode, version, er
 		return fmt.Errorf("mark failure %s@%s: %w", shortCode, version, err)
 	}
 	return nil
+}
+
+// ListInstalled returns all strategies that have a non-NULL artifact_ref.
+func ListInstalled(ctx context.Context, pool *pgxpool.Pool) ([]Strategy, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT `+strategyColumns+` FROM strategies WHERE artifact_ref IS NOT NULL ORDER BY short_code`)
+	if err != nil {
+		return nil, fmt.Errorf("listing installed strategies: %w", err)
+	}
+	defer rows.Close()
+	var out []Strategy
+	for rows.Next() {
+		s, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// UpdateStats writes performance stats and clears any previous stats_error.
+func UpdateStats(ctx context.Context, pool *pgxpool.Pool, shortCode string, r StatsResult) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE strategies
+		    SET cagr=$2, max_drawdown=$3, sharpe=$4, stats_as_of=$5,
+		        stats_error=NULL, updated_at=NOW()
+		  WHERE short_code=$1`,
+		shortCode, r.CAGR, r.MaxDrawdown, r.Sharpe, r.AsOf)
+	return err
+}
+
+// MarkStatsError records a stats failure without touching existing stats values.
+func MarkStatsError(ctx context.Context, pool *pgxpool.Pool, shortCode, errText string) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE strategies SET stats_error=$2, updated_at=NOW() WHERE short_code=$1`,
+		shortCode, errText)
+	return err
 }
 
 // LookupArtifact returns the artifact_ref for an official strategy matching the
