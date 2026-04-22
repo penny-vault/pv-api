@@ -23,6 +23,40 @@ import (
 	"github.com/spf13/viper"
 )
 
+func TestApplyDataDirFallbacks(t *testing.T) {
+	t.Run("all empty derives from data_dir", func(t *testing.T) {
+		c := Config{DataDir: "/data"}
+		applyDataDirFallbacks(&c)
+		if c.Backtest.SnapshotsDir != "/data/snapshots" {
+			t.Errorf("SnapshotsDir = %q; want /data/snapshots", c.Backtest.SnapshotsDir)
+		}
+		if c.Strategy.OfficialDir != "/data/strategies/official" {
+			t.Errorf("OfficialDir = %q; want /data/strategies/official", c.Strategy.OfficialDir)
+		}
+		if c.Strategy.EphemeralDir != "/data/strategies/ephemeral" {
+			t.Errorf("EphemeralDir = %q; want /data/strategies/ephemeral", c.Strategy.EphemeralDir)
+		}
+	})
+
+	t.Run("explicit values are not overwritten", func(t *testing.T) {
+		c := Config{
+			DataDir:  "/data",
+			Backtest: backtestConf{SnapshotsDir: "/custom/snaps"},
+			Strategy: strategyConf{OfficialDir: "/custom/official", EphemeralDir: "/custom/ephemeral"},
+		}
+		applyDataDirFallbacks(&c)
+		if c.Backtest.SnapshotsDir != "/custom/snaps" {
+			t.Errorf("SnapshotsDir = %q; want /custom/snaps", c.Backtest.SnapshotsDir)
+		}
+		if c.Strategy.OfficialDir != "/custom/official" {
+			t.Errorf("OfficialDir = %q; want /custom/official", c.Strategy.OfficialDir)
+		}
+		if c.Strategy.EphemeralDir != "/custom/ephemeral" {
+			t.Errorf("EphemeralDir = %q; want /custom/ephemeral", c.Strategy.EphemeralDir)
+		}
+	})
+}
+
 func TestRunnerDockerConfig(t *testing.T) {
 	v := viper.New()
 	v.SetConfigType("toml")

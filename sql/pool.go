@@ -21,7 +21,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -30,13 +29,13 @@ var (
 )
 
 // Instance returns a process-wide singleton pgxpool.Pool. First call creates
-// the pool, pings the server, and runs all pending migrations.
-func Instance(ctx context.Context) *pgxpool.Pool {
+// the pool, pings the server, and runs all pending migrations. The url
+// argument is only used on the first call; subsequent calls return the
+// existing pool.
+func Instance(ctx context.Context, url string) *pgxpool.Pool {
 	once.Do(func() {
-		dbURL := viper.GetString("db.url")
-
 		var err error
-		pool, err = pgxpool.New(ctx, dbURL)
+		pool, err = pgxpool.New(ctx, url)
 		if err != nil {
 			log.Panic().Err(err).Msg("could not create postgresql pool")
 		}
@@ -61,7 +60,7 @@ func Instance(ctx context.Context) *pgxpool.Pool {
 
 // Acquire returns a connection from the pool.
 func Acquire(ctx context.Context) *pgxpool.Conn {
-	conn, err := Instance(ctx).Acquire(ctx)
+	conn, err := Instance(ctx, "").Acquire(ctx)
 	if err != nil {
 		log.Panic().Err(err).Msg("could not acquire postgresql connection")
 	}
