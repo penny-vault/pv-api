@@ -46,7 +46,7 @@ func setViperDefaults() {
 	viper.SetDefault("strategy.ephemeral_install_timeout", 60*time.Second)
 	viper.SetDefault("strategy.stats_refresh_time", "17:00")
 	viper.SetDefault("strategy.stats_start_date", "2010-01-01")
-	viper.SetDefault("strategy.stats_tick_interval", "5m")
+	viper.SetDefault("strategy.stats_tick_interval", 5*time.Minute)
 	viper.SetDefault("mailgun.domain", "")
 	viper.SetDefault("mailgun.api_key", "")
 	viper.SetDefault("mailgun.from_address", "Penny Vault <no-reply@mg.pennyvault.com>")
