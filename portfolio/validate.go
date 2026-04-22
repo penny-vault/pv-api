@@ -82,7 +82,7 @@ func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateReq
 // validateDates checks that endDate is not before startDate.
 func validateDates(start, end *time.Time) error {
 	if start != nil && end != nil && end.Before(*start) {
-		return fmt.Errorf("%w", ErrEndBeforeStart)
+		return ErrEndBeforeStart
 	}
 	return nil
 }

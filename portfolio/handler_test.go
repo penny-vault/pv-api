@@ -140,8 +140,20 @@ func (f *fakeStore) ClaimDue(_ context.Context, _ int) ([]uuid.UUID, error) {
 	return nil, nil
 }
 
-func (f *fakeStore) UpdateDates(_ context.Context, _, _ string, _, _ *time.Time) error {
-	return nil
+func (f *fakeStore) UpdateDates(_ context.Context, ownerSub, slug string, startDate, endDate *time.Time) error {
+	for i, p := range f.rows {
+		if p.OwnerSub == ownerSub && p.Slug == slug {
+			if startDate != nil {
+				f.rows[i].StartDate = startDate
+			}
+			if endDate != nil {
+				f.rows[i].EndDate = endDate
+			}
+			f.rows[i].UpdatedAt = time.Now().UTC()
+			return nil
+		}
+	}
+	return portfolio.ErrNotFound
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
@@ -336,6 +348,44 @@ var _ = Describe("portfolio.Handler", func() {
 		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
 			"name":      "new",
 			"benchmark": "QQQ",
+		})
+		Expect(status).To(Equal(422))
+	})
+
+	It("patches startDate and endDate and returns them in the response", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "dated",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, body, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"startDate": "2020-01-01",
+			"endDate":   "2024-12-31",
+		})
+		Expect(status).To(Equal(200))
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		Expect(out["startDate"]).To(Equal("2020-01-01"))
+		Expect(out["endDate"]).To(Equal("2024-12-31"))
+	})
+
+	It("rejects PATCH when endDate is before startDate with 422", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "bad-dates",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"startDate": "2024-01-01",
+			"endDate":   "2020-01-01",
 		})
 		Expect(status).To(Equal(422))
 	})

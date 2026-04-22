@@ -78,7 +78,7 @@ func Get(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) (Portfo
 }
 
 // Insert writes a new portfolio row. The caller must have populated every
-// field on p (slug, strategy_ver, parameters, benchmark, mode, status,
+// field on p (slug, strategy_ver, parameters, benchmark, status,
 // etc.) before calling. Returns ErrDuplicateSlug on a
 // (owner_sub, slug) UNIQUE violation.
 func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
@@ -124,6 +124,7 @@ func UpdateName(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug, name st
 
 // UpdateDates updates a portfolio's start_date and/or end_date.
 // Only non-nil values overwrite existing ones. Returns ErrNotFound if no row matched.
+// The caller must ensure end is not before start; no validation is performed here.
 func UpdateDates(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string, startDate, endDate *time.Time) error {
 	tag, err := pool.Exec(ctx, `
 		UPDATE portfolios
