@@ -28,7 +28,6 @@ import (
 	units "github.com/docker/go-units"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/penny-vault/pvbt/tradecron"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -99,6 +98,8 @@ func (a backtestPortfolioStoreAdapter) GetByID(ctx context.Context, id uuid.UUID
 		Benchmark:        p.Benchmark,
 		Status:           string(p.Status),
 		SnapshotPath:     p.SnapshotPath,
+		StartDate:        p.StartDate,
+		EndDate:          p.EndDate,
 	}, nil
 }
 
@@ -133,31 +134,13 @@ func (a dispatcherAdapter) Submit(ctx context.Context, portfolioID uuid.UUID) (u
 	return id, err
 }
 
-// schedulerStoreAdapter adapts *portfolio.PoolStore to scheduler.PortfolioStore,
-// translating portfolio.DueContinuous → scheduler.Claim and
-// scheduler.NextRunFunc → portfolio.NextRunFunc at the package seam.
+// schedulerStoreAdapter adapts *portfolio.PoolStore to scheduler.PortfolioStore.
 type schedulerStoreAdapter struct {
 	store *portfolio.PoolStore
 }
 
-func (a schedulerStoreAdapter) ClaimDueContinuous(
-	ctx context.Context, before time.Time, batchSize int,
-	nextRun scheduler.NextRunFunc,
-) ([]scheduler.Claim, error) {
-	portRun := portfolio.NextRunFunc(nextRun)
-	dues, err := a.store.ClaimDueContinuous(ctx, before, batchSize, portRun)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]scheduler.Claim, len(dues))
-	for i, d := range dues {
-		out[i] = scheduler.Claim{
-			PortfolioID: d.PortfolioID,
-			Schedule:    d.Schedule,
-			NextRunAt:   d.NextRunAt,
-		}
-	}
-	return out, nil
+func (a schedulerStoreAdapter) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
+	return a.store.ClaimDue(ctx, batchSize)
 }
 
 // schedulerDispatcherAdapter wraps *backtest.Dispatcher for the scheduler.
@@ -341,12 +324,6 @@ var serverCmd = &cobra.Command{
 			log.Warn().Err(err).Msg("startup sweep")
 		}
 
-		// Initialize tradecron with no holiday data (future plan loads real
-		// holidays). Required before any @monthend/@quarter* schedule is
-		// evaluated anywhere in the process.
-		tradecron.SetMarketHolidays(nil)
-		log.Info().Msg("tradecron holidays disabled (no data loaded)")
-
 		var schedulerDone chan struct{}
 		if conf.Scheduler.Enabled {
 			schedCfg := scheduler.Config{
@@ -360,7 +337,6 @@ var serverCmd = &cobra.Command{
 			sched := scheduler.New(schedCfg,
 				schedulerStoreAdapter{store: portfolioStore},
 				schedulerDispatcherAdapter{bt: dispatcher},
-				scheduler.TradecronNext,
 			)
 			schedulerDone = make(chan struct{})
 			go func() {
