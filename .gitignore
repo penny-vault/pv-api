@@ -36,4 +36,5 @@ pvapi.toml
 coverprofile.out
 test-report.xml
 *.sqlite
+!**/testdata/*.sqlite
 test.ofx
