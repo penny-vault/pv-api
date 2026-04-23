@@ -38,7 +38,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PortfolioListItem'
+                  $ref: '#/components/schemas/Portfolio'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -634,51 +634,6 @@ components:
       enum: [portfolio, benchmark, portfolio-tax, benchmark-tax]
       description: Which line in the trailing returns table.
 
-    # ============ Portfolio list ============
-    PortfolioListItem:
-      type: object
-      description: Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
-      required: [slug, name, strategyCode, mode, status, createdAt]
-      properties:
-        slug:
-          type: string
-        name:
-          type: string
-        strategyCode:
-          type: string
-        mode:
-          $ref: '#/components/schemas/PortfolioMode'
-        status:
-          $ref: '#/components/schemas/PortfolioStatus'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        benchmark:
-          type: string
-        inceptionDate:
-          type: string
-          format: date
-          nullable: true
-        currentValue:
-          type: number
-          format: double
-          nullable: true
-        ytdReturn:
-          type: number
-          format: double
-          nullable: true
-        maxDrawDown:
-          type: number
-          format: double
-          nullable: true
-        lastUpdated:
-          type: string
-          format: date-time
-          nullable: true
-
     # ============ Portfolio detail ============
     Portfolio:
       type: object
@@ -1012,17 +967,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HoldingsHistoryEntry'
-
-    PortfolioMode:
-      type: string
-      enum: [one_shot, continuous, live]
-      description: |
-        Portfolio execution mode. `live` is reserved but rejected by
-        POST /portfolios with 422 until a future live-trading project ships.
-
-    PortfolioStatus:
-      type: string
-      enum: [pending, running, ready, failed]
 
     RunStatus:
       type: string
