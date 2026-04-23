@@ -1162,3 +1162,55 @@ components:
         parameters:
           type: object
           additionalProperties: true
+
+    AlertFrequency:
+      type: string
+      enum: [scheduled_run, daily, weekly, monthly]
+      description: How often the alert fires. `scheduled_run` fires on every completed backtest run; the others fire on calendar cadence.
+
+    Alert:
+      type: object
+      required: [id, portfolioId, frequency, recipients]
+      properties:
+        id:
+          type: string
+          format: uuid
+        portfolioId:
+          type: string
+          format: uuid
+        frequency:
+          $ref: '#/components/schemas/AlertFrequency'
+        recipients:
+          type: array
+          items:
+            type: string
+          description: Email addresses that receive the alert.
+        lastSentAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AlertCreateRequest:
+      type: object
+      required: [frequency, recipients]
+      properties:
+        frequency:
+          $ref: '#/components/schemas/AlertFrequency'
+        recipients:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          description: At least one recipient required.
+
+    AlertUpdateRequest:
+      type: object
+      description: All fields optional; omit any field you do not want to change.
+      properties:
+        frequency:
+          $ref: '#/components/schemas/AlertFrequency'
+        recipients:
+          type: array
+          items:
+            type: string
+          minItems: 1
