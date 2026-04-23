@@ -37,6 +37,7 @@ import (
 	"github.com/penny-vault/pv-api/api"
 	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/progress"
 	"github.com/penny-vault/pv-api/scheduler"
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/sql"
@@ -346,6 +347,8 @@ var serverCmd = &cobra.Command{
 			FromAddress: conf.Mailgun.FromAddress,
 		})
 		orch.WithNotifier(checker)
+		hub := progress.NewHub()
+		orch.WithProgressHub(hub)
 		dispatcher := backtest.NewDispatcher(btCfg, runner, runAdapter, orch.Run)
 		dispatcher.Start(ctx)
 
@@ -405,6 +408,7 @@ var serverCmd = &cobra.Command{
 			},
 			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},
+			ProgressHub:    hub,
 			Ephemeral: api.EphemeralConfig{
 				Dir:     conf.Strategy.EphemeralDir,
 				Timeout: conf.Strategy.EphemeralInstallTimeout,

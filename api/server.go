@@ -31,6 +31,7 @@ import (
 	"github.com/penny-vault/pv-api/alert"
 	"github.com/penny-vault/pv-api/backtest"
 	"github.com/penny-vault/pv-api/portfolio"
+	"github.com/penny-vault/pv-api/progress"
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/strategy"
 )
@@ -58,6 +59,7 @@ type Config struct {
 	Pool           *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
 	Dispatcher     portfolio.Dispatcher // optional: if nil, /runs POST returns 501
 	SnapshotOpener portfolio.SnapshotOpener
+	ProgressHub    *progress.Hub
 	Ephemeral      EphemeralConfig
 }
 
@@ -130,6 +132,9 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 			strategy.ValidateCloneURL,
 			ephOpts,
 		)
+		if conf.ProgressHub != nil {
+			portfolioHandler.WithHub(conf.ProgressHub)
+		}
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		alertStore := alert.NewPoolStore(conf.Pool)
 		alertHandler := alert.NewAlertHandler(portfolioStore, alertStore)
