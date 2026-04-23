@@ -17,6 +17,7 @@ package backtest
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,10 +43,11 @@ const (
 
 // RunRequest carries everything a Runner needs to produce one snapshot.
 type RunRequest struct {
-	RunID        uuid.UUID     // optional; used for container naming / log correlation
-	Artifact     string        // binary path for host; image ref for docker
-	ArtifactKind ArtifactKind  // must match the runner
-	Args         []string      // strategy-specific CLI flags (parameters + benchmark)
-	OutPath      string        // absolute path where the snapshot must be written
-	Timeout      time.Duration // 0 means use Config.Timeout default
+	RunID          uuid.UUID     // optional; used for container naming / log correlation
+	Artifact       string        // binary path for host; image ref for docker
+	ArtifactKind   ArtifactKind  // must match the runner
+	Args           []string      // strategy-specific CLI flags (parameters + benchmark)
+	OutPath        string        // absolute path where the snapshot must be written
+	Timeout        time.Duration // 0 means use Config.Timeout default
+	ProgressWriter io.Writer     // if non-nil, --json is passed and stdout is teed here
 }

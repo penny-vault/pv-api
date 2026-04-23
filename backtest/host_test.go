@@ -16,6 +16,7 @@
 package backtest_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -119,6 +120,23 @@ var _ = Describe("HostRunner", func() {
 			Timeout:      5 * time.Second,
 		})
 		Expect(err).To(MatchError(backtest.ErrTimedOut))
+	})
+
+	It("tees stdout to ProgressWriter and passes --json when ProgressWriter is set", func() {
+		out := filepath.Join(GinkgoT().TempDir(), "out.sqlite")
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fakeStratSrc)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		var buf bytes.Buffer
+		err := runner.Run(context.Background(), backtest.RunRequest{
+			Artifact:       fakeStratBin,
+			ArtifactKind:   backtest.ArtifactBinary,
+			OutPath:        out,
+			Timeout:        5 * time.Second,
+			ProgressWriter: &buf,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(buf.String()).To(ContainSubstring(`"type":"progress"`))
 	})
 
 	It("returns ErrArtifactKindMismatch when given an image artifact", func() {

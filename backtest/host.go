@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
@@ -42,13 +43,21 @@ func (r *HostRunner) Run(ctx context.Context, req RunRequest) error {
 		defer cancel()
 	}
 
-	args := append([]string{"backtest", "--output", req.OutPath}, req.Args...)
+	args := []string{"backtest", "--output", req.OutPath}
+	if req.ProgressWriter != nil {
+		args = append(args, "--json")
+	}
+	args = append(args, req.Args...)
 	cmd := exec.CommandContext(timeoutCtx, req.Artifact, args...) //nolint:gosec // G204: artifact path comes from admin-controlled strategy registry
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	stdout := newLogWriter("strategy-stdout")
-	cmd.Stdout = stdout
+	logW := newLogWriter("strategy-stdout")
+	if req.ProgressWriter != nil {
+		cmd.Stdout = io.MultiWriter(logW, req.ProgressWriter)
+	} else {
+		cmd.Stdout = logW
+	}
 
 	runErr := cmd.Run()
 
