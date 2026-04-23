@@ -297,6 +297,38 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/runs/{runId}/progress:
+    get:
+      tags: [Portfolios]
+      operationId: streamRunProgress
+      summary: Stream backtest progress as Server-Sent Events
+      description: |
+        Opens an SSE stream for the given run. Each event is either a
+        `progress` event (mid-run step update) or a terminal `done`/`error`
+        event, after which the server closes the connection.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: runId
+          in: path
+          required: true
+          description: Run UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SSE stream of progress and terminal events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /portfolios/{slug}/summary:
     get:
       tags: [Portfolios]
@@ -1176,6 +1208,47 @@ components:
         error:
           type: string
           nullable: true
+
+    RunProgressEvent:
+      type: object
+      description: SSE data payload for a `progress` event during an active backtest run.
+      required: [step, totalSteps, pct]
+      properties:
+        step:
+          type: integer
+          format: int64
+        totalSteps:
+          type: integer
+          format: int64
+        currentDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        pct:
+          type: number
+          format: double
+        elapsedMs:
+          type: integer
+          format: int64
+        etaMs:
+          type: integer
+          format: int64
+        measurements:
+          type: integer
+          format: int64
+
+    RunTerminalEvent:
+      type: object
+      description: SSE data payload for the terminal `done` or `error` event.
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        error:
+          type: string
+          description: Error message; present only when status is `failed`.
 
     Strategy:
       type: object
