@@ -703,8 +703,7 @@ components:
         strategyCloneUrl:
           type: string
           format: uri
-          nullable: true
-          description: Clone URL for unofficial strategies; null for official ones.
+          description: Clone URL for unofficial strategies; empty string for official ones.
         strategyVer:
           type: string
           nullable: true
@@ -723,12 +722,12 @@ components:
           type: string
           format: date
           nullable: true
-          description: Backtest start date (YYYY-MM-DD). Null means strategy default.
+          description: Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
         endDate:
           type: string
           format: date
           nullable: true
-          description: Backtest end date (YYYY-MM-DD). Null means today.
+          description: Backtest end date (YYYY-MM-DD). Absent or null means today.
         createdAt:
           type: string
           format: date-time
