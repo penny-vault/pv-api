@@ -13,6 +13,30 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
+// Defines values for AlertFrequency.
+const (
+	AlertFrequencyDaily        AlertFrequency = "daily"
+	AlertFrequencyMonthly      AlertFrequency = "monthly"
+	AlertFrequencyScheduledRun AlertFrequency = "scheduled_run"
+	AlertFrequencyWeekly       AlertFrequency = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the AlertFrequency enum.
+func (e AlertFrequency) Valid() bool {
+	switch e {
+	case AlertFrequencyDaily:
+		return true
+	case AlertFrequencyMonthly:
+		return true
+	case AlertFrequencyScheduledRun:
+		return true
+	case AlertFrequencyWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MetricFormat.
 const (
 	Number  MetricFormat = "number"
@@ -25,27 +49,6 @@ func (e MetricFormat) Valid() bool {
 	case Number:
 		return true
 	case Percent:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PortfolioMode.
-const (
-	Continuous PortfolioMode = "continuous"
-	Live       PortfolioMode = "live"
-	OneShot    PortfolioMode = "one_shot"
-)
-
-// Valid indicates whether the value is a known member of the PortfolioMode enum.
-func (e PortfolioMode) Valid() bool {
-	switch e {
-	case Continuous:
-		return true
-	case Live:
-		return true
-	case OneShot:
 		return true
 	default:
 		return false
@@ -67,30 +70,6 @@ func (e PortfolioPerformanceResolution) Valid() bool {
 	case PortfolioPerformanceResolutionMonthly:
 		return true
 	case PortfolioPerformanceResolutionWeekly:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PortfolioStatus.
-const (
-	PortfolioStatusFailed  PortfolioStatus = "failed"
-	PortfolioStatusPending PortfolioStatus = "pending"
-	PortfolioStatusReady   PortfolioStatus = "ready"
-	PortfolioStatusRunning PortfolioStatus = "running"
-)
-
-// Valid indicates whether the value is a known member of the PortfolioStatus enum.
-func (e PortfolioStatus) Valid() bool {
-	switch e {
-	case PortfolioStatusFailed:
-		return true
-	case PortfolioStatusPending:
-		return true
-	case PortfolioStatusReady:
-		return true
-	case PortfolioStatusRunning:
 		return true
 	default:
 		return false
@@ -147,22 +126,22 @@ func (e RunStatus) Valid() bool {
 
 // Defines values for StrategyInstallState.
 const (
-	Failed     StrategyInstallState = "failed"
-	Installing StrategyInstallState = "installing"
-	Pending    StrategyInstallState = "pending"
-	Ready      StrategyInstallState = "ready"
+	StrategyInstallStateFailed     StrategyInstallState = "failed"
+	StrategyInstallStateInstalling StrategyInstallState = "installing"
+	StrategyInstallStatePending    StrategyInstallState = "pending"
+	StrategyInstallStateReady      StrategyInstallState = "ready"
 )
 
 // Valid indicates whether the value is a known member of the StrategyInstallState enum.
 func (e StrategyInstallState) Valid() bool {
 	switch e {
-	case Failed:
+	case StrategyInstallStateFailed:
 		return true
-	case Installing:
+	case StrategyInstallStateInstalling:
 		return true
-	case Pending:
+	case StrategyInstallStatePending:
 		return true
-	case Ready:
+	case StrategyInstallStateReady:
 		return true
 	default:
 		return false
@@ -210,23 +189,54 @@ func (e TransactionType) Valid() bool {
 
 // Defines values for GetPortfolioPerformanceParamsResolution.
 const (
-	GetPortfolioPerformanceParamsResolutionDaily   GetPortfolioPerformanceParamsResolution = "daily"
-	GetPortfolioPerformanceParamsResolutionMonthly GetPortfolioPerformanceParamsResolution = "monthly"
-	GetPortfolioPerformanceParamsResolutionWeekly  GetPortfolioPerformanceParamsResolution = "weekly"
+	Daily   GetPortfolioPerformanceParamsResolution = "daily"
+	Monthly GetPortfolioPerformanceParamsResolution = "monthly"
+	Weekly  GetPortfolioPerformanceParamsResolution = "weekly"
 )
 
 // Valid indicates whether the value is a known member of the GetPortfolioPerformanceParamsResolution enum.
 func (e GetPortfolioPerformanceParamsResolution) Valid() bool {
 	switch e {
-	case GetPortfolioPerformanceParamsResolutionDaily:
+	case Daily:
 		return true
-	case GetPortfolioPerformanceParamsResolutionMonthly:
+	case Monthly:
 		return true
-	case GetPortfolioPerformanceParamsResolutionWeekly:
+	case Weekly:
 		return true
 	default:
 		return false
 	}
+}
+
+// Alert defines model for Alert.
+type Alert struct {
+	// Frequency How often the alert fires. `scheduled_run` fires on every completed backtest run; the others fire on calendar cadence.
+	Frequency   AlertFrequency     `json:"frequency"`
+	Id          openapi_types.UUID `json:"id"`
+	LastSentAt  *time.Time         `json:"lastSentAt,omitempty"`
+	PortfolioId openapi_types.UUID `json:"portfolioId"`
+
+	// Recipients Email addresses that receive the alert.
+	Recipients []string `json:"recipients"`
+}
+
+// AlertCreateRequest defines model for AlertCreateRequest.
+type AlertCreateRequest struct {
+	// Frequency How often the alert fires. `scheduled_run` fires on every completed backtest run; the others fire on calendar cadence.
+	Frequency AlertFrequency `json:"frequency"`
+
+	// Recipients At least one recipient required.
+	Recipients []string `json:"recipients"`
+}
+
+// AlertFrequency How often the alert fires. `scheduled_run` fires on every completed backtest run; the others fire on calendar cadence.
+type AlertFrequency string
+
+// AlertUpdateRequest All fields optional; omit any field you do not want to change.
+type AlertUpdateRequest struct {
+	// Frequency How often the alert fires. `scheduled_run` fires on every completed backtest run; the others fire on calendar cadence.
+	Frequency  *AlertFrequency `json:"frequency,omitempty"`
+	Recipients *[]string       `json:"recipients,omitempty"`
 }
 
 // BacktestRun defines model for BacktestRun.
@@ -305,32 +315,30 @@ type PerformancePoint struct {
 	RiskFreeRate *float64 `json:"riskFreeRate,omitempty"`
 }
 
-// Portfolio Portfolio configuration + status. Derived backtest output lives on separate endpoints.
+// Portfolio Portfolio configuration. Derived backtest output lives on separate endpoints.
 type Portfolio struct {
-	Benchmark string     `json:"benchmark"`
-	CreatedAt time.Time  `json:"createdAt"`
-	LastError *string    `json:"lastError,omitempty"`
-	LastRunAt *time.Time `json:"lastRunAt,omitempty"`
+	Benchmark string    `json:"benchmark"`
+	CreatedAt time.Time `json:"createdAt"`
 
-	// Mode Portfolio execution mode. `live` is reserved but rejected by
-	// POST /portfolios with 422 until a future live-trading project ships.
-	Mode       PortfolioMode          `json:"mode"`
+	// EndDate Backtest end date (YYYY-MM-DD). Absent or null means today.
+	EndDate    *openapi_types.Date    `json:"endDate,omitempty"`
+	LastError  *string                `json:"lastError,omitempty"`
+	LastRunAt  *time.Time             `json:"lastRunAt,omitempty"`
 	Name       string                 `json:"name"`
 	Parameters map[string]interface{} `json:"parameters"`
 
 	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
 	PresetName *string `json:"presetName,omitempty"`
+	Slug       string  `json:"slug"`
 
-	// Schedule tradecron string; null when mode=one_shot.
-	Schedule *string         `json:"schedule,omitempty"`
-	Slug     string          `json:"slug"`
-	Status   PortfolioStatus `json:"status"`
+	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 
-	// StrategyCloneUrl Clone URL of the strategy that produced this portfolio.
-	StrategyCloneUrl string `json:"strategyCloneUrl"`
-	StrategyCode     string `json:"strategyCode"`
+	// StrategyCloneUrl Clone URL for unofficial strategies; empty string for official ones.
+	StrategyCloneUrl *string `json:"strategyCloneUrl,omitempty"`
+	StrategyCode     string  `json:"strategyCode"`
 
-	// StrategyVer Pinned strategy version (NULL for unofficial portfolios).
+	// StrategyVer Pinned strategy version (null for unofficial portfolios).
 	StrategyVer *string   `json:"strategyVer,omitempty"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -341,9 +349,8 @@ type Portfolio struct {
 type PortfolioCreateRequest struct {
 	Benchmark *string `json:"benchmark,omitempty"`
 
-	// Mode Portfolio execution mode. `live` is reserved but rejected by
-	// POST /portfolios with 422 until a future live-trading project ships.
-	Mode PortfolioMode `json:"mode"`
+	// EndDate Backtest end date (YYYY-MM-DD). Omit to use today.
+	EndDate *openapi_types.Date `json:"endDate,omitempty"`
 
 	// Name User-visible display name.
 	Name string `json:"name"`
@@ -351,11 +358,8 @@ type PortfolioCreateRequest struct {
 	// Parameters Values validated against the strategy's declared parameters.
 	Parameters map[string]interface{} `json:"parameters"`
 
-	// RunNow If true, kick the first run immediately after create.
-	RunNow *bool `json:"runNow,omitempty"`
-
-	// Schedule tradecron string, required iff mode=continuous (e.g. `@monthend`).
-	Schedule *string `json:"schedule,omitempty"`
+	// StartDate Backtest start date (YYYY-MM-DD). Omit to use the strategy default.
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 
 	// StrategyCloneUrl HTTPS GitHub clone URL. Mutually exclusive with strategyCode.
 	StrategyCloneUrl *string `json:"strategyCloneUrl,omitempty"`
@@ -366,30 +370,6 @@ type PortfolioCreateRequest struct {
 	// StrategyVer Specific version to pin; omit for latest installed.
 	StrategyVer *string `json:"strategyVer,omitempty"`
 }
-
-// PortfolioListItem Row in the portfolios list. Derived KPIs are populated when the portfolio has completed at least one successful run; absent for pending portfolios.
-type PortfolioListItem struct {
-	Benchmark     *string             `json:"benchmark,omitempty"`
-	CreatedAt     time.Time           `json:"createdAt"`
-	CurrentValue  *float64            `json:"currentValue,omitempty"`
-	InceptionDate *openapi_types.Date `json:"inceptionDate,omitempty"`
-	LastUpdated   *time.Time          `json:"lastUpdated,omitempty"`
-	MaxDrawDown   *float64            `json:"maxDrawDown,omitempty"`
-
-	// Mode Portfolio execution mode. `live` is reserved but rejected by
-	// POST /portfolios with 422 until a future live-trading project ships.
-	Mode         PortfolioMode   `json:"mode"`
-	Name         string          `json:"name"`
-	Slug         string          `json:"slug"`
-	Status       PortfolioStatus `json:"status"`
-	StrategyCode string          `json:"strategyCode"`
-	UpdatedAt    *time.Time      `json:"updatedAt,omitempty"`
-	YtdReturn    *float64        `json:"ytdReturn,omitempty"`
-}
-
-// PortfolioMode Portfolio execution mode. `live` is reserved but rejected by
-// POST /portfolios with 422 until a future live-trading project ships.
-type PortfolioMode string
 
 // PortfolioPerformance defines model for PortfolioPerformance.
 type PortfolioPerformance struct {
@@ -411,9 +391,6 @@ type PortfolioStatistic struct {
 	Value  float64      `json:"value"`
 }
 
-// PortfolioStatus defines model for PortfolioStatus.
-type PortfolioStatus string
-
 // PortfolioSummary Top-line numbers for the KPI strip.
 type PortfolioSummary struct {
 	Alpha              float64  `json:"alpha"`
@@ -430,9 +407,16 @@ type PortfolioSummary struct {
 	YtdReturn          float64  `json:"ytdReturn"`
 }
 
-// PortfolioUpdateRequest PATCH body. Only `name` is mutable — changing parameters, schedule, benchmark, or mode would break the slug invariant, so those fields are rejected with 422.
+// PortfolioUpdateRequest PATCH body. Only `name`, `startDate`, and `endDate` are mutable.
+// Any other field is rejected with 422. All fields are optional; omit
+// any field you do not want to change.
 type PortfolioUpdateRequest struct {
-	Name string `json:"name"`
+	// EndDate Backtest end date (YYYY-MM-DD).
+	EndDate *openapi_types.Date `json:"endDate,omitempty"`
+	Name    *string             `json:"name,omitempty"`
+
+	// StartDate Backtest start date (YYYY-MM-DD).
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 }
 
 // Problem RFC 7807 Problem Details.
@@ -618,3 +602,9 @@ type CreatePortfolioJSONRequestBody = PortfolioCreateRequest
 
 // UpdatePortfolioJSONRequestBody defines body for UpdatePortfolio for application/json ContentType.
 type UpdatePortfolioJSONRequestBody = PortfolioUpdateRequest
+
+// CreatePortfolioAlertJSONRequestBody defines body for CreatePortfolioAlert for application/json ContentType.
+type CreatePortfolioAlertJSONRequestBody = AlertCreateRequest
+
+// UpdatePortfolioAlertJSONRequestBody defines body for UpdatePortfolioAlert for application/json ContentType.
+type UpdatePortfolioAlertJSONRequestBody = AlertUpdateRequest
