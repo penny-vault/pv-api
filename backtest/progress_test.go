@@ -17,6 +17,7 @@ package backtest_test
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -196,11 +197,11 @@ var _ = Describe("progressLineWriter", func() {
 		defer unsub()
 
 		w := backtest.NewProgressLineWriter(hub, runID)
-		lines := ""
+		var sb strings.Builder
 		for i := 1; i <= 3; i++ {
-			lines += fmt.Sprintf(`{"type":"progress","step":%d,"total_steps":10,"current_date":"2023-01-01","target_date":"2025-01-01","pct":%d.0,"elapsed_ms":100,"eta_ms":900,"measurements":%d}`+"\n", i, i*10, i*100)
+			fmt.Fprintf(&sb, `{"type":"progress","step":%d,"total_steps":10,"current_date":"2023-01-01","target_date":"2025-01-01","pct":%d.0,"elapsed_ms":100,"eta_ms":900,"measurements":%d}`+"\n", i, i*10, i*100)
 		}
-		_, _ = w.Write([]byte(lines))
+		_, _ = w.Write([]byte(sb.String()))
 		for i := 1; i <= 3; i++ {
 			evt := <-events
 			Expect(evt.Progress.Step).To(Equal(int64(i)))
