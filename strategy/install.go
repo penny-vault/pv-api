@@ -24,17 +24,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/rs/zerolog/log"
 )
 
 // Install-related sentinel errors.
-var (
-	ErrInstallMissingFields = errors.New("InstallRequest: all fields required")
-	ErrShortCodeMismatch    = errors.New("describe short_code mismatch")
-)
+var ErrInstallMissingFields = errors.New("InstallRequest: all fields required")
 
 // InstallRequest describes a single version-pinned install.
 type InstallRequest struct {
-	ShortCode string // expected short_code; validated against describe output
+	ShortCode string // unused by Install; reserved for callers that need a hint key
 	CloneURL  string // git URL (https, ssh, or file://)
 	Version   string // git tag or commit SHA to check out
 	DestDir   string // absolute path to clone/build into
@@ -50,17 +49,19 @@ type InstallResult struct {
 
 // Install performs a single version-pinned install:
 //  1. git clone --branch <Version> --depth 1 <CloneURL> <DestDir>
-//  2. go build -o <DestDir>/<ShortCode>.bin .
-//  3. <binary> describe --json
-//  4. validates describe.shortCode matches req.ShortCode
+//  2. go build -o <DestDir>/strategy.bin .
+//  3. <binary> describe --json  (short code is authoritative from the binary)
+//  4. rename binary to <DestDir>/<shortCode>.bin
 //
 // On failure Install returns a wrapped error and leaves DestDir in whatever
 // state it was in; callers are expected to treat DestDir as throwaway on
 // failure.
 func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
-	if req.ShortCode == "" || req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
+	if req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
 		return nil, ErrInstallMissingFields
 	}
+
+	log.Info().Str("clone_url", req.CloneURL).Str("version", req.Version).Msg("cloning strategy repository")
 
 	// Clone at the specific tag/SHA. Inputs come from GitHub Search results
 	// (CloneURL) + `git ls-remote` (Version) + internal config (DestDir) —
@@ -73,10 +74,11 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	if err := cloneCmd.Run(); err != nil {
 		return nil, fmt.Errorf("git clone %s@%s: %w\n%s", req.CloneURL, req.Version, err, cloneOut.String())
 	}
+	log.Info().Str("clone_url", req.CloneURL).Str("dest", req.DestDir).Msg("clone complete; building binary")
 
-	// Build.
-	binPath := filepath.Join(req.DestDir, req.ShortCode+".bin")
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, ".") //nolint:gosec // binPath/DestDir are internal paths
+	// Build to a temp name; we rename once describe tells us the real short code.
+	tmpBinPath := filepath.Join(req.DestDir, "strategy.bin")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", tmpBinPath, ".") //nolint:gosec // tmpBinPath/DestDir are internal paths
 	buildCmd.Dir = req.DestDir
 	var buildOut bytes.Buffer
 	buildCmd.Stdout = &buildOut
@@ -84,14 +86,15 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	if err := buildCmd.Run(); err != nil {
 		return nil, fmt.Errorf("go build: %w\n%s", err, buildOut.String())
 	}
+	log.Info().Str("clone_url", req.CloneURL).Msg("build complete; running describe")
 
-	// Describe. binPath is an internal path we just wrote above.
-	describeCmd := exec.CommandContext(ctx, binPath, "describe", "--json") //nolint:gosec // binPath is internal
+	// Describe. tmpBinPath is an internal path we just wrote above.
+	describeCmd := exec.CommandContext(ctx, tmpBinPath, "describe", "--json") //nolint:gosec // tmpBinPath is internal
 	var describeOut bytes.Buffer
 	describeCmd.Stdout = &describeOut
 	describeCmd.Stderr = os.Stderr
 	if err := describeCmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s describe --json: %w", binPath, err)
+		return nil, fmt.Errorf("%s describe --json: %w", tmpBinPath, err)
 	}
 
 	describeBytes := describeOut.Bytes()
@@ -101,9 +104,16 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 		return nil, fmt.Errorf("parsing describe output: %w", err)
 	}
 
-	if parsed.ShortCode != req.ShortCode {
-		return nil, fmt.Errorf("%w: want %q, got %q", ErrShortCodeMismatch, req.ShortCode, parsed.ShortCode)
+	// Rename the binary to its canonical name derived from the describe output.
+	binPath := filepath.Join(req.DestDir, parsed.ShortCode+".bin")
+	if err := os.Rename(tmpBinPath, binPath); err != nil {
+		return nil, fmt.Errorf("rename binary to %s: %w", binPath, err)
 	}
+	log.Info().
+		Str("clone_url", req.CloneURL).
+		Str("short_code", parsed.ShortCode).
+		Str("bin_path", binPath).
+		Msg("binary ready")
 
 	return &InstallResult{
 		BinPath:      binPath,

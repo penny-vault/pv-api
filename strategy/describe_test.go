@@ -44,7 +44,7 @@ var _ = Describe("RunDescribe", func() {
 
 		raw, err := strategy.RunDescribe(ctx, bin)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(string(raw)).To(ContainSubstring(`"shortCode": "fake"`))
+		Expect(string(raw)).To(ContainSubstring(`"shortcode": "fake"`))
 	})
 })
 
@@ -65,7 +65,7 @@ var _ = Describe("DescribeHandler", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(200))
 		body, _ := io.ReadAll(resp.Body)
-		Expect(string(body)).To(ContainSubstring(`"shortCode":"fake"`))
+		Expect(string(body)).To(ContainSubstring(`"shortcode":"fake"`))
 	})
 
 	It("422s when the builder fails", func() {

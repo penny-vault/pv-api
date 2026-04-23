@@ -55,6 +55,27 @@ func (e MetricFormat) Valid() bool {
 	}
 }
 
+// Defines values for PortfolioPerformanceResolution.
+const (
+	PortfolioPerformanceResolutionDaily   PortfolioPerformanceResolution = "daily"
+	PortfolioPerformanceResolutionMonthly PortfolioPerformanceResolution = "monthly"
+	PortfolioPerformanceResolutionWeekly  PortfolioPerformanceResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the PortfolioPerformanceResolution enum.
+func (e PortfolioPerformanceResolution) Valid() bool {
+	switch e {
+	case PortfolioPerformanceResolutionDaily:
+		return true
+	case PortfolioPerformanceResolutionMonthly:
+		return true
+	case PortfolioPerformanceResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PortfolioStatus.
 const (
 	PortfolioStatusFailed  PortfolioStatus = "failed"
@@ -73,27 +94,6 @@ func (e PortfolioStatus) Valid() bool {
 	case PortfolioStatusReady:
 		return true
 	case PortfolioStatusRunning:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PortfolioPerformanceResolution.
-const (
-	PortfolioPerformanceResolutionDaily   PortfolioPerformanceResolution = "daily"
-	PortfolioPerformanceResolutionMonthly PortfolioPerformanceResolution = "monthly"
-	PortfolioPerformanceResolutionWeekly  PortfolioPerformanceResolution = "weekly"
-)
-
-// Valid indicates whether the value is a known member of the PortfolioPerformanceResolution enum.
-func (e PortfolioPerformanceResolution) Valid() bool {
-	switch e {
-	case PortfolioPerformanceResolutionDaily:
-		return true
-	case PortfolioPerformanceResolutionMonthly:
-		return true
-	case PortfolioPerformanceResolutionWeekly:
 		return true
 	default:
 		return false
@@ -370,9 +370,6 @@ type Portfolio struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// PortfolioStatus Current lifecycle status of the portfolio's backtest.
-type PortfolioStatus string
-
 // PortfolioCreateRequest Exactly one of `strategyCode` or `strategyCloneUrl` must be provided;
 // supplying both or neither returns 422. Enforced by the handler, not
 // by the JSON schema (oneOf omitted to keep the generated Go type flat).
@@ -420,6 +417,9 @@ type PortfolioStatistic struct {
 	Label  string       `json:"label"`
 	Value  float64      `json:"value"`
 }
+
+// PortfolioStatus Current lifecycle status of the portfolio's backtest.
+type PortfolioStatus string
 
 // PortfolioSummary Top-line numbers for the KPI strip.
 type PortfolioSummary struct {
@@ -497,9 +497,6 @@ type Strategy struct {
 	Stars     *int     `json:"stars,omitempty"`
 }
 
-// StrategyInstallState defines model for Strategy.InstallState.
-type StrategyInstallState string
-
 // StrategyDescribe defines model for StrategyDescribe.
 type StrategyDescribe struct {
 	Benchmark   string              `json:"benchmark"`
@@ -510,6 +507,9 @@ type StrategyDescribe struct {
 	Schedule    string              `json:"schedule"`
 	ShortCode   string              `json:"shortCode"`
 }
+
+// StrategyInstallState defines model for StrategyInstallState.
+type StrategyInstallState string
 
 // StrategyParameter defines model for StrategyParameter.
 type StrategyParameter struct {

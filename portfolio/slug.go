@@ -56,9 +56,15 @@ func Slug(req CreateRequest, d strategy.Describe) (string, error) {
 	// hash.Hash.Write is documented never to return an error, so the
 	// writes below are safe to ignore.
 	h := fnv.New32a()
+	_, _ = h.Write([]byte(req.Name))
+	_, _ = h.Write([]byte{0})
 	_, _ = h.Write(canon)
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(req.Benchmark))
+	_, _ = h.Write([]byte{0})
+	if req.StartDate != nil {
+		_, _ = h.Write([]byte(req.StartDate.Format("2006-01-02")))
+	}
 
 	sum := h.Sum32() & 0xFFFFF // low 20 bits
 

@@ -10,7 +10,7 @@ import (
 )
 
 const describeJSON = `{
-  "shortCode": "fake",
+  "shortcode": "fake",
   "name": "Fake Strategy",
   "description": "Test fixture for pvapi install tests",
   "parameters": [

@@ -33,6 +33,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/dockercli"
 )
@@ -81,10 +82,9 @@ func ImageTag(prefix, cloneURL, ver string) string {
 //  1. git clone --depth=1 --branch <Version> <CloneURL> <DestDir>
 //  2. write generated Dockerfile into <DestDir>/Dockerfile
 //  3. ImageBuild, tag = ImageTag(prefix, CloneURL, Version)
-//  4. docker run --rm <image> describe --json  (via the sdk)
-//  5. validate describe.shortCode matches req.ShortCode
+//  4. docker run --rm <image> describe --json  (short code is authoritative from the image)
 func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDeps) (*InstallResult, error) { //nolint:gocyclo // control flow is sequential; refactoring would obscure error handling
-	if req.ShortCode == "" || req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
+	if req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
 		return nil, ErrInstallMissingFields
 	}
 	if deps.Client == nil {
@@ -101,6 +101,8 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 	bctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	log.Info().Str("clone_url", req.CloneURL).Str("version", req.Version).Msg("cloning strategy repository")
+
 	// 1. clone.
 	cloneCmd := exec.CommandContext(bctx, "git", "clone", "--depth=1", //nolint:gosec // sourced from trusted sync state
 		"--branch", req.Version, req.CloneURL, req.DestDir)
@@ -110,6 +112,7 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 	if err := cloneCmd.Run(); err != nil {
 		return nil, fmt.Errorf("git clone %s@%s: %w\n%s", req.CloneURL, req.Version, err, cloneOut.String())
 	}
+	log.Info().Str("clone_url", req.CloneURL).Msg("clone complete; writing Dockerfile")
 
 	// 2. write generated Dockerfile.
 	goVer, _ := ParseGoVersion(req.DestDir)
@@ -120,6 +123,7 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 
 	// 3. build.
 	tag := ImageTag(deps.ImagePrefix, req.CloneURL, req.Version)
+	log.Info().Str("clone_url", req.CloneURL).Str("image_tag", tag).Msg("building Docker image")
 	buildCtx, err := tarDir(req.DestDir)
 	if err != nil {
 		return nil, fmt.Errorf("tar build context: %w", err)
@@ -138,6 +142,7 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 	if bErr != nil {
 		return nil, fmt.Errorf("%w: %w\n%s", ErrDockerBuildFailed, bErr, buildOut)
 	}
+	log.Info().Str("image_tag", tag).Msg("Docker image built; running describe")
 
 	// 4. describe.
 	describeJSON, err := runDescribeInContainer(bctx, deps.Client, tag)
@@ -145,14 +150,15 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 		return nil, fmt.Errorf("describe after build: %w", err)
 	}
 
-	// 5. validate short code.
 	var parsed Describe
 	if err := json.Unmarshal(describeJSON, &parsed); err != nil {
 		return nil, fmt.Errorf("parsing describe output: %w", err)
 	}
-	if parsed.ShortCode != req.ShortCode {
-		return nil, fmt.Errorf("%w: want %q, got %q", ErrShortCodeMismatch, req.ShortCode, parsed.ShortCode)
-	}
+
+	log.Info().
+		Str("image_tag", tag).
+		Str("short_code", parsed.ShortCode).
+		Msg("Docker image ready")
 
 	return &InstallResult{
 		BinPath:      "",

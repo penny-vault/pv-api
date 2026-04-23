@@ -767,9 +767,7 @@ components:
           type: string
           example: 'ADM aggressive'
         status:
-          type: string
-          enum: [pending, running, ready, failed]
-          description: Current lifecycle status of the portfolio's backtest.
+          $ref: '#/components/schemas/PortfolioStatus'
         strategyCode:
           type: string
         strategyCloneUrl:
@@ -1085,6 +1083,15 @@ components:
           items:
             $ref: '#/components/schemas/HoldingsHistoryEntry'
 
+    PortfolioStatus:
+      type: string
+      enum: [pending, running, ready, failed]
+      description: Current lifecycle status of the portfolio's backtest.
+
+    StrategyInstallState:
+      type: string
+      enum: [pending, installing, ready, failed]
+
     RunStatus:
       type: string
       enum: [queued, running, success, failed]
@@ -1200,8 +1207,7 @@ components:
           type: integer
           nullable: true
         installState:
-          type: string
-          enum: [pending, installing, ready, failed]
+          $ref: '#/components/schemas/StrategyInstallState'
         installedVer:
           type: string
           nullable: true
