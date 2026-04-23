@@ -22,6 +22,8 @@ tags:
     description: Portfolios belonging to the authenticated user
   - name: Strategies
     description: Strategy registry and unofficial strategy registration
+  - name: Alerts
+    description: Email alerts attached to a portfolio
 
 paths:
   /portfolios:
@@ -461,6 +463,116 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/alerts:
+    get:
+      tags: [Alerts]
+      operationId: listPortfolioAlerts
+      summary: List alerts for a portfolio
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Array of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alert'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Alerts]
+      operationId: createPortfolioAlert
+      summary: Create a new alert for a portfolio
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertCreateRequest'
+      responses:
+        '201':
+          description: Alert created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /portfolios/{slug}/alerts/{alertId}:
+    patch:
+      tags: [Alerts]
+      operationId: updatePortfolioAlert
+      summary: Update an existing alert
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertUpdateRequest'
+      responses:
+        '200':
+          description: Alert updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Alerts]
+      operationId: deletePortfolioAlert
+      summary: Delete an alert
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
