@@ -1035,7 +1035,7 @@ components:
         Exactly one of `strategyCode` or `strategyCloneUrl` must be provided;
         supplying both or neither returns 422. Enforced by the handler, not
         by the JSON schema (oneOf omitted to keep the generated Go type flat).
-      required: [name, parameters, mode]
+      required: [name, parameters]
       properties:
         name:
           type: string
@@ -1057,15 +1057,14 @@ components:
         benchmark:
           type: string
           default: 'SPY'
-        mode:
-          $ref: '#/components/schemas/PortfolioMode'
-        schedule:
+        startDate:
           type: string
-          description: tradecron string, required iff mode=continuous (e.g. `@monthend`).
-        runNow:
-          type: boolean
-          description: If true, kick the first run immediately after create.
-          default: false
+          format: date
+          description: Backtest start date (YYYY-MM-DD). Omit to use the strategy default.
+        endDate:
+          type: string
+          format: date
+          description: Backtest end date (YYYY-MM-DD). Omit to use today.
 
     PortfolioUpdateRequest:
       type: object
