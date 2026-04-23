@@ -29,6 +29,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/openapi"
+	"github.com/penny-vault/pv-api/progress"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
 )
@@ -45,6 +46,7 @@ type Handler struct {
 	strategies strategy.ReadStore
 	opener     SnapshotOpener
 	dispatcher Dispatcher
+	hub        *progress.Hub
 
 	ephemeralBuilder strategy.BuilderFunc
 	urlValidator     strategy.URLValidatorFunc
