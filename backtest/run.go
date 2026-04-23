@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,6 +53,7 @@ type orchestrator struct {
 	rs           RunStore
 	resolve      ArtifactResolver
 	notifier     Notifier
+	hub          *ProgressHub
 }
 
 // NewRunner builds the orchestration object that ties together the runner,
@@ -66,6 +68,12 @@ func NewRunner(cfg Config, runner Runner, artifactKind ArtifactKind, ps Portfoli
 // WithNotifier attaches an optional Notifier that will be called after each run completes.
 func (o *orchestrator) WithNotifier(n Notifier) *orchestrator {
 	o.notifier = n
+	return o
+}
+
+// WithProgressHub attaches an optional ProgressHub for live progress streaming.
+func (o *orchestrator) WithProgressHub(h *ProgressHub) *orchestrator {
+	o.hub = h
 	return o
 }
 
@@ -105,13 +113,19 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	final := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite")
 	_ = os.Remove(tmp)
 
+	var progressWriter io.Writer
+	if o.hub != nil {
+		progressWriter = NewProgressLineWriter(o.hub, runID)
+	}
+
 	if err := o.runner.Run(ctx, RunRequest{
-		RunID:        runID,
-		Artifact:     artifact,
-		ArtifactKind: o.artifactKind,
-		Args:         BuildArgs(row.Parameters, row.Benchmark, row.StartDate, row.EndDate),
-		OutPath:      tmp,
-		Timeout:      o.cfg.Timeout,
+		RunID:          runID,
+		Artifact:       artifact,
+		ArtifactKind:   o.artifactKind,
+		Args:           BuildArgs(row.Parameters, row.Benchmark, row.StartDate, row.EndDate),
+		OutPath:        tmp,
+		Timeout:        o.cfg.Timeout,
+		ProgressWriter: progressWriter,
 	}); err != nil {
 		return o.fail(ctx, portfolioID, runID, started, err)
 	}
@@ -129,6 +143,9 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		kp.CurrentValue, kp.YtdReturn, kp.MaxDrawdown, kp.Sharpe, kp.Cagr,
 		kp.InceptionDate, durationMs(time.Since(started))); err != nil {
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark ready: %w", err))
+	}
+	if o.hub != nil {
+		o.hub.Complete(runID, "success", "")
 	}
 	if o.notifier != nil {
 		if err := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, true); err != nil {
@@ -194,6 +211,9 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 		msg = msg[:2048]
 	}
 	_ = o.ps.MarkFailedTx(ctx, portfolioID, runID, msg, durationMs(time.Since(started)))
+	if o.hub != nil {
+		o.hub.Complete(runID, "failed", msg)
+	}
 	if o.notifier != nil {
 		if notifyErr := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, false); notifyErr != nil {
 			log.Warn().Err(notifyErr).Stringer("portfolio_id", portfolioID).Msg("alert notification failed")
