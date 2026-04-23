@@ -682,16 +682,13 @@ components:
     # ============ Portfolio detail ============
     Portfolio:
       type: object
-      description: Portfolio configuration + status. Derived backtest output lives on separate endpoints.
+      description: Portfolio configuration. Derived backtest output lives on separate endpoints.
       required:
         - slug
         - name
         - strategyCode
-        - strategyCloneUrl
         - parameters
         - benchmark
-        - mode
-        - status
         - createdAt
         - updatedAt
       properties:
@@ -706,11 +703,12 @@ components:
         strategyCloneUrl:
           type: string
           format: uri
-          description: Clone URL of the strategy that produced this portfolio.
+          nullable: true
+          description: Clone URL for unofficial strategies; null for official ones.
         strategyVer:
           type: string
           nullable: true
-          description: Pinned strategy version (NULL for unofficial portfolios).
+          description: Pinned strategy version (null for unofficial portfolios).
         parameters:
           type: object
           additionalProperties: true
@@ -721,14 +719,16 @@ components:
         benchmark:
           type: string
           example: 'SPY'
-        mode:
-          $ref: '#/components/schemas/PortfolioMode'
-        schedule:
+        startDate:
           type: string
+          format: date
           nullable: true
-          description: tradecron string; null when mode=one_shot.
-        status:
-          $ref: '#/components/schemas/PortfolioStatus'
+          description: Backtest start date (YYYY-MM-DD). Null means strategy default.
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Backtest end date (YYYY-MM-DD). Null means today.
         createdAt:
           type: string
           format: date-time
