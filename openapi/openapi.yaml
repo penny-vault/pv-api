@@ -1068,12 +1068,21 @@ components:
 
     PortfolioUpdateRequest:
       type: object
-      description: PATCH body. Only `name` is mutable — changing parameters, schedule, benchmark, or mode would break the slug invariant, so those fields are rejected with 422.
-      required: [name]
+      description: |
+        PATCH body. Only `name`, `startDate`, and `endDate` are mutable.
+        Any other field is rejected with 422. All fields are optional; omit
+        any field you do not want to change.
       properties:
         name:
           type: string
-      additionalProperties: false
+        startDate:
+          type: string
+          format: date
+          description: Backtest start date (YYYY-MM-DD).
+        endDate:
+          type: string
+          format: date
+          description: Backtest end date (YYYY-MM-DD).
 
     BacktestRun:
       type: object
