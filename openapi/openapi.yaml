@@ -753,6 +753,7 @@ components:
       required:
         - slug
         - name
+        - status
         - strategyCode
         - parameters
         - benchmark
@@ -765,6 +766,10 @@ components:
         name:
           type: string
           example: 'ADM aggressive'
+        status:
+          type: string
+          enum: [pending, running, ready, failed]
+          description: Current lifecycle status of the portfolio's backtest.
         strategyCode:
           type: string
         strategyCloneUrl:
