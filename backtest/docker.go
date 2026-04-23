@@ -58,7 +58,11 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 		defer cancel()
 	}
 
-	cmdLine := append([]string{"backtest", "--output", req.OutPath}, req.Args...)
+	cmdLine := []string{"backtest", "--output", req.OutPath}
+	if req.ProgressWriter != nil {
+		cmdLine = append(cmdLine, "--json")
+	}
+	cmdLine = append(cmdLine, req.Args...)
 	cfg := &container.Config{
 		Image: req.Artifact,
 		Cmd:   cmdLine,
@@ -99,7 +103,7 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 		done = make(chan struct{})
 		go func() {
 			defer close(done)
-			streamContainerLogs(logs, &tail)
+			streamContainerLogs(logs, &tail, req.ProgressWriter)
 		}()
 	}
 
@@ -138,11 +142,15 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 // streamContainerLogs demultiplexes Docker's framed log stream into two
 // zerolog log-writer sinks and keeps a bounded tail of stderr for error
 // messages.
-func streamContainerLogs(r io.ReadCloser, tail *tailWriter) {
+func streamContainerLogs(r io.ReadCloser, tail *tailWriter, progressWriter io.Writer) {
 	defer r.Close() //nolint:errcheck // log stream close is best-effort
-	stdout := newLogWriter("strategy-stdout")
+	logW := newLogWriter("strategy-stdout")
+	var stdoutW io.Writer = logW
+	if progressWriter != nil {
+		stdoutW = io.MultiWriter(logW, progressWriter)
+	}
 	stderr := newLogWriter("strategy-stderr")
-	_, _ = stdcopy.StdCopy(stdout, io.MultiWriter(stderr, tail), r)
+	_, _ = stdcopy.StdCopy(stdoutW, io.MultiWriter(stderr, tail), r)
 }
 
 // tailWriter accumulates up to max bytes written to it. All methods are

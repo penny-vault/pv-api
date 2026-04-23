@@ -16,6 +16,7 @@
 package backtest_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -96,6 +97,21 @@ var _ = Describe("DockerRunner", func() {
 		Expect(errors.Is(err, backtest.ErrTimedOut)).To(BeTrue())
 		Expect(fc.KilledIDs).NotTo(BeEmpty())
 		Expect(fc.KilledSignals).To(ContainElement("SIGKILL"))
+	})
+
+	It("passes --json and tees stdout to ProgressWriter when ProgressWriter is set", func() {
+		fc.DescribeStdout = []byte(`{"type":"progress","step":1,"total_steps":10,"pct":10.0}`)
+		var buf bytes.Buffer
+		err := runner.Run(context.Background(), backtest.RunRequest{
+			Artifact:       "img",
+			ArtifactKind:   backtest.ArtifactImage,
+			OutPath:        "/snap.sqlite.tmp",
+			Timeout:        time.Second,
+			ProgressWriter: &buf,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fc.CreatedCmds[0]).To(ContainElement("--json"))
+		Expect(buf.String()).To(ContainSubstring(`"type":"progress"`))
 	})
 
 	It("uses the Network setting on the host config", func() {
