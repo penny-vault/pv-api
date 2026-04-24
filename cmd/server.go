@@ -409,7 +409,7 @@ var serverCmd = &cobra.Command{
 			Dispatcher:     dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener: snapshot.Opener{},
 			ProgressHub:    hub,
-			AlertChecker:  checker,
+			AlertChecker:   checker,
 			Ephemeral: api.EphemeralConfig{
 				Dir:     conf.Strategy.EphemeralDir,
 				Timeout: conf.Strategy.EphemeralInstallTimeout,
