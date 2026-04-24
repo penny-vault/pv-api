@@ -550,6 +550,11 @@ type Drawdown struct {
 	Trough openapi_types.Date `json:"trough"`
 }
 
+// EmailSummaryRequest defines model for EmailSummaryRequest.
+type EmailSummaryRequest struct {
+	Recipient openapi_types.Email `json:"recipient"`
+}
+
 // HistoricalHolding Position reconstructed by replaying transactions. lastTradeValue is
 // quantity × last trade price seen in the transaction log, not a
 // mark-to-market value from a pricing feed.
@@ -996,3 +1001,6 @@ type CreatePortfolioAlertJSONRequestBody = AlertCreateRequest
 
 // UpdatePortfolioAlertJSONRequestBody defines body for UpdatePortfolioAlert for application/json ContentType.
 type UpdatePortfolioAlertJSONRequestBody = AlertUpdateRequest
+
+// SendPortfolioEmailSummaryJSONRequestBody defines body for SendPortfolioEmailSummary for application/json ContentType.
+type SendPortfolioEmailSummaryJSONRequestBody = EmailSummaryRequest

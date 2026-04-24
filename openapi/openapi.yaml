@@ -731,6 +731,32 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/email-summary:
+    post:
+      tags: [Alerts]
+      operationId: sendPortfolioEmailSummary
+      summary: Send a portfolio summary email on demand
+      description: Sends the current portfolio summary email to a single recipient. Intended for testing the email pipeline without waiting for a scheduled run.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailSummaryRequest'
+      responses:
+        '201':
+          description: Email accepted for delivery
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          description: Email sending is not configured on this server
+
   /strategies:
     get:
       tags: [Strategies]
@@ -1623,3 +1649,12 @@ components:
           items:
             type: string
           minItems: 1
+
+    EmailSummaryRequest:
+      type: object
+      required: [recipient]
+      properties:
+        recipient:
+          type: string
+          format: email
+          example: user@example.com
