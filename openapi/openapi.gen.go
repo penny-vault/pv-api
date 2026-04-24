@@ -328,6 +328,9 @@ type HoldingsResponse struct {
 // MetricFormat How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
 type MetricFormat string
 
+// MetricGroup Map of pvbt metric name to array of values, one per requested window.
+type MetricGroup map[string][]*float32
+
 // PerformancePoint defines model for PerformancePoint.
 type PerformancePoint struct {
 	// BenchmarkValue Normalized to start at the portfolio's opening value.
@@ -430,6 +433,30 @@ type PortfolioCreated struct {
 	// StrategyVer Pinned strategy version (null for unofficial portfolios).
 	StrategyVer *string   `json:"strategyVer,omitempty"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// PortfolioMetrics All pvbt metrics grouped by category, column-oriented against a shared windows list.
+type PortfolioMetrics struct {
+	// Advanced Map of pvbt metric name to array of values, one per requested window.
+	Advanced *MetricGroup `json:"advanced,omitempty"`
+
+	// Risk Map of pvbt metric name to array of values, one per requested window.
+	Risk *MetricGroup `json:"risk,omitempty"`
+
+	// Summary Map of pvbt metric name to array of values, one per requested window.
+	Summary *MetricGroup `json:"summary,omitempty"`
+
+	// Tax Map of pvbt metric name to array of values, one per requested window.
+	Tax *MetricGroup `json:"tax,omitempty"`
+
+	// Trade Map of pvbt metric name to array of values, one per requested window.
+	Trade *MetricGroup `json:"trade,omitempty"`
+
+	// Windows Ordered list of requested windows. Each metric value array is aligned to this list.
+	Windows []string `json:"windows"`
+
+	// Withdrawal Map of pvbt metric name to array of values, one per requested window.
+	Withdrawal *MetricGroup `json:"withdrawal,omitempty"`
 }
 
 // PortfolioPerformance defines model for PortfolioPerformance.
@@ -627,6 +654,15 @@ type GetPortfolioHoldingsHistoryParams struct {
 
 	// To Inclusive upper bound on batch timestamp (YYYY-MM-DD).
 	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetPortfolioMetricsParams defines parameters for GetPortfolioMetrics.
+type GetPortfolioMetricsParams struct {
+	// Window Comma-separated windows (since_inception,5yr,3yr,1yr,ytd,mtd,wtd). Default is since_inception.
+	Window *string `form:"window,omitempty" json:"window,omitempty"`
+
+	// Metric Comma-separated pvbt PascalCase metric names. Default is all metrics.
+	Metric *string `form:"metric,omitempty" json:"metric,omitempty"`
 }
 
 // GetPortfolioPerformanceParams defines parameters for GetPortfolioPerformance.
