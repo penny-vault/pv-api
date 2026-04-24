@@ -443,8 +443,9 @@ func (f *fakeSnapshotOpener) Open(path string) (portfolio.SnapshotReader, error)
 }
 
 type fakeSnapshotReader struct {
-	summary *openapi.PortfolioSummary
-	metrics *openapi.PortfolioMetrics
+	summary          *openapi.PortfolioSummary
+	metrics          *openapi.PortfolioMetrics
+	holdingsImpactFn func(ctx context.Context, slug string, topN int) (*openapi.HoldingsImpactResponse, error)
 }
 
 func (f *fakeSnapshotReader) Close() error { return nil }
@@ -478,8 +479,14 @@ func (f *fakeSnapshotReader) Transactions(_ context.Context, _ portfolio.Snapsho
 func (f *fakeSnapshotReader) Metrics(_ context.Context, _, _ []string) (*openapi.PortfolioMetrics, error) {
 	return f.metrics, nil
 }
-func (f *fakeSnapshotReader) HoldingsImpact(_ context.Context, _ string, _ int) (*openapi.HoldingsImpactResponse, error) {
-	return nil, nil
+func (f *fakeSnapshotReader) HoldingsImpact(ctx context.Context, slug string, topN int) (*openapi.HoldingsImpactResponse, error) {
+	if f.holdingsImpactFn != nil {
+		return f.holdingsImpactFn(ctx, slug, topN)
+	}
+	return &openapi.HoldingsImpactResponse{
+		PortfolioSlug: slug,
+		Periods:       []openapi.HoldingsImpactPeriod{},
+	}, nil
 }
 
 var _ = Describe("Handler.Summary", func() {
