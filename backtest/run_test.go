@@ -167,6 +167,73 @@ var _ = Describe("Run orchestration", func() {
 		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
 	})
 
+	It("fires hub.Complete with success when the run succeeds", func() {
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+		runID := uuid.New()
+		hub := backtest.NewProgressHub()
+		events, _ := hub.Subscribe(runID)
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			}).WithProgressHub(hub)
+
+		Expect(r.Run(context.Background(), ps.row.ID, runID)).To(Succeed())
+
+		var terminal *backtest.TerminalEvent
+		for evt := range events {
+			if evt.Terminal != nil {
+				terminal = evt.Terminal
+				break
+			}
+		}
+		Expect(terminal).NotTo(BeNil())
+		Expect(terminal.Status).To(Equal("success"))
+	})
+
+	It("fires hub.Complete with failed when the run fails", func() {
+		snapsDir := GinkgoT().TempDir()
+		Expect(os.Setenv("FAKESTRAT_BEHAVIOR", "fail")).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_BEHAVIOR") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+		runID := uuid.New()
+		hub := backtest.NewProgressHub()
+		events, _ := hub.Subscribe(runID)
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			}).WithProgressHub(hub)
+
+		Expect(r.Run(context.Background(), ps.row.ID, runID)).To(MatchError(backtest.ErrRunnerFailed))
+
+		var terminal *backtest.TerminalEvent
+		for evt := range events {
+			if evt.Terminal != nil {
+				terminal = evt.Terminal
+				break
+			}
+		}
+		Expect(terminal).NotTo(BeNil())
+		Expect(terminal.Status).To(Equal("failed"))
+	})
+
 	It("calls cleanup after a runner failure", func() {
 		snapsDir := GinkgoT().TempDir()
 		Expect(os.Setenv("FAKESTRAT_BEHAVIOR", "fail")).To(Succeed())

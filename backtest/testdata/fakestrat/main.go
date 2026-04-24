@@ -23,6 +23,7 @@ func main() {
 
 	fs := flag.NewFlagSet("fakestrat", flag.ContinueOnError)
 	output := fs.String("output", "", "output SQLite path")
+	jsonMode := fs.Bool("json", false, "emit JSON progress to stdout")
 	// Parse only known flags; unknown flags (strategy parameters) are ignored.
 	_ = fs.Parse(os.Args[1:])
 
@@ -32,6 +33,10 @@ func main() {
 		os.Exit(1)
 	case "sleep":
 		time.Sleep(1 * time.Hour)
+	}
+
+	if *jsonMode {
+		fmt.Println(`{"type":"progress","step":1,"total_steps":10,"current_date":"2023-01-01","target_date":"2025-01-01","pct":10.0,"elapsed_ms":100,"eta_ms":900,"measurements":100}`)
 	}
 
 	if *output == "" {

@@ -29,10 +29,7 @@ import (
 )
 
 // Install-related sentinel errors.
-var (
-	ErrInstallMissingFields = errors.New("InstallRequest: all fields required")
-	ErrShortCodeMismatch    = errors.New("describe short_code mismatch")
-)
+var ErrInstallMissingFields = errors.New("InstallRequest: all fields required")
 
 // InstallRequest describes a single version-pinned install.
 type InstallRequest struct {

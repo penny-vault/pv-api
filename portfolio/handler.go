@@ -29,6 +29,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/openapi"
+	"github.com/penny-vault/pv-api/progress"
 	"github.com/penny-vault/pv-api/strategy"
 	"github.com/penny-vault/pv-api/types"
 )
@@ -45,6 +46,7 @@ type Handler struct {
 	strategies strategy.ReadStore
 	opener     SnapshotOpener
 	dispatcher Dispatcher
+	hub        *progress.Hub
 
 	ephemeralBuilder strategy.BuilderFunc
 	urlValidator     strategy.URLValidatorFunc
@@ -442,6 +444,7 @@ func parseDate(s string) (*time.Time, error) {
 type portfolioView struct {
 	Slug             string         `json:"slug"`
 	Name             string         `json:"name"`
+	Status           string         `json:"status"`
 	StrategyCode     string         `json:"strategyCode"`
 	StrategyVer      *string        `json:"strategyVer"`
 	StrategyCloneURL string         `json:"strategyCloneUrl"`
@@ -460,6 +463,7 @@ func toView(p Portfolio) portfolioView {
 	v := portfolioView{
 		Slug:             p.Slug,
 		Name:             p.Name,
+		Status:           string(p.Status),
 		StrategyCode:     p.StrategyCode,
 		StrategyVer:      p.StrategyVer,
 		StrategyCloneURL: p.StrategyCloneURL,

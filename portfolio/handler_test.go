@@ -406,6 +406,27 @@ var _ = Describe("portfolio.Handler", func() {
 		status, _, _ = request("GET", "/portfolios/"+slug, sub1, nil)
 		Expect(status).To(Equal(404))
 	})
+
+	It("returns status in the GET /portfolios/:slug response", func() {
+		store.rows = []portfolio.Portfolio{{
+			ID:           uuid.Must(uuid.NewV7()),
+			OwnerSub:     sub1,
+			Slug:         "adm-ready-0001",
+			Name:         "ADM ready",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY"},
+			Benchmark:    "SPY",
+			Status:       portfolio.StatusReady,
+			CreatedAt:    time.Now().UTC(),
+			UpdatedAt:    time.Now().UTC(),
+		}}
+
+		httpStatus, body, _ := request("GET", "/portfolios/adm-ready-0001", sub1, nil)
+		Expect(httpStatus).To(Equal(200))
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		Expect(out["status"]).To(Equal("ready"))
+	})
 })
 
 // Minimal fakes for derived-endpoint specs.

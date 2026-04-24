@@ -76,6 +76,30 @@ func (e PortfolioPerformanceResolution) Valid() bool {
 	}
 }
 
+// Defines values for PortfolioStatus.
+const (
+	PortfolioStatusFailed  PortfolioStatus = "failed"
+	PortfolioStatusPending PortfolioStatus = "pending"
+	PortfolioStatusReady   PortfolioStatus = "ready"
+	PortfolioStatusRunning PortfolioStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the PortfolioStatus enum.
+func (e PortfolioStatus) Valid() bool {
+	switch e {
+	case PortfolioStatusFailed:
+		return true
+	case PortfolioStatusPending:
+		return true
+	case PortfolioStatusReady:
+		return true
+	case PortfolioStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReturnRowKind.
 const (
 	ReturnRowKindBenchmark    ReturnRowKind = "benchmark"
@@ -126,22 +150,22 @@ func (e RunStatus) Valid() bool {
 
 // Defines values for StrategyInstallState.
 const (
-	StrategyInstallStateFailed     StrategyInstallState = "failed"
-	StrategyInstallStateInstalling StrategyInstallState = "installing"
-	StrategyInstallStatePending    StrategyInstallState = "pending"
-	StrategyInstallStateReady      StrategyInstallState = "ready"
+	Failed     StrategyInstallState = "failed"
+	Installing StrategyInstallState = "installing"
+	Pending    StrategyInstallState = "pending"
+	Ready      StrategyInstallState = "ready"
 )
 
 // Valid indicates whether the value is a known member of the StrategyInstallState enum.
 func (e StrategyInstallState) Valid() bool {
 	switch e {
-	case StrategyInstallStateFailed:
+	case Failed:
 		return true
-	case StrategyInstallStateInstalling:
+	case Installing:
 		return true
-	case StrategyInstallStatePending:
+	case Pending:
 		return true
-	case StrategyInstallStateReady:
+	case Ready:
 		return true
 	default:
 		return false
@@ -334,6 +358,9 @@ type Portfolio struct {
 	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 
+	// Status Current lifecycle status of the portfolio's backtest.
+	Status PortfolioStatus `json:"status"`
+
 	// StrategyCloneUrl Clone URL for unofficial strategies; empty string for official ones.
 	StrategyCloneUrl *string `json:"strategyCloneUrl,omitempty"`
 	StrategyCode     string  `json:"strategyCode"`
@@ -390,6 +417,9 @@ type PortfolioStatistic struct {
 	Label  string       `json:"label"`
 	Value  float64      `json:"value"`
 }
+
+// PortfolioStatus Current lifecycle status of the portfolio's backtest.
+type PortfolioStatus string
 
 // PortfolioSummary Top-line numbers for the KPI strip.
 type PortfolioSummary struct {
@@ -467,9 +497,6 @@ type Strategy struct {
 	Stars     *int     `json:"stars,omitempty"`
 }
 
-// StrategyInstallState defines model for Strategy.InstallState.
-type StrategyInstallState string
-
 // StrategyDescribe defines model for StrategyDescribe.
 type StrategyDescribe struct {
 	Benchmark   string              `json:"benchmark"`
@@ -480,6 +507,9 @@ type StrategyDescribe struct {
 	Schedule    string              `json:"schedule"`
 	ShortCode   string              `json:"shortCode"`
 }
+
+// StrategyInstallState defines model for StrategyInstallState.
+type StrategyInstallState string
 
 // StrategyParameter defines model for StrategyParameter.
 type StrategyParameter struct {

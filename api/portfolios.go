@@ -42,6 +42,7 @@ func RegisterPortfolioRoutes(r fiber.Router) {
 	r.Post("/portfolios/:slug/run", stubPortfolio)
 	r.Get("/portfolios/:slug/runs", stubPortfolio)
 	r.Get("/portfolios/:slug/runs/:runId", stubPortfolio)
+	r.Get("/portfolios/:slug/runs/:runId/progress", stubPortfolio)
 }
 
 // RegisterPortfolioRoutesWith mounts all portfolio endpoints backed by h.
@@ -63,6 +64,7 @@ func RegisterPortfolioRoutesWith(r fiber.Router, h *portfolio.Handler) {
 	r.Post("/portfolios/:slug/run", h.CreateRun)
 	r.Get("/portfolios/:slug/runs", h.ListRuns)
 	r.Get("/portfolios/:slug/runs/:runId", h.GetRun)
+	r.Get("/portfolios/:slug/runs/:runId/progress", h.StreamRunProgress)
 }
 
 // RegisterAlertRoutesWith mounts alert CRUD endpoints backed by h.
