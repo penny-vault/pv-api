@@ -18,6 +18,8 @@ package snapshot_test
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"math"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,6 +30,8 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/snapshot"
 )
+
+func round6(x float64) float64 { return math.Round(x*1e6) / 1e6 }
 
 // execAll runs a sequence of SQL statements against the file at path. Used by
 // tests that need to mutate a fixture snapshot before reopening.
@@ -104,12 +108,12 @@ var _ = Describe("Reader.HoldingsImpact", func() {
 		Expect(*vti.Figi).To(Equal("BBG000BDTBL9"))
 		Expect(cash.Figi).To(BeNil())
 
-		// items + rest must sum to cumulativeReturn exactly (pre-round tolerance 1e-6).
+		// items + rest == round6(cumulativeReturn) exactly by construction.
 		sum := inception.Rest.Contribution
 		for _, it := range inception.Items {
 			sum += it.Contribution
 		}
-		Expect(sum).To(BeNumerically("~", inception.CumulativeReturn, 1e-6))
+		Expect(round6(sum)).To(Equal(round6(inception.CumulativeReturn)))
 
 		// With topN=10 both tickers are in items; rest is empty.
 		Expect(inception.Rest.Count).To(Equal(int64(0)))
@@ -128,9 +132,10 @@ var _ = Describe("Reader.HoldingsImpact", func() {
 		// (pnl_CASH=2674.50 vs pnl_VTI=325.50), so $CASH should be the sole item.
 		Expect(inception.Items[0].Ticker).To(Equal("$CASH"))
 
-		// Identity still holds: items.contribution + rest.contribution == cumulativeReturn.
+		// Identity holds exactly at 6dp: items.contribution + rest.contribution
+		// == round6(cumulativeReturn), by construction.
 		sum := inception.Rest.Contribution + inception.Items[0].Contribution
-		Expect(sum).To(BeNumerically("~", inception.CumulativeReturn, 1e-6))
+		Expect(round6(sum)).To(Equal(round6(inception.CumulativeReturn)))
 	})
 
 	It("omits 5y/3y/1y when history is too short", func() {
@@ -201,6 +206,26 @@ var _ = Describe("Reader.HoldingsImpact", func() {
 		// would be ~0.0976; partial is ~0.078).
 		Expect(vti.AvgWeight).To(BeNumerically("<", 0.09))
 		Expect(vti.AvgWeight).To(BeNumerically(">", 0))
+	})
+
+	It("returns ErrNotFound when positions_daily is empty (pre-v5 snapshot)", func() {
+		_ = r.Close()
+		r = nil
+
+		path2 := filepath.Join(GinkgoT().TempDir(), "nopos.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path2)).To(Succeed())
+		// Strip all positions_daily rows to simulate a pre-v5 snapshot that
+		// has perf_data but no positions_daily data.
+		Expect(execAll(path2, []string{
+			`DELETE FROM positions_daily`,
+		})).To(Succeed())
+
+		r2, err := snapshot.Open(path2)
+		Expect(err).NotTo(HaveOccurred())
+		defer r2.Close()
+
+		_, err = r2.HoldingsImpact(context.Background(), "acme", 10)
+		Expect(errors.Is(err, snapshot.ErrNotFound)).To(BeTrue())
 	})
 
 	It("errors when positions do not balance perf_data (residual guard)", func() {

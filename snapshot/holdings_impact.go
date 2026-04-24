@@ -147,12 +147,14 @@ func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay,
 		return nil, fmt.Errorf("holdings-impact positions query: %w", err)
 	}
 	defer func() { _ = posRows.Close() }()
+	var positionRowCount int
 	for posRows.Next() {
 		var ds, ticker, figi string
 		var mv, qty float64
 		if err := posRows.Scan(&ds, &ticker, &figi, &mv, &qty); err != nil {
 			return nil, fmt.Errorf("holdings-impact positions scan: %w", err)
 		}
+		positionRowCount++
 		day, ok := byDate[ds]
 		if !ok {
 			continue
@@ -161,6 +163,11 @@ func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay,
 	}
 	if err := posRows.Err(); err != nil {
 		return nil, fmt.Errorf("holdings-impact positions iterate: %w", err)
+	}
+	// Pre-v5 snapshots may have perf_data without positions_daily; surface as
+	// a 404 (ErrNotFound) rather than letting the residual check emit a 500.
+	if positionRowCount == 0 {
+		return nil, ErrNotFound
 	}
 
 	// Pass 3: transactions — attribute cash-flow effects to ticker and $CASH.
@@ -329,7 +336,7 @@ func computePeriod(timeline []timelineDay, w periodWindow, topN int) (*openapi.H
 
 		item := openapi.HoldingsImpactItem{
 			Ticker:       k.ticker,
-			Contribution: round6(pnl / v0),
+			Contribution: pnl / v0, // full precision; rounded after split below
 			AvgWeight:    round6(avgWeight),
 			HoldingDays:  holdingDays,
 		}
@@ -357,20 +364,23 @@ func computePeriod(timeline []timelineDay, w periodWindow, topN int) (*openapi.H
 		return items[i].Ticker < items[j].Ticker
 	})
 
-	// Split top-N into items; fold the remainder into rest.
+	cumulativeReturn := v1/v0 - 1
+
+	// Split top-N into items; fold the remainder into rest. Round named items
+	// first, then derive rest.Contribution as round6(cumulativeReturn) minus
+	// sum(round6(named)), so items + rest == round6(cumulativeReturn) exactly.
 	rest := openapi.HoldingsImpactRest{}
 	if len(items) > topN {
-		remainder := items[topN:]
-		var restContribution float64
-		for _, it := range remainder {
-			restContribution += it.Contribution
-		}
-		rest.Contribution = round6(restContribution)
-		rest.Count = int64(len(remainder))
+		rest.Count = int64(len(items) - topN)
 		items = items[:topN]
 	}
+	var namedSum float64
+	for i := range items {
+		items[i].Contribution = round6(items[i].Contribution)
+		namedSum += items[i].Contribution
+	}
+	rest.Contribution = round6(round6(cumulativeReturn) - namedSum)
 
-	cumulativeReturn := v1/v0 - 1
 	years := t1.Sub(t0).Hours() / 24.0 / 365.25
 	annualizedReturn := 0.0
 	if years > 0 {
