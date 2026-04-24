@@ -45,7 +45,7 @@ var _ = Describe("strategy.Handler", func() {
 			InstalledVer:     &ver,
 			LastAttemptedVer: &ver,
 			InstalledAt:      &at,
-			DescribeJSON:     []byte(`{"shortCode":"adm","name":"ADM","parameters":[],"schedule":"@monthend","benchmark":"SPY"}`),
+			DescribeJSON:     []byte(`{"shortcode":"adm","name":"ADM","parameters":[],"schedule":"@monthend","benchmark":"SPY"}`),
 			DiscoveredAt:     at,
 			UpdatedAt:        at,
 		}

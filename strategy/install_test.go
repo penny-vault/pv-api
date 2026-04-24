@@ -115,16 +115,18 @@ var _ = Describe("Install", func() {
 		Expect(err.Error()).To(ContainSubstring("v9.9.9"))
 	})
 
-	It("fails when describe output's shortCode does not match the request", func() {
+	It("uses the binary's self-reported short code regardless of the request hint", func() {
 		repo := materializeFakeRepo("v1.0.0")
 
-		_, err := strategy.Install(context.Background(), strategy.InstallRequest{
-			ShortCode: "mismatch",
+		result, err := strategy.Install(context.Background(), strategy.InstallRequest{
+			ShortCode: "hint-ignored",
 			CloneURL:  "file://" + repo,
 			Version:   "v1.0.0",
 			DestDir:   GinkgoT().TempDir(),
 		})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("short_code"))
+		Expect(err).NotTo(HaveOccurred())
+		// The fake binary reports "fake" as its short code; the hint is ignored.
+		Expect(result.ShortCode).To(Equal("fake"))
+		Expect(result.BinPath).To(ContainSubstring("fake.bin"))
 	})
 })

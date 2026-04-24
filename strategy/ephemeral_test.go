@@ -129,7 +129,7 @@ var _ = Describe("EphemeralBuild", func() {
 			// Run the built binary and check its output.
 			out, runErr := exec.CommandContext(ctx, binPath, "describe", "--json").Output() //nolint:gosec // binPath from EphemeralBuild
 			Expect(runErr).NotTo(HaveOccurred())
-			Expect(string(out)).To(ContainSubstring(`"shortCode": "fake"`))
+			Expect(string(out)).To(ContainSubstring(`"shortcode": "fake"`))
 
 			// Cleanup should remove the tempdir.
 			buildDir := filepath.Dir(binPath)

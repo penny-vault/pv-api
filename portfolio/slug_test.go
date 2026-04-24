@@ -16,6 +16,8 @@
 package portfolio_test
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -75,6 +77,52 @@ var _ = Describe("Slug", func() {
 		a, _ := portfolio.Slug(base, admDescribe)
 		base.Benchmark = "QQQ"
 		b, _ := portfolio.Slug(base, admDescribe)
+		Expect(a).NotTo(Equal(b))
+	})
+
+	It("differs when name differs", func() {
+		base := portfolio.CreateRequest{
+			Name:         "My Portfolio",
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
+			Benchmark:    "SPY",
+		}
+		a, _ := portfolio.Slug(base, admDescribe)
+		base.Name = "Other Portfolio"
+		b, _ := portfolio.Slug(base, admDescribe)
+		Expect(a).NotTo(Equal(b))
+	})
+
+	It("differs when startDate differs", func() {
+		d1 := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+		d2 := time.Date(2021, 6, 15, 0, 0, 0, 0, time.UTC)
+		base := portfolio.CreateRequest{
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
+			Benchmark:    "SPY",
+			StartDate:    &d1,
+		}
+		a, _ := portfolio.Slug(base, admDescribe)
+		base.StartDate = &d2
+		b, _ := portfolio.Slug(base, admDescribe)
+		Expect(a).NotTo(Equal(b))
+	})
+
+	It("differs when startDate is nil vs set", func() {
+		d := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+		withDate := portfolio.CreateRequest{
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
+			Benchmark:    "SPY",
+			StartDate:    &d,
+		}
+		withoutDate := portfolio.CreateRequest{
+			StrategyCode: "adm",
+			Parameters:   map[string]any{"riskOn": "SPY,GLD,VWO"},
+			Benchmark:    "SPY",
+		}
+		a, _ := portfolio.Slug(withDate, admDescribe)
+		b, _ := portfolio.Slug(withoutDate, admDescribe)
 		Expect(a).NotTo(Equal(b))
 	})
 

@@ -79,21 +79,22 @@ var _ = Describe("InstallDocker", func() {
 		Expect(err).To(MatchError(strategy.ErrDockerBuildFailed))
 	})
 
-	It("returns ErrShortCodeMismatch when describe disagrees", func() {
+	It("uses the binary's self-reported short code regardless of the request hint", func() {
 		srcRepo := materializeFakeRepo("v1.0.0")
 		fc := newFakeDocker()
-		fc.DescribeStdout = []byte(`{"shortCode":"different","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		fc.DescribeStdout = []byte(`{"shortcode":"different","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
 		destDir := filepath.Join(GinkgoT().TempDir(), "install-mismatch")
 
-		_, err := strategy.InstallDocker(context.Background(),
+		result, err := strategy.InstallDocker(context.Background(),
 			strategy.InstallRequest{
-				ShortCode: "fake",
+				ShortCode: "hint-ignored",
 				CloneURL:  "file://" + srcRepo,
 				Version:   "v1.0.0",
 				DestDir:   destDir,
 			},
 			strategy.DockerInstallDeps{Client: fc, ImagePrefix: "pvapi-test"},
 		)
-		Expect(err).To(MatchError(strategy.ErrShortCodeMismatch))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.ShortCode).To(Equal("different"))
 	})
 })

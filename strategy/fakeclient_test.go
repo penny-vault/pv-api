@@ -53,7 +53,7 @@ func newFakeDocker() *fakeDocker {
 		ImageBuildResp: `{"stream":"Step 1/1 : FROM scratch\n"}
 {"stream":"Successfully built abc123\n"}
 `,
-		DescribeStdout: []byte(`{"shortCode":"fake","name":"Fake","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`),
+		DescribeStdout: []byte(`{"shortcode":"fake","name":"Fake","parameters":[],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`),
 	}
 }
 
