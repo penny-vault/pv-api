@@ -538,6 +538,100 @@ var _ = Describe("Handler.Summary", func() {
 	})
 })
 
+var _ = Describe("Handler.Metrics", func() {
+	var (
+		app    *fiber.App
+		store  *fakeStore
+		opener *fakeSnapshotOpener
+		sub    = "auth0|owner"
+	)
+
+	BeforeEach(func() {
+		store = &fakeStore{}
+		opener = &fakeSnapshotOpener{readers: map[string]portfolio.SnapshotReader{}}
+		app = fiber.New(fiber.Config{JSONEncoder: sonic.Marshal, JSONDecoder: sonic.Unmarshal})
+		app.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, sub)
+			return c.Next()
+		})
+		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, nil, nil, nil, strategy.EphemeralOptions{})
+		app.Get("/portfolios/:slug/metrics", h.Metrics)
+	})
+
+	It("returns 404 when portfolio has no snapshot", func() {
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusPending, SnapshotPath: nil,
+		}}
+		req := httptest.NewRequest("GET", "/portfolios/s1/metrics", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+	})
+
+	It("returns 200 with metrics payload", func() {
+		path := "/fake/snap.sqlite"
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusReady, SnapshotPath: &path,
+		}}
+		sharpeVal := 1.55
+		g := openapi.MetricGroup{"Sharpe": []*float64{&sharpeVal}}
+		want := &openapi.PortfolioMetrics{
+			Windows: []string{"since_inception"},
+			Summary: &g,
+		}
+		opener.readers[path] = &fakeSnapshotReader{metrics: want}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/metrics", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+
+		body, _ := io.ReadAll(resp.Body)
+		var got openapi.PortfolioMetrics
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.Windows).To(Equal([]string{"since_inception"}))
+	})
+
+	It("passes window and metric query params to reader", func() {
+		path := "/fake/snap.sqlite"
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusReady, SnapshotPath: &path,
+		}}
+
+		var capturedWindows, capturedMetrics []string
+		capturingReader := &capturingMetricsReader{
+			fakeSnapshotReader: &fakeSnapshotReader{
+				metrics: &openapi.PortfolioMetrics{Windows: []string{"since_inception", "1yr"}},
+			},
+			onMetrics: func(w, m []string) {
+				capturedWindows = w
+				capturedMetrics = m
+			},
+		}
+		opener.readers[path] = capturingReader
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/metrics?window=since_inception,1yr&metric=Sharpe,Beta", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+		Expect(capturedWindows).To(Equal([]string{"since_inception", "1yr"}))
+		Expect(capturedMetrics).To(Equal([]string{"Sharpe", "Beta"}))
+	})
+})
+
+type capturingMetricsReader struct {
+	*fakeSnapshotReader
+	onMetrics func(windows, metrics []string)
+}
+
+func (c *capturingMetricsReader) Metrics(ctx context.Context, windows, metrics []string) (*openapi.PortfolioMetrics, error) {
+	c.onMetrics(windows, metrics)
+	return c.fakeSnapshotReader.Metrics(ctx, windows, metrics)
+}
+
 var _ = Describe("Create with date period", func() {
 	installedVer := "v1.0.0"
 	describeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[{"name":"standard","parameters":{"riskOn":"VFINX,PRIDX,QQQ"}}],"schedule":"@monthend","benchmark":"SPY"}`)
