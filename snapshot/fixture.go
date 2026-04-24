@@ -87,6 +87,17 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO metrics VALUES ('2024-01-08', 'ulcer_index', 'full', 0.50)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'tax_cost_ratio', 'full', 0.01)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'max_drawdown', 'full', -0.00495)`,
+
+		// pvbt PascalCase metrics — used by the Metrics() method tests
+		`INSERT INTO metrics VALUES ('2024-01-08', 'Sharpe', 'since_inception', 1.55)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'Sharpe', '1yr', 1.20)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'Sortino', 'since_inception', 1.82)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'UpsideCaptureRatio', 'since_inception', 1.05)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'DownsideCaptureRatio', 'since_inception', 0.82)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'Beta', 'since_inception', 0.90)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'Beta', '1yr', 0.88)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'WinRate', 'since_inception', 0.62)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxCostRatio', 'since_inception', 0.015)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
