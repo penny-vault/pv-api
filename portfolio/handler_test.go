@@ -478,6 +478,9 @@ func (f *fakeSnapshotReader) Transactions(_ context.Context, _ portfolio.Snapsho
 func (f *fakeSnapshotReader) Metrics(_ context.Context, _, _ []string) (*openapi.PortfolioMetrics, error) {
 	return f.metrics, nil
 }
+func (f *fakeSnapshotReader) HoldingsImpact(_ context.Context, _ string, _ int) (*openapi.HoldingsImpactResponse, error) {
+	return nil, nil
+}
 
 var _ = Describe("Handler.Summary", func() {
 	var (
