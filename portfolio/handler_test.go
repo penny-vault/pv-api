@@ -462,7 +462,7 @@ func (f *fakeSnapshotReader) TrailingReturns(_ context.Context) ([]openapi.Trail
 func (f *fakeSnapshotReader) CurrentHoldings(_ context.Context) (*openapi.HoldingsResponse, error) {
 	return nil, nil
 }
-func (f *fakeSnapshotReader) HoldingsAsOf(_ context.Context, _ time.Time) (*openapi.HoldingsResponse, error) {
+func (f *fakeSnapshotReader) HoldingsAsOf(_ context.Context, _ time.Time) (*openapi.HoldingsAsOfResponse, error) {
 	return nil, nil
 }
 func (f *fakeSnapshotReader) HoldingsHistory(_ context.Context, _, _ *time.Time) (*openapi.HoldingsHistoryResponse, error) {

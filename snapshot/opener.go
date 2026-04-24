@@ -35,7 +35,7 @@ func (a readerAdapter) Transactions(ctx context.Context, f portfolio.SnapshotTxF
 	return a.Reader.Transactions(ctx, TransactionFilter{From: f.From, To: f.To, Types: f.Types})
 }
 
-func (a readerAdapter) HoldingsAsOf(ctx context.Context, d time.Time) (*openapi.HoldingsResponse, error) {
+func (a readerAdapter) HoldingsAsOf(ctx context.Context, d time.Time) (*openapi.HoldingsAsOfResponse, error) {
 	resp, err := a.Reader.HoldingsAsOf(ctx, d)
 	if errors.Is(err, ErrNotFound) {
 		return nil, portfolio.ErrSnapshotNotFound

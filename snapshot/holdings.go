@@ -78,8 +78,9 @@ type ledgerRow struct {
 }
 
 // HoldingsAsOf replays transactions up to (and including) date to reconstruct
-// the per-ticker position.
-func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.HoldingsResponse, error) {
+// the per-ticker position. The returned values use lastTradeValue
+// (qty × last trade price from the replay), not a mark-to-market total.
+func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.HoldingsAsOfResponse, error) {
 	startDate, endDate, err := r.readDateWindow(ctx)
 	if err != nil {
 		return nil, err
@@ -92,7 +93,7 @@ func (r *Reader) HoldingsAsOf(ctx context.Context, date time.Time) (*openapi.Hol
 	if err != nil {
 		return nil, err
 	}
-	return ledgerToResponse(date, ledger), nil
+	return ledgerToAsOfResponse(date, ledger), nil
 }
 
 // ledgerAsOf replays transactions in date order up to and including date and
@@ -163,30 +164,36 @@ func applyTxToLedger(pos *ledgerRow, typeStr string, quantity, price float64) {
 	}
 }
 
-// ledgerToResponse converts a ledger map into a HoldingsResponse.
-func ledgerToResponse(date time.Time, ledger map[string]*ledgerRow) *openapi.HoldingsResponse {
-	out := &openapi.HoldingsResponse{
+// ledgerToAsOfResponse converts a ledger map into a HoldingsAsOfResponse.
+// Totals use lastTradeValue (qty × last trade price from the replay).
+func ledgerToAsOfResponse(date time.Time, ledger map[string]*ledgerRow) *openapi.HoldingsAsOfResponse {
+	out := &openapi.HoldingsAsOfResponse{
 		Date:  types.Date{Time: date},
-		Items: []openapi.Holding{},
+		Items: []openapi.HistoricalHolding{},
 	}
-	for ticker, pos := range ledger {
+	tickers := make([]string, 0, len(ledger))
+	for t := range ledger {
+		tickers = append(tickers, t)
+	}
+	sort.Strings(tickers)
+	for _, ticker := range tickers {
+		pos := ledger[ticker]
 		if pos.quantity <= 0 {
 			continue
 		}
-		avg := pos.totalCost / pos.quantity
-		mv := pos.quantity * pos.lastPrice
-		h := openapi.Holding{
-			Ticker:      ticker,
-			Quantity:    pos.quantity,
-			AvgCost:     avg,
-			MarketValue: mv,
+		ltv := pos.quantity * pos.lastPrice
+		h := openapi.HistoricalHolding{
+			Ticker:         ticker,
+			Quantity:       pos.quantity,
+			AvgCost:        pos.totalCost / pos.quantity,
+			LastTradeValue: ltv,
 		}
 		if pos.figi != "" {
 			figi := pos.figi
 			h.Figi = &figi
 		}
 		out.Items = append(out.Items, h)
-		out.TotalMarketValue += mv
+		out.TotalLastTradeValue += ltv
 	}
 	return out
 }
@@ -253,13 +260,13 @@ type batchKey struct {
 
 // holdingsHistoryBatch builds one HoldingsHistoryEntry for the given batch by
 // replaying transactions (date-ordered) up to and including the batch's date.
-// That gives us quantity, avgCost, and marketValue from the same ledger logic
-// used by HoldingsAsOf.
+// Item values use lastTradeValue (qty × last trade price from the replay);
+// portfolioValue is the authoritative mark-to-market total from perf_data.
 func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts time.Time) (openapi.HoldingsHistoryEntry, error) {
 	entry := openapi.HoldingsHistoryEntry{
 		BatchId:   batchID,
 		Timestamp: ts,
-		Items:     []openapi.Holding{},
+		Items:     []openapi.HistoricalHolding{},
 	}
 
 	ledger, err := r.ledgerAsOf(ctx, ts)
@@ -277,11 +284,11 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 		if pos.quantity <= 0 {
 			continue
 		}
-		h := openapi.Holding{
-			Ticker:      ticker,
-			Quantity:    pos.quantity,
-			AvgCost:     pos.totalCost / pos.quantity,
-			MarketValue: pos.quantity * pos.lastPrice,
+		h := openapi.HistoricalHolding{
+			Ticker:         ticker,
+			Quantity:       pos.quantity,
+			AvgCost:        pos.totalCost / pos.quantity,
+			LastTradeValue: pos.quantity * pos.lastPrice,
 		}
 		if pos.figi != "" {
 			figi := pos.figi
@@ -289,6 +296,12 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 		}
 		entry.Items = append(entry.Items, h)
 	}
+
+	pv, err := r.readPortfolioValueOn(ctx, ts)
+	if err != nil {
+		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	}
+	entry.PortfolioValue = pv
 
 	ann, err := r.readBatchAnnotations(ctx, batchID)
 	if err != nil {
@@ -298,6 +311,26 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 		entry.Annotations = &ann
 	}
 	return entry, nil
+}
+
+// readPortfolioValueOn returns the perf_data portfolio equity on the given
+// date, or nil if no row exists (e.g. batch timestamp lands on a non-trading
+// day). Accepts both the legacy 'portfolio_value' and pvbt 'PortfolioEquity'
+// metric names.
+func (r *Reader) readPortfolioValueOn(ctx context.Context, ts time.Time) (*float64, error) {
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data
+		  WHERE metric IN ('portfolio_value','PortfolioEquity')
+		    AND date = ? LIMIT 1`,
+		ts.Format(dateLayout)).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read portfolio value: %w", err)
+	}
+	return &v, nil
 }
 
 // readBatchAnnotations returns the annotations map for the given batch ID.

@@ -64,7 +64,7 @@ var _ = Describe("Holdings", func() {
 	})
 
 	Describe("HoldingsHistory", func() {
-		It("emits one entry per batch with cumulative holdings and annotations", func() {
+		It("emits one entry per batch with cumulative holdings, portfolioValue, and annotations", func() {
 			resp, err := reader.HoldingsHistory(context.Background(), nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Items).To(HaveLen(3))
@@ -73,15 +73,22 @@ var _ = Describe("Holdings", func() {
 			Expect(resp.Items[0].Items).To(HaveLen(1))
 			Expect(resp.Items[0].Items[0].Ticker).To(Equal("VTI"))
 			Expect(resp.Items[0].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(resp.Items[0].Items[0].LastTradeValue).To(BeNumerically("~", 100*100, 0.01))
+			Expect(resp.Items[0].PortfolioValue).NotTo(BeNil())
+			Expect(*resp.Items[0].PortfolioValue).To(BeNumerically("~", 100000, 0.01))
 			Expect(*resp.Items[0].Annotations).To(HaveKeyWithValue("reason", "initial allocation"))
 
 			Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
 			Expect(resp.Items[1].Items).To(HaveLen(1))
 			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(resp.Items[1].PortfolioValue).NotTo(BeNil())
+			Expect(*resp.Items[1].PortfolioValue).To(BeNumerically("~", 102000, 0.01))
 
 			Expect(resp.Items[2].BatchId).To(Equal(int64(3)))
 			Expect(resp.Items[2].Items).To(HaveLen(1))
 			Expect(resp.Items[2].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(resp.Items[2].PortfolioValue).NotTo(BeNil())
+			Expect(*resp.Items[2].PortfolioValue).To(BeNumerically("~", 103000, 0.01))
 		})
 
 		It("filters the batch range by from/to timestamps", func() {

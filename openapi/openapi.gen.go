@@ -292,6 +292,17 @@ type Drawdown struct {
 	Trough openapi_types.Date `json:"trough"`
 }
 
+// HistoricalHolding Position reconstructed by replaying transactions. lastTradeValue is
+// quantity × last trade price seen in the transaction log, not a
+// mark-to-market value from a pricing feed.
+type HistoricalHolding struct {
+	AvgCost        float64 `json:"avgCost"`
+	Figi           *string `json:"figi,omitempty"`
+	LastTradeValue float64 `json:"lastTradeValue"`
+	Quantity       float64 `json:"quantity"`
+	Ticker         string  `json:"ticker"`
+}
+
 // Holding defines model for Holding.
 type Holding struct {
 	AvgCost float64 `json:"avgCost"`
@@ -304,13 +315,25 @@ type Holding struct {
 	Ticker      string   `json:"ticker"`
 }
 
+// HoldingsAsOfResponse defines model for HoldingsAsOfResponse.
+type HoldingsAsOfResponse struct {
+	Date                openapi_types.Date  `json:"date"`
+	Items               []HistoricalHolding `json:"items"`
+	TotalLastTradeValue float64             `json:"totalLastTradeValue"`
+}
+
 // HoldingsHistoryEntry defines model for HoldingsHistoryEntry.
 type HoldingsHistoryEntry struct {
 	// Annotations Optional strategy-written key/value labels for this batch.
-	Annotations *map[string]string `json:"annotations,omitempty"`
-	BatchId     int64              `json:"batchId"`
-	Items       []Holding          `json:"items"`
-	Timestamp   time.Time          `json:"timestamp"`
+	Annotations *map[string]string  `json:"annotations,omitempty"`
+	BatchId     int64               `json:"batchId"`
+	Items       []HistoricalHolding `json:"items"`
+
+	// PortfolioValue Authoritative mark-to-market portfolio total on the batch's date,
+	// read from perf_data. Null when no perf_data row exists for that
+	// date (e.g. batch timestamp falls outside the equity curve).
+	PortfolioValue *float64  `json:"portfolioValue,omitempty"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 // HoldingsHistoryResponse defines model for HoldingsHistoryResponse.

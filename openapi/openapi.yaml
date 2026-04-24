@@ -459,7 +459,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HoldingsResponse'
+                $ref: '#/components/schemas/HoldingsAsOfResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1015,6 +1015,45 @@ components:
           type: number
           format: double
 
+    HistoricalHolding:
+      type: object
+      required: [ticker, quantity, avgCost, lastTradeValue]
+      description: |
+        Position reconstructed by replaying transactions. lastTradeValue is
+        quantity × last trade price seen in the transaction log, not a
+        mark-to-market value from a pricing feed.
+      properties:
+        ticker:
+          type: string
+          example: 'VTI'
+        figi:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          format: double
+        avgCost:
+          type: number
+          format: double
+        lastTradeValue:
+          type: number
+          format: double
+
+    HoldingsAsOfResponse:
+      type: object
+      required: [date, items, totalLastTradeValue]
+      properties:
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricalHolding'
+        totalLastTradeValue:
+          type: number
+          format: double
+
     # ============ Performance (time series) ============
     PortfolioPerformance:
       type: object
@@ -1113,7 +1152,15 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Holding'
+            $ref: '#/components/schemas/HistoricalHolding'
+        portfolioValue:
+          type: number
+          format: double
+          nullable: true
+          description: |
+            Authoritative mark-to-market portfolio total on the batch's date,
+            read from perf_data. Null when no perf_data row exists for that
+            date (e.g. batch timestamp falls outside the equity curve).
         annotations:
           type: object
           description: Optional strategy-written key/value labels for this batch.
