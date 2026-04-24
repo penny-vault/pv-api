@@ -398,6 +398,40 @@ type PortfolioCreateRequest struct {
 	StrategyVer *string `json:"strategyVer,omitempty"`
 }
 
+// PortfolioCreated defines model for PortfolioCreated.
+type PortfolioCreated struct {
+	Benchmark string    `json:"benchmark"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// EndDate Backtest end date (YYYY-MM-DD). Absent or null means today.
+	EndDate    *openapi_types.Date    `json:"endDate,omitempty"`
+	LastError  *string                `json:"lastError,omitempty"`
+	LastRunAt  *time.Time             `json:"lastRunAt,omitempty"`
+	Name       string                 `json:"name"`
+	Parameters map[string]interface{} `json:"parameters"`
+
+	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
+	PresetName *string `json:"presetName,omitempty"`
+
+	// RunId ID of the backtest run automatically queued on creation. Present only when a dispatcher is configured; use with the SSE progress endpoint.
+	RunId *openapi_types.UUID `json:"runId,omitempty"`
+	Slug  string              `json:"slug"`
+
+	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
+
+	// Status Current lifecycle status of the portfolio's backtest.
+	Status PortfolioStatus `json:"status"`
+
+	// StrategyCloneUrl Clone URL for unofficial strategies; empty string for official ones.
+	StrategyCloneUrl *string `json:"strategyCloneUrl,omitempty"`
+	StrategyCode     string  `json:"strategyCode"`
+
+	// StrategyVer Pinned strategy version (null for unofficial portfolios).
+	StrategyVer *string   `json:"strategyVer,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
 // PortfolioPerformance defines model for PortfolioPerformance.
 type PortfolioPerformance struct {
 	From          openapi_types.Date              `json:"from"`
@@ -424,6 +458,7 @@ type PortfolioStatus string
 // PortfolioSummary Top-line numbers for the KPI strip.
 type PortfolioSummary struct {
 	Alpha              float64  `json:"alpha"`
+	BenchmarkYtdReturn float64  `json:"benchmarkYtdReturn"`
 	Beta               float64  `json:"beta"`
 	CagrSinceInception float64  `json:"cagrSinceInception"`
 	CurrentValue       float64  `json:"currentValue"`

@@ -31,7 +31,7 @@ import (
 func (r *Reader) Drawdowns(ctx context.Context) ([]openapi.Drawdown, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT date, value FROM perf_data
-		  WHERE metric='portfolio_value' ORDER BY date ASC`)
+		  WHERE `+portfolioValueClause+` ORDER BY date ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("drawdowns query: %w", err)
 	}
@@ -64,8 +64,13 @@ type perfPoint struct {
 	v float64
 }
 
+// minDrawdownDepth is the minimum absolute depth (as a fraction) a cycle must
+// reach before it is reported. Shallower cycles — noise in an uptrend — are
+// discarded so callers don't receive hundreds of sub-1% blips.
+const minDrawdownDepth = 0.05
+
 // detectDrawdowns scans the equity series and emits a Drawdown for each
-// peak-to-trough(-to-recovery) cycle.
+// peak-to-trough(-to-recovery) cycle deeper than minDrawdownDepth.
 func detectDrawdowns(series []perfPoint) []openapi.Drawdown {
 	indexOfDate := func(d time.Time) int {
 		for i, p := range series {
@@ -86,15 +91,17 @@ func detectDrawdowns(series []perfPoint) []openapi.Drawdown {
 		p := series[i]
 		if p.v >= peak.v {
 			if inDrawdown {
-				days := i - indexOfDate(peak.d)
-				recovery := types.Date{Time: p.d}
-				dds = append(dds, openapi.Drawdown{
-					Start:    types.Date{Time: peak.d},
-					Trough:   types.Date{Time: trough.d},
-					Recovery: &recovery,
-					Depth:    depth,
-					Days:     &days,
-				})
+				if depth <= -minDrawdownDepth {
+					days := i - indexOfDate(peak.d)
+					recovery := types.Date{Time: p.d}
+					dds = append(dds, openapi.Drawdown{
+						Start:    types.Date{Time: peak.d},
+						Trough:   types.Date{Time: trough.d},
+						Recovery: &recovery,
+						Depth:    depth,
+						Days:     &days,
+					})
+				}
 				inDrawdown = false
 			}
 			peak = p
@@ -106,7 +113,7 @@ func detectDrawdowns(series []perfPoint) []openapi.Drawdown {
 		}
 		inDrawdown = true
 	}
-	if inDrawdown {
+	if inDrawdown && depth <= -minDrawdownDepth {
 		days := len(series) - indexOfDate(peak.d)
 		dds = append(dds, openapi.Drawdown{
 			Start:  types.Date{Time: peak.d},

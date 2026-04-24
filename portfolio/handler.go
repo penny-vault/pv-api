@@ -233,7 +233,8 @@ func (h *Handler) insertAndDispatch(c fiber.Ctx, ownerSub string, norm CreateReq
 		created = stored
 	}
 
-	if status, pb := h.autoTriggerOrProblem(c, created); status != 0 {
+	runID, status, pb := h.autoTriggerOrProblem(c, created)
+	if status != 0 {
 		// Rollback the portfolio row because we could not queue its first run.
 		if delErr := h.store.Delete(c.Context(), ownerSub, created.Slug); delErr != nil {
 			log.Warn().Err(delErr).Stringer("portfolio_id", created.ID).Msg("rollback delete failed")
@@ -241,7 +242,12 @@ func (h *Handler) insertAndDispatch(c fiber.Ctx, ownerSub string, norm CreateReq
 		return writeProblem(c, status, pb.title, pb.detail)
 	}
 
-	return writeJSON(c, fiber.StatusCreated, toView(created))
+	v := toView(created)
+	if runID != (uuid.UUID{}) {
+		s := runID.String()
+		v.RunID = &s
+	}
+	return writeJSON(c, fiber.StatusCreated, v)
 }
 
 // buildPortfolio constructs a Portfolio value from a validated create request.
@@ -275,24 +281,25 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 }
 
 // autoTriggerOrProblem dispatches an immediate backtest run on creation.
-// Returns a non-zero status + body on failure; zero status means proceed.
-func (h *Handler) autoTriggerOrProblem(c fiber.Ctx, created Portfolio) (int, problemBody) {
+// Returns the new run ID, a non-zero HTTP status + body on failure, or zero status on success.
+func (h *Handler) autoTriggerOrProblem(c fiber.Ctx, created Portfolio) (uuid.UUID, int, problemBody) {
 	if h.dispatcher == nil {
-		return 0, problemBody{}
+		return uuid.UUID{}, 0, problemBody{}
 	}
-	if _, err := h.dispatcher.Submit(c.Context(), created.ID); err != nil {
+	runID, err := h.dispatcher.Submit(c.Context(), created.ID)
+	if err != nil {
 		if errors.Is(err, ErrQueueFull) {
-			return fiber.StatusServiceUnavailable, problemBody{
+			return uuid.UUID{}, fiber.StatusServiceUnavailable, problemBody{
 				title:  "Service Unavailable",
 				detail: "backtest queue is full, try again later",
 			}
 		}
-		return fiber.StatusInternalServerError, problemBody{
+		return uuid.UUID{}, fiber.StatusInternalServerError, problemBody{
 			title:  "Internal Server Error",
 			detail: err.Error(),
 		}
 	}
-	return 0, problemBody{}
+	return runID, 0, problemBody{}
 }
 
 type problemBody struct {
@@ -445,6 +452,7 @@ type portfolioView struct {
 	Slug             string         `json:"slug"`
 	Name             string         `json:"name"`
 	Status           string         `json:"status"`
+	RunID            *string        `json:"runId,omitempty"`
 	StrategyCode     string         `json:"strategyCode"`
 	StrategyVer      *string        `json:"strategyVer"`
 	StrategyCloneURL string         `json:"strategyCloneUrl"`

@@ -61,7 +61,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Portfolio'
+                $ref: '#/components/schemas/PortfolioCreated'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
@@ -844,12 +844,23 @@ components:
           type: string
           nullable: true
 
+    PortfolioCreated:
+      allOf:
+        - $ref: '#/components/schemas/Portfolio'
+        - type: object
+          properties:
+            runId:
+              type: string
+              format: uuid
+              description: ID of the backtest run automatically queued on creation. Present only when a dispatcher is configured; use with the SSE progress endpoint.
+
     PortfolioSummary:
       type: object
       description: Top-line numbers for the KPI strip.
       required:
         - currentValue
         - ytdReturn
+        - benchmarkYtdReturn
         - oneYearReturn
         - cagrSinceInception
         - maxDrawDown
@@ -864,6 +875,9 @@ components:
           type: number
           format: double
         ytdReturn:
+          type: number
+          format: double
+        benchmarkYtdReturn:
           type: number
           format: double
         oneYearReturn:

@@ -41,7 +41,7 @@ func (r *Reader) Performance(ctx context.Context, slug string, from, to *time.Ti
 
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT date, metric, value FROM perf_data
-		  WHERE metric IN ('portfolio_value','benchmark_value')
+		  WHERE metric IN ('portfolio_value','benchmark_value','PortfolioEquity','PortfolioBenchmark')
 		    AND date >= ? AND date <= ?
 		  ORDER BY date ASC`,
 		from.Format(dateLayout), to.Format(dateLayout))
@@ -66,9 +66,9 @@ func (r *Reader) Performance(ctx context.Context, slug string, from, to *time.Ti
 			order = append(order, ds)
 		}
 		switch metric {
-		case "portfolio_value":
+		case "portfolio_value", "PortfolioEquity":
 			p.PortfolioValue = v
-		case "benchmark_value":
+		case "benchmark_value", "PortfolioBenchmark":
 			p.BenchmarkValue = v
 		}
 	}
@@ -85,5 +85,22 @@ func (r *Reader) Performance(ctx context.Context, slug string, from, to *time.Ti
 	for _, k := range order {
 		out.Points = append(out.Points, *points[k])
 	}
+	// PortfolioBenchmark is stored as the benchmark's raw asset price, so a
+	// direct plot alongside portfolio equity (in dollars) is unreadable.
+	// Rebase the benchmark to the portfolio's value on the first day of the
+	// returned window so both series share the same starting dollar scale.
+	rebaseBenchmark(out.Points)
 	return &out, nil
+}
+
+func rebaseBenchmark(points []openapi.PerformancePoint) {
+	for _, p := range points {
+		if p.PortfolioValue > 0 && p.BenchmarkValue > 0 {
+			scale := p.PortfolioValue / p.BenchmarkValue
+			for i := range points {
+				points[i].BenchmarkValue *= scale
+			}
+			return
+		}
+	}
 }

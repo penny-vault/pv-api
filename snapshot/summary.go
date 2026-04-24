@@ -35,6 +35,7 @@ func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error)
 	return &openapi.PortfolioSummary{
 		CurrentValue:       k.CurrentValue,
 		YtdReturn:          k.YtdReturn,
+		BenchmarkYtdReturn: k.BenchmarkYtdReturn,
 		OneYearReturn:      k.OneYearReturn,
 		CagrSinceInception: k.Cagr,
 		MaxDrawDown:        k.MaxDrawdown,

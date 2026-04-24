@@ -25,49 +25,57 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 )
 
+// perf_data rows are keyed by metric name. Legacy fixtures use snake_case
+// ('portfolio_value', 'benchmark_value'); pvbt binaries write PascalCase
+// ('PortfolioEquity', 'PortfolioBenchmark'). Queries accept both.
+const (
+	portfolioValueClause = `metric IN ('portfolio_value','PortfolioEquity')`
+	benchmarkValueClause = `metric IN ('benchmark_value','PortfolioBenchmark')`
+)
+
 // TrailingReturns emits two rows — one portfolio, one benchmark — using
-// the portfolio_value and benchmark_value series in perf_data.
+// the portfolio and benchmark equity series in perf_data.
 func (r *Reader) TrailingReturns(ctx context.Context) ([]openapi.TrailingReturnRow, error) {
-	portfolioRow, err := r.trailingRow(ctx, "portfolio_value", "Portfolio", openapi.ReturnRowKindPortfolio)
+	portfolioRow, err := r.trailingRow(ctx, portfolioValueClause, "Portfolio", openapi.ReturnRowKindPortfolio)
 	if err != nil {
 		return nil, err
 	}
-	benchRow, err := r.trailingRow(ctx, "benchmark_value", "Benchmark", openapi.ReturnRowKindBenchmark)
+	benchRow, err := r.trailingRow(ctx, benchmarkValueClause, "Benchmark", openapi.ReturnRowKindBenchmark)
 	if err != nil {
 		return nil, err
 	}
 	return []openapi.TrailingReturnRow{portfolioRow, benchRow}, nil
 }
 
-func (r *Reader) trailingRow(ctx context.Context, metric, title string, kind openapi.ReturnRowKind) (openapi.TrailingReturnRow, error) {
-	latestVal, err := r.latestPerf(ctx, metric)
+func (r *Reader) trailingRow(ctx context.Context, metricClause, title string, kind openapi.ReturnRowKind) (openapi.TrailingReturnRow, error) {
+	latestVal, err := r.latestPerf(ctx, metricClause)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
 
 	ytdStart := time.Date(time.Now().Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 
-	ytdV, err := r.perfAsOf(ctx, metric, ytdStart, true)
+	ytdV, err := r.perfAsOf(ctx, metricClause, ytdStart, true)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
-	oneYV, err := r.perfAsOf(ctx, metric, time.Now().AddDate(-1, 0, 0), false)
+	oneYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-1, 0, 0), false)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
-	threeYV, err := r.perfAsOf(ctx, metric, time.Now().AddDate(-3, 0, 0), false)
+	threeYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-3, 0, 0), false)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
-	fiveYV, err := r.perfAsOf(ctx, metric, time.Now().AddDate(-5, 0, 0), false)
+	fiveYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-5, 0, 0), false)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
-	tenYV, err := r.perfAsOf(ctx, metric, time.Now().AddDate(-10, 0, 0), false)
+	tenYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-10, 0, 0), false)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
-	earliestV, err := r.earliestPerf(ctx, metric)
+	earliestV, err := r.earliestPerf(ctx, metricClause)
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
@@ -91,53 +99,53 @@ func (r *Reader) trailingRow(ctx context.Context, metric, title string, kind ope
 	}, nil
 }
 
-func (r *Reader) latestPerf(ctx context.Context, metric string) (float64, error) {
+func (r *Reader) latestPerf(ctx context.Context, metricClause string) (float64, error) {
 	var v float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric=? ORDER BY date DESC LIMIT 1`, metric).Scan(&v)
+		`SELECT value FROM perf_data WHERE `+metricClause+` ORDER BY date DESC LIMIT 1`).Scan(&v)
 	if err != nil {
-		return 0, fmt.Errorf("latest %s: %w", metric, err)
+		return 0, fmt.Errorf("latest %s: %w", metricClause, err)
 	}
 	return v, nil
 }
 
-func (r *Reader) earliestPerf(ctx context.Context, metric string) (float64, error) {
+func (r *Reader) earliestPerf(ctx context.Context, metricClause string) (float64, error) {
 	var v float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT value FROM perf_data WHERE metric=? ORDER BY date ASC LIMIT 1`, metric).Scan(&v)
+		`SELECT value FROM perf_data WHERE `+metricClause+` ORDER BY date ASC LIMIT 1`).Scan(&v)
 	if err != nil {
-		return 0, fmt.Errorf("earliest %s: %w", metric, err)
+		return 0, fmt.Errorf("earliest %s: %w", metricClause, err)
 	}
 	return v, nil
 }
 
-func (r *Reader) perfAsOf(ctx context.Context, metric string, t time.Time, onOrAfter bool) (float64, error) {
-	q := `SELECT value FROM perf_data WHERE metric=? AND date <= ? ORDER BY date DESC LIMIT 1`
+func (r *Reader) perfAsOf(ctx context.Context, metricClause string, t time.Time, onOrAfter bool) (float64, error) {
+	q := `SELECT value FROM perf_data WHERE ` + metricClause + ` AND date <= ? ORDER BY date DESC LIMIT 1`
 	if onOrAfter {
-		q = `SELECT value FROM perf_data WHERE metric=? AND date >= ? ORDER BY date ASC LIMIT 1`
+		q = `SELECT value FROM perf_data WHERE ` + metricClause + ` AND date >= ? ORDER BY date ASC LIMIT 1`
 	}
 	var v float64
-	err := r.db.QueryRowContext(ctx, q, metric, t.Format(dateLayout)).Scan(&v)
+	err := r.db.QueryRowContext(ctx, q, t.Format(dateLayout)).Scan(&v)
 	if err == nil {
 		return v, nil
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return r.earliestPerf(ctx, metric)
+		return r.earliestPerf(ctx, metricClause)
 	}
 	return 0, err
 }
 
-// PortfolioValueAt returns the portfolio_value at or before t.
+// PortfolioValueAt returns the portfolio equity at or before t.
 func (r *Reader) PortfolioValueAt(ctx context.Context, t time.Time) (float64, error) {
-	return r.perfAsOf(ctx, "portfolio_value", t, false)
+	return r.perfAsOf(ctx, portfolioValueClause, t, false)
 }
 
-// BenchmarkCurrentValue returns the most recent benchmark_value in the snapshot.
+// BenchmarkCurrentValue returns the most recent benchmark value in the snapshot.
 func (r *Reader) BenchmarkCurrentValue(ctx context.Context) (float64, error) {
-	return r.latestPerf(ctx, "benchmark_value")
+	return r.latestPerf(ctx, benchmarkValueClause)
 }
 
-// BenchmarkValueAt returns the benchmark_value at or before t.
+// BenchmarkValueAt returns the benchmark value at or before t.
 func (r *Reader) BenchmarkValueAt(ctx context.Context, t time.Time) (float64, error) {
-	return r.perfAsOf(ctx, "benchmark_value", t, false)
+	return r.perfAsOf(ctx, benchmarkValueClause, t, false)
 }
