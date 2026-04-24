@@ -108,6 +108,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 	app.Use(loggerMiddleware())
 
 	app.Get("/healthz", Healthz)
+	RegisterDocsRoutes(app)
 
 	auth, err := NewAuthMiddleware(ctx, conf.Auth)
 	if err != nil {
