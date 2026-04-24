@@ -56,7 +56,7 @@ func BuildTestSnapshot(path string) error {
 
 		`INSERT INTO perf_data VALUES ('2024-01-02', 'portfolio_value', 100000)`,
 		`INSERT INTO perf_data VALUES ('2024-01-03', 'portfolio_value', 101000)`,
-		`INSERT INTO perf_data VALUES ('2024-01-04', 'portfolio_value', 100500)`,
+		`INSERT INTO perf_data VALUES ('2024-01-04', 'portfolio_value', 94940)`,
 		`INSERT INTO perf_data VALUES ('2024-01-05', 'portfolio_value', 102000)`,
 		`INSERT INTO perf_data VALUES ('2024-01-08', 'portfolio_value', 103000)`,
 		`INSERT INTO perf_data VALUES ('2024-01-02', 'benchmark_value', 100000)`,
