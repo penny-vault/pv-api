@@ -444,6 +444,7 @@ func (f *fakeSnapshotOpener) Open(path string) (portfolio.SnapshotReader, error)
 
 type fakeSnapshotReader struct {
 	summary *openapi.PortfolioSummary
+	metrics *openapi.PortfolioMetrics
 }
 
 func (f *fakeSnapshotReader) Close() error { return nil }
@@ -473,6 +474,9 @@ func (f *fakeSnapshotReader) Performance(_ context.Context, _ string, _, _ *time
 }
 func (f *fakeSnapshotReader) Transactions(_ context.Context, _ portfolio.SnapshotTxFilter) (*openapi.TransactionsResponse, error) {
 	return nil, nil
+}
+func (f *fakeSnapshotReader) Metrics(_ context.Context, _, _ []string) (*openapi.PortfolioMetrics, error) {
+	return f.metrics, nil
 }
 
 var _ = Describe("Handler.Summary", func() {

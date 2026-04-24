@@ -42,6 +42,7 @@ type SnapshotReader interface {
 	HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error)
 	Performance(ctx context.Context, slug string, from, to *time.Time) (*openapi.PortfolioPerformance, error)
 	Transactions(ctx context.Context, filter SnapshotTxFilter) (*openapi.TransactionsResponse, error)
+	Metrics(ctx context.Context, windows, metrics []string) (*openapi.PortfolioMetrics, error)
 	Close() error
 }
 
