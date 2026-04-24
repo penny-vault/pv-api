@@ -91,8 +91,26 @@ func TestSendSummaryMissingRecipient(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != fiber.StatusBadRequest {
-		t.Errorf("expected 400, got %d", resp.StatusCode)
+	if resp.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", resp.StatusCode)
+	}
+}
+
+func TestSendSummaryInvalidJSON(t *testing.T) {
+	port := portfolio.Portfolio{ID: uuid.New(), OwnerSub: "user-1", Slug: "my-port", Status: portfolio.StatusReady}
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{})
+	app := newTestApp(h)
+
+	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",
+		bytes.NewBufferString(`not-json`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", resp.StatusCode)
 	}
 }
 

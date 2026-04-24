@@ -23,17 +23,17 @@ type EmailSummarizer interface {
 }
 
 type AlertHandler struct {
-	portfolios PortfolioReader
-	alerts     Store
-	checker    EmailSummarizer
+	portfolios  PortfolioReader
+	alerts      Store
+	summarizer  EmailSummarizer
 }
 
 func NewAlertHandler(portfolios PortfolioReader, alerts Store) *AlertHandler {
 	return &AlertHandler{portfolios: portfolios, alerts: alerts}
 }
 
-func NewAlertHandlerWithChecker(portfolios PortfolioReader, alerts Store, checker EmailSummarizer) *AlertHandler {
-	return &AlertHandler{portfolios: portfolios, alerts: alerts, checker: checker}
+func NewAlertHandlerWithChecker(portfolios PortfolioReader, alerts Store, summarizer EmailSummarizer) *AlertHandler {
+	return &AlertHandler{portfolios: portfolios, alerts: alerts, summarizer: summarizer}
 }
 
 func (h *AlertHandler) Create(c fiber.Ctx) error {
@@ -157,7 +157,7 @@ func (h *AlertHandler) Delete(c fiber.Ctx) error {
 
 // SendSummary implements POST /portfolios/:slug/email-summary.
 func (h *AlertHandler) SendSummary(c fiber.Ctx) error {
-	if h.checker == nil {
+	if h.summarizer == nil {
 		return writeProblem(c, fiber.StatusServiceUnavailable, "email not configured",
 			"email sending is not configured on this server")
 	}
@@ -168,10 +168,14 @@ func (h *AlertHandler) SendSummary(c fiber.Ctx) error {
 	var body struct {
 		Recipient string `json:"recipient"`
 	}
-	if unmarshalErr := sonic.Unmarshal(c.Body(), &body); unmarshalErr != nil || body.Recipient == "" {
-		return writeProblem(c, fiber.StatusBadRequest, "bad request", "recipient is required")
+	if err := sonic.Unmarshal(c.Body(), &body); err != nil {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "invalid body", err.Error())
 	}
-	if sendErr := h.checker.SendSummary(c.Context(), p.ID, body.Recipient); errors.Is(sendErr, ErrEmailNotConfigured) {
+	if body.Recipient == "" {
+		return writeProblem(c, fiber.StatusUnprocessableEntity, "recipient required",
+			"recipient is required")
+	}
+	if sendErr := h.summarizer.SendSummary(c.Context(), p.ID, body.Recipient); errors.Is(sendErr, ErrEmailNotConfigured) {
 		return writeProblem(c, fiber.StatusServiceUnavailable, "email not configured",
 			"Mailgun API key is not set")
 	} else if sendErr != nil {
