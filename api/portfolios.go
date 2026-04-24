@@ -39,6 +39,7 @@ func RegisterPortfolioRoutes(r fiber.Router) {
 	r.Get("/portfolios/:slug/trailing-returns", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings/history", stubPortfolio)
+	r.Get("/portfolios/:slug/holdings-impact", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings/:date", stubPortfolio)
 	r.Post("/portfolios/:slug/run", stubPortfolio)
 	r.Get("/portfolios/:slug/runs", stubPortfolio)
@@ -61,6 +62,7 @@ func RegisterPortfolioRoutesWith(r fiber.Router, h *portfolio.Handler) {
 	r.Get("/portfolios/:slug/holdings", h.Holdings)
 	r.Get("/portfolios/:slug/holdings/history", h.HoldingsHistory) // MUST precede :date
 	r.Get("/portfolios/:slug/holdings/:date", h.HoldingsAsOf)
+	r.Get("/portfolios/:slug/holdings-impact", h.HoldingsImpact)
 	r.Get("/portfolios/:slug/performance", h.Performance)
 	r.Get("/portfolios/:slug/transactions", h.Transactions)
 	r.Post("/portfolios/:slug/run", h.CreateRun)
