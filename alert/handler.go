@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"context"
 	"errors"
 
 	"github.com/bytedance/sonic"
@@ -11,13 +12,28 @@ import (
 	"github.com/penny-vault/pv-api/types"
 )
 
-type AlertHandler struct {
-	portfolios portfolio.Store
-	alerts     Store
+// PortfolioReader is the subset of portfolio.Store the alert package needs.
+type PortfolioReader interface {
+	Get(ctx context.Context, ownerSub, slug string) (portfolio.Portfolio, error)
 }
 
-func NewAlertHandler(portfolios portfolio.Store, alerts Store) *AlertHandler {
+// EmailSummarizer sends a one-off summary email for a portfolio.
+type EmailSummarizer interface {
+	SendSummary(ctx context.Context, portfolioID uuid.UUID, recipient string) error
+}
+
+type AlertHandler struct {
+	portfolios PortfolioReader
+	alerts     Store
+	checker    EmailSummarizer
+}
+
+func NewAlertHandler(portfolios PortfolioReader, alerts Store) *AlertHandler {
 	return &AlertHandler{portfolios: portfolios, alerts: alerts}
+}
+
+func NewAlertHandlerWithChecker(portfolios PortfolioReader, alerts Store, checker EmailSummarizer) *AlertHandler {
+	return &AlertHandler{portfolios: portfolios, alerts: alerts, checker: checker}
 }
 
 func (h *AlertHandler) Create(c fiber.Ctx) error {
@@ -137,6 +153,31 @@ func (h *AlertHandler) Delete(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// SendSummary implements POST /portfolios/:slug/email-summary.
+func (h *AlertHandler) SendSummary(c fiber.Ctx) error {
+	if h.checker == nil {
+		return writeProblem(c, fiber.StatusServiceUnavailable, "email not configured",
+			"email sending is not configured on this server")
+	}
+	_, p, err := h.resolvePortfolio(c)
+	if err != nil {
+		return err
+	}
+	var body struct {
+		Recipient string `json:"recipient"`
+	}
+	if unmarshalErr := sonic.Unmarshal(c.Body(), &body); unmarshalErr != nil || body.Recipient == "" {
+		return writeProblem(c, fiber.StatusBadRequest, "bad request", "recipient is required")
+	}
+	if sendErr := h.checker.SendSummary(c.Context(), p.ID, body.Recipient); errors.Is(sendErr, ErrEmailNotConfigured) {
+		return writeProblem(c, fiber.StatusServiceUnavailable, "email not configured",
+			"Mailgun API key is not set")
+	} else if sendErr != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", sendErr.Error())
+	}
+	return c.SendStatus(fiber.StatusCreated)
 }
 
 func (h *AlertHandler) resolvePortfolio(c fiber.Ctx) (string, portfolio.Portfolio, error) {
