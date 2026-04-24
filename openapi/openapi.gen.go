@@ -211,6 +211,264 @@ func (e TransactionType) Valid() bool {
 	}
 }
 
+// Defines values for GetPortfolioMetricsParamsWindow.
+const (
+	Mtd            GetPortfolioMetricsParamsWindow = "mtd"
+	N1yr           GetPortfolioMetricsParamsWindow = "1yr"
+	N3yr           GetPortfolioMetricsParamsWindow = "3yr"
+	N5yr           GetPortfolioMetricsParamsWindow = "5yr"
+	SinceInception GetPortfolioMetricsParamsWindow = "since_inception"
+	Wtd            GetPortfolioMetricsParamsWindow = "wtd"
+	Ytd            GetPortfolioMetricsParamsWindow = "ytd"
+)
+
+// Valid indicates whether the value is a known member of the GetPortfolioMetricsParamsWindow enum.
+func (e GetPortfolioMetricsParamsWindow) Valid() bool {
+	switch e {
+	case Mtd:
+		return true
+	case N1yr:
+		return true
+	case N3yr:
+		return true
+	case N5yr:
+		return true
+	case SinceInception:
+		return true
+	case Wtd:
+		return true
+	case Ytd:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPortfolioMetricsParamsMetric.
+const (
+	ActiveReturn            GetPortfolioMetricsParamsMetric = "ActiveReturn"
+	Alpha                   GetPortfolioMetricsParamsMetric = "Alpha"
+	AverageHoldingPeriod    GetPortfolioMetricsParamsMetric = "AverageHoldingPeriod"
+	AverageLoss             GetPortfolioMetricsParamsMetric = "AverageLoss"
+	AverageMAE              GetPortfolioMetricsParamsMetric = "AverageMAE"
+	AverageMFE              GetPortfolioMetricsParamsMetric = "AverageMFE"
+	AverageWin              GetPortfolioMetricsParamsMetric = "AverageWin"
+	AvgDrawdown             GetPortfolioMetricsParamsMetric = "AvgDrawdown"
+	AvgDrawdownDays         GetPortfolioMetricsParamsMetric = "AvgDrawdownDays"
+	AvgUlcerIndex           GetPortfolioMetricsParamsMetric = "AvgUlcerIndex"
+	Beta                    GetPortfolioMetricsParamsMetric = "Beta"
+	CAGR                    GetPortfolioMetricsParamsMetric = "CAGR"
+	CVaR                    GetPortfolioMetricsParamsMetric = "CVaR"
+	Calmar                  GetPortfolioMetricsParamsMetric = "Calmar"
+	ConsecutiveLosses       GetPortfolioMetricsParamsMetric = "ConsecutiveLosses"
+	ConsecutiveWins         GetPortfolioMetricsParamsMetric = "ConsecutiveWins"
+	DownsideCaptureRatio    GetPortfolioMetricsParamsMetric = "DownsideCaptureRatio"
+	DownsideDeviation       GetPortfolioMetricsParamsMetric = "DownsideDeviation"
+	DynamicWithdrawalRate   GetPortfolioMetricsParamsMetric = "DynamicWithdrawalRate"
+	EdgeRatio               GetPortfolioMetricsParamsMetric = "EdgeRatio"
+	ExcessKurtosis          GetPortfolioMetricsParamsMetric = "ExcessKurtosis"
+	Exposure                GetPortfolioMetricsParamsMetric = "Exposure"
+	GainLossRatio           GetPortfolioMetricsParamsMetric = "GainLossRatio"
+	GainToPainRatio         GetPortfolioMetricsParamsMetric = "GainToPainRatio"
+	InformationRatio        GetPortfolioMetricsParamsMetric = "InformationRatio"
+	KRatio                  GetPortfolioMetricsParamsMetric = "KRatio"
+	KellerRatio             GetPortfolioMetricsParamsMetric = "KellerRatio"
+	KellyCriterion          GetPortfolioMetricsParamsMetric = "KellyCriterion"
+	LTCG                    GetPortfolioMetricsParamsMetric = "LTCG"
+	LongProfitFactor        GetPortfolioMetricsParamsMetric = "LongProfitFactor"
+	LongWinRate             GetPortfolioMetricsParamsMetric = "LongWinRate"
+	MWRR                    GetPortfolioMetricsParamsMetric = "MWRR"
+	MaxDrawdown             GetPortfolioMetricsParamsMetric = "MaxDrawdown"
+	MedianMAE               GetPortfolioMetricsParamsMetric = "MedianMAE"
+	MedianMFE               GetPortfolioMetricsParamsMetric = "MedianMFE"
+	MedianUlcerIndex        GetPortfolioMetricsParamsMetric = "MedianUlcerIndex"
+	NPositivePeriods        GetPortfolioMetricsParamsMetric = "NPositivePeriods"
+	NonQualifiedIncome      GetPortfolioMetricsParamsMetric = "NonQualifiedIncome"
+	OmegaRatio              GetPortfolioMetricsParamsMetric = "OmegaRatio"
+	P90UlcerIndex           GetPortfolioMetricsParamsMetric = "P90UlcerIndex"
+	PerpetualWithdrawalRate GetPortfolioMetricsParamsMetric = "PerpetualWithdrawalRate"
+	ProbabilisticSharpe     GetPortfolioMetricsParamsMetric = "ProbabilisticSharpe"
+	ProfitFactor            GetPortfolioMetricsParamsMetric = "ProfitFactor"
+	QualifiedDividends      GetPortfolioMetricsParamsMetric = "QualifiedDividends"
+	RSquared                GetPortfolioMetricsParamsMetric = "RSquared"
+	RecoveryFactor          GetPortfolioMetricsParamsMetric = "RecoveryFactor"
+	STCG                    GetPortfolioMetricsParamsMetric = "STCG"
+	SafeWithdrawalRate      GetPortfolioMetricsParamsMetric = "SafeWithdrawalRate"
+	Sharpe                  GetPortfolioMetricsParamsMetric = "Sharpe"
+	ShortProfitFactor       GetPortfolioMetricsParamsMetric = "ShortProfitFactor"
+	ShortWinRate            GetPortfolioMetricsParamsMetric = "ShortWinRate"
+	Skewness                GetPortfolioMetricsParamsMetric = "Skewness"
+	SmartSharpe             GetPortfolioMetricsParamsMetric = "SmartSharpe"
+	SmartSortino            GetPortfolioMetricsParamsMetric = "SmartSortino"
+	Sortino                 GetPortfolioMetricsParamsMetric = "Sortino"
+	StdDev                  GetPortfolioMetricsParamsMetric = "StdDev"
+	TWRR                    GetPortfolioMetricsParamsMetric = "TWRR"
+	TailRatio               GetPortfolioMetricsParamsMetric = "TailRatio"
+	TaxCostRatio            GetPortfolioMetricsParamsMetric = "TaxCostRatio"
+	TaxDrag                 GetPortfolioMetricsParamsMetric = "TaxDrag"
+	TrackingError           GetPortfolioMetricsParamsMetric = "TrackingError"
+	TradeCaptureRatio       GetPortfolioMetricsParamsMetric = "TradeCaptureRatio"
+	TradeGainLossRatio      GetPortfolioMetricsParamsMetric = "TradeGainLossRatio"
+	Treynor                 GetPortfolioMetricsParamsMetric = "Treynor"
+	Turnover                GetPortfolioMetricsParamsMetric = "Turnover"
+	UlcerIndex              GetPortfolioMetricsParamsMetric = "UlcerIndex"
+	UnrealizedLTCG          GetPortfolioMetricsParamsMetric = "UnrealizedLTCG"
+	UnrealizedSTCG          GetPortfolioMetricsParamsMetric = "UnrealizedSTCG"
+	UpsideCaptureRatio      GetPortfolioMetricsParamsMetric = "UpsideCaptureRatio"
+	ValueAtRisk             GetPortfolioMetricsParamsMetric = "ValueAtRisk"
+	WinRate                 GetPortfolioMetricsParamsMetric = "WinRate"
+)
+
+// Valid indicates whether the value is a known member of the GetPortfolioMetricsParamsMetric enum.
+func (e GetPortfolioMetricsParamsMetric) Valid() bool {
+	switch e {
+	case ActiveReturn:
+		return true
+	case Alpha:
+		return true
+	case AverageHoldingPeriod:
+		return true
+	case AverageLoss:
+		return true
+	case AverageMAE:
+		return true
+	case AverageMFE:
+		return true
+	case AverageWin:
+		return true
+	case AvgDrawdown:
+		return true
+	case AvgDrawdownDays:
+		return true
+	case AvgUlcerIndex:
+		return true
+	case Beta:
+		return true
+	case CAGR:
+		return true
+	case CVaR:
+		return true
+	case Calmar:
+		return true
+	case ConsecutiveLosses:
+		return true
+	case ConsecutiveWins:
+		return true
+	case DownsideCaptureRatio:
+		return true
+	case DownsideDeviation:
+		return true
+	case DynamicWithdrawalRate:
+		return true
+	case EdgeRatio:
+		return true
+	case ExcessKurtosis:
+		return true
+	case Exposure:
+		return true
+	case GainLossRatio:
+		return true
+	case GainToPainRatio:
+		return true
+	case InformationRatio:
+		return true
+	case KRatio:
+		return true
+	case KellerRatio:
+		return true
+	case KellyCriterion:
+		return true
+	case LTCG:
+		return true
+	case LongProfitFactor:
+		return true
+	case LongWinRate:
+		return true
+	case MWRR:
+		return true
+	case MaxDrawdown:
+		return true
+	case MedianMAE:
+		return true
+	case MedianMFE:
+		return true
+	case MedianUlcerIndex:
+		return true
+	case NPositivePeriods:
+		return true
+	case NonQualifiedIncome:
+		return true
+	case OmegaRatio:
+		return true
+	case P90UlcerIndex:
+		return true
+	case PerpetualWithdrawalRate:
+		return true
+	case ProbabilisticSharpe:
+		return true
+	case ProfitFactor:
+		return true
+	case QualifiedDividends:
+		return true
+	case RSquared:
+		return true
+	case RecoveryFactor:
+		return true
+	case STCG:
+		return true
+	case SafeWithdrawalRate:
+		return true
+	case Sharpe:
+		return true
+	case ShortProfitFactor:
+		return true
+	case ShortWinRate:
+		return true
+	case Skewness:
+		return true
+	case SmartSharpe:
+		return true
+	case SmartSortino:
+		return true
+	case Sortino:
+		return true
+	case StdDev:
+		return true
+	case TWRR:
+		return true
+	case TailRatio:
+		return true
+	case TaxCostRatio:
+		return true
+	case TaxDrag:
+		return true
+	case TrackingError:
+		return true
+	case TradeCaptureRatio:
+		return true
+	case TradeGainLossRatio:
+		return true
+	case Treynor:
+		return true
+	case Turnover:
+		return true
+	case UlcerIndex:
+		return true
+	case UnrealizedLTCG:
+		return true
+	case UnrealizedSTCG:
+		return true
+	case UpsideCaptureRatio:
+		return true
+	case ValueAtRisk:
+		return true
+	case WinRate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetPortfolioPerformanceParamsResolution.
 const (
 	Daily   GetPortfolioPerformanceParamsResolution = "daily"
@@ -658,12 +916,18 @@ type GetPortfolioHoldingsHistoryParams struct {
 
 // GetPortfolioMetricsParams defines parameters for GetPortfolioMetrics.
 type GetPortfolioMetricsParams struct {
-	// Window Comma-separated windows (since_inception,5yr,3yr,1yr,ytd,mtd,wtd). Default is since_inception.
-	Window *string `form:"window,omitempty" json:"window,omitempty"`
+	// Window One or more windows to include. Repeatable. Default is since_inception.
+	Window *[]GetPortfolioMetricsParamsWindow `form:"window,omitempty" json:"window,omitempty"`
 
-	// Metric Comma-separated pvbt PascalCase metric names. Default is all metrics.
-	Metric *string `form:"metric,omitempty" json:"metric,omitempty"`
+	// Metric One or more pvbt PascalCase metric names to include. Repeatable. Default is all metrics.
+	Metric *[]GetPortfolioMetricsParamsMetric `form:"metric,omitempty" json:"metric,omitempty"`
 }
+
+// GetPortfolioMetricsParamsWindow defines parameters for GetPortfolioMetrics.
+type GetPortfolioMetricsParamsWindow string
+
+// GetPortfolioMetricsParamsMetric defines parameters for GetPortfolioMetrics.
+type GetPortfolioMetricsParamsMetric string
 
 // GetPortfolioPerformanceParams defines parameters for GetPortfolioPerformance.
 type GetPortfolioPerformanceParams struct {

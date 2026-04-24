@@ -405,14 +405,102 @@ paths:
         - $ref: '#/components/parameters/PortfolioSlug'
         - name: window
           in: query
-          description: Comma-separated windows (since_inception,5yr,3yr,1yr,ytd,mtd,wtd). Default is since_inception.
+          description: One or more windows to include. Repeatable. Default is since_inception.
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+              enum:
+                - since_inception
+                - 5yr
+                - 3yr
+                - 1yr
+                - ytd
+                - mtd
+                - wtd
+          style: form
+          explode: false
         - name: metric
           in: query
-          description: Comma-separated pvbt PascalCase metric names. Default is all metrics.
+          description: One or more pvbt PascalCase metric names to include. Repeatable. Default is all metrics.
           schema:
-            type: string
+            type: array
+            items:
+              type: string
+              enum:
+                - TWRR
+                - MWRR
+                - Sharpe
+                - Sortino
+                - Calmar
+                - KellerRatio
+                - MaxDrawdown
+                - StdDev
+                - Beta
+                - Alpha
+                - TrackingError
+                - DownsideDeviation
+                - InformationRatio
+                - Treynor
+                - UlcerIndex
+                - ExcessKurtosis
+                - Skewness
+                - RSquared
+                - ValueAtRisk
+                - UpsideCaptureRatio
+                - DownsideCaptureRatio
+                - WinRate
+                - AverageWin
+                - AverageLoss
+                - ProfitFactor
+                - AverageHoldingPeriod
+                - Turnover
+                - NPositivePeriods
+                - TradeGainLossRatio
+                - AverageMFE
+                - AverageMAE
+                - MedianMFE
+                - MedianMAE
+                - EdgeRatio
+                - TradeCaptureRatio
+                - LongWinRate
+                - ShortWinRate
+                - LongProfitFactor
+                - ShortProfitFactor
+                - SafeWithdrawalRate
+                - PerpetualWithdrawalRate
+                - DynamicWithdrawalRate
+                - LTCG
+                - STCG
+                - UnrealizedLTCG
+                - UnrealizedSTCG
+                - QualifiedDividends
+                - NonQualifiedIncome
+                - TaxCostRatio
+                - TaxDrag
+                - CAGR
+                - ActiveReturn
+                - SmartSharpe
+                - SmartSortino
+                - ProbabilisticSharpe
+                - KRatio
+                - KellyCriterion
+                - OmegaRatio
+                - GainToPainRatio
+                - CVaR
+                - TailRatio
+                - RecoveryFactor
+                - Exposure
+                - ConsecutiveWins
+                - ConsecutiveLosses
+                - AvgDrawdown
+                - AvgDrawdownDays
+                - GainLossRatio
+                - AvgUlcerIndex
+                - P90UlcerIndex
+                - MedianUlcerIndex
+          style: form
+          explode: false
       responses:
         '200':
           description: Metrics grouped by category
