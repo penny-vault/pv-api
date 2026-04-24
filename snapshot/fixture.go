@@ -41,7 +41,7 @@ func BuildTestSnapshot(path string) error {
 	stmts := []string{
 		`CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)`,
 		`CREATE TABLE perf_data (date TEXT NOT NULL, metric TEXT NOT NULL, value REAL NOT NULL)`,
-		`CREATE TABLE batches (batch_id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL)`,
+		`CREATE TABLE batches (batch_id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL)`,
 		`CREATE TABLE transactions (batch_id INTEGER REFERENCES batches(batch_id), date TEXT, type TEXT, ticker TEXT, figi TEXT, quantity REAL, price REAL, amount REAL, qualified INTEGER, justification TEXT)`,
 		`CREATE TABLE holdings (asset_ticker TEXT, asset_figi TEXT, quantity REAL, avg_cost REAL, market_value REAL)`,
 		`CREATE TABLE tax_lots (asset_ticker TEXT, asset_figi TEXT, date TEXT, quantity REAL, price REAL, id TEXT DEFAULT '')`,
@@ -65,9 +65,9 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO perf_data VALUES ('2024-01-05', 'benchmark_value', 101500)`,
 		`INSERT INTO perf_data VALUES ('2024-01-08', 'benchmark_value', 102000)`,
 
-		`INSERT INTO batches VALUES (1, '2024-01-02T14:30:00Z')`,
-		`INSERT INTO batches VALUES (2, '2024-01-05T14:30:00Z')`,
-		`INSERT INTO batches VALUES (3, '2024-01-08T14:30:00Z')`,
+		`INSERT INTO batches VALUES (1, 1704205800000000000)`, // 2024-01-02T14:30:00Z
+		`INSERT INTO batches VALUES (2, 1704465000000000000)`, // 2024-01-05T14:30:00Z
+		`INSERT INTO batches VALUES (3, 1704724200000000000)`, // 2024-01-08T14:30:00Z
 
 		`INSERT INTO transactions VALUES (1, '2024-01-02', 'buy', 'VTI', 'BBG000BDTBL9', 100, 100, 10000, 0, 'initial buy')`,
 		`INSERT INTO transactions VALUES (2, '2024-01-05', 'dividend', 'VTI', 'BBG000BDTBL9', 0, 0, 25.50, 1, 'qualified div')`,
