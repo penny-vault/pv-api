@@ -204,7 +204,7 @@ func (r *Reader) queryMetricRows(ctx context.Context, names, windows []string) (
 	if err != nil {
 		return nil, fmt.Errorf("query metrics: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[string]map[string]float64)
 	for rows.Next() {

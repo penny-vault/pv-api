@@ -102,9 +102,13 @@ var _ = Describe("Metrics", func() {
 	It("omits metrics that have no rows in the snapshot", func() {
 		result, err := r.Metrics(ctx, []string{"since_inception"}, []string{"CVaR"})
 		Expect(err).NotTo(HaveOccurred())
-		// CVaR has no rows in fixture — advanced should be nil or empty
-		if result.Advanced != nil {
-			Expect(*result.Advanced).NotTo(HaveKey("CVaR"))
-		}
+		Expect(result.Advanced).To(BeNil())
+	})
+
+	It("falls back to since_inception when all requested windows are invalid", func() {
+		result, err := r.Metrics(ctx, []string{"bogus", "alsoBogus"}, []string{"Sharpe"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Windows).To(Equal([]string{"since_inception"}))
+		Expect(result.Summary).NotTo(BeNil())
 	})
 })
