@@ -47,6 +47,15 @@ func BuildTestSnapshot(path string) error {
 		`CREATE TABLE tax_lots (asset_ticker TEXT, asset_figi TEXT, date TEXT, quantity REAL, price REAL, id TEXT DEFAULT '')`,
 		`CREATE TABLE metrics (date TEXT, name TEXT, window TEXT, value REAL)`,
 		`CREATE TABLE annotations (batch_id INTEGER REFERENCES batches(batch_id), timestamp INTEGER, key TEXT, value TEXT)`,
+		`CREATE TABLE positions_daily (
+    date         TEXT NOT NULL,
+    ticker       TEXT NOT NULL,
+    figi         TEXT NOT NULL,
+    market_value REAL NOT NULL,
+    quantity     REAL NOT NULL,
+    PRIMARY KEY (date, ticker, figi)
+ )`,
+		`CREATE INDEX idx_positions_daily_ticker ON positions_daily(ticker, date)`,
 
 		`INSERT INTO metadata VALUES ('schema_version', '4')`,
 		`INSERT INTO metadata VALUES ('start_date', '2024-01-02')`,
@@ -64,6 +73,17 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO perf_data VALUES ('2024-01-04', 'benchmark_value', 100800)`,
 		`INSERT INTO perf_data VALUES ('2024-01-05', 'benchmark_value', 101500)`,
 		`INSERT INTO perf_data VALUES ('2024-01-08', 'benchmark_value', 102000)`,
+
+		`INSERT INTO positions_daily VALUES ('2024-01-02','VTI','BBG000BDTBL9',10000,100)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-02','$CASH','',90000,90000)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-03','VTI','BBG000BDTBL9',10100,100)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-03','$CASH','',90900,90900)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-04','VTI','BBG000BDTBL9',10050,100)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-04','$CASH','',90450,90450)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-05','VTI','BBG000BDTBL9',10200,100)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-05','$CASH','',91800,91800)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-08','VTI','BBG000BDTBL9',10300,100)`,
+		`INSERT INTO positions_daily VALUES ('2024-01-08','$CASH','',92700,92700)`,
 
 		`INSERT INTO batches VALUES (1, 1704205800000000000)`, // 2024-01-02T14:30:00Z
 		`INSERT INTO batches VALUES (2, 1704465000000000000)`, // 2024-01-05T14:30:00Z
