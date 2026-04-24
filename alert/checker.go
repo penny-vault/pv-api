@@ -94,6 +94,9 @@ func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipi
 	return nil
 }
 
+// loadPortfolio returns pgx.ErrNoRows if the portfolio does not exist. Callers
+// that reach this via SendSummary have already validated the portfolio by slug,
+// so a not-found here is a transient race and is acceptable as a 500.
 func (c *Checker) loadPortfolio(ctx context.Context, id uuid.UUID) (portfolioData, error) {
 	var p portfolioData
 	err := c.pool.QueryRow(ctx,

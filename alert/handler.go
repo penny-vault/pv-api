@@ -157,6 +157,9 @@ func (h *AlertHandler) Delete(c fiber.Ctx) error {
 
 // SendSummary implements POST /portfolios/:slug/email-summary.
 func (h *AlertHandler) SendSummary(c fiber.Ctx) error {
+	// nil summarizer: handler built without email support (e.g. tests via NewAlertHandler).
+	// ErrEmailNotConfigured: non-nil summarizer but no Mailgun API key set at runtime.
+	// Both result in 503.
 	if h.summarizer == nil {
 		return writeProblem(c, fiber.StatusServiceUnavailable, "email not configured",
 			"email sending is not configured on this server")
