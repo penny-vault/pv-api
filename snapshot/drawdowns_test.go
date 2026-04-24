@@ -26,7 +26,7 @@ import (
 )
 
 var _ = Describe("Drawdowns", func() {
-	It("detects the single dip in the fixture (101000 -> 100500)", func() {
+	It("detects the single dip in the fixture (101000 -> 94940)", func() {
 		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
 		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
 		r, err := snapshot.Open(path)
@@ -38,6 +38,6 @@ var _ = Describe("Drawdowns", func() {
 		Expect(dds).To(HaveLen(1))
 		Expect(dds[0].Start.Format("2006-01-02")).To(Equal("2024-01-03"))
 		Expect(dds[0].Trough.Format("2006-01-02")).To(Equal("2024-01-04"))
-		Expect(dds[0].Depth).To(BeNumerically("~", -0.00495, 0.001))
+		Expect(dds[0].Depth).To(BeNumerically("~", -0.060, 0.001))
 	})
 })

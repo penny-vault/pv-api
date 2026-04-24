@@ -599,6 +599,27 @@ func (h *Handler) Statistics(c fiber.Ctx) error {
 	})
 }
 
+// GET /portfolios/{slug}/metrics
+func (h *Handler) Metrics(c fiber.Ctx) error {
+	windows := splitParam(string([]byte(c.Query("window"))), "since_inception")
+	metrics := splitParam(string([]byte(c.Query("metric"))), "")
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		return r.Metrics(c.Context(), windows, metrics)
+	})
+}
+
+// splitParam splits a comma-separated query param. Returns []string{defaultVal}
+// if the param is empty and defaultVal is non-empty; returns nil if both are empty.
+func splitParam(val, defaultVal string) []string {
+	if val == "" {
+		if defaultVal == "" {
+			return nil
+		}
+		return []string{defaultVal}
+	}
+	return strings.Split(val, ",")
+}
+
 // GET /portfolios/{slug}/trailing-returns
 func (h *Handler) TrailingReturns(c fiber.Ctx) error {
 	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {

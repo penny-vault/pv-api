@@ -396,6 +396,125 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/metrics:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioMetrics
+      summary: All pvbt metrics grouped by category, filterable by window and name
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: window
+          in: query
+          description: One or more windows to include. Repeatable. Default is since_inception.
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - since_inception
+                - 5yr
+                - 3yr
+                - 1yr
+                - ytd
+                - mtd
+                - wtd
+          style: form
+          explode: false
+        - name: metric
+          in: query
+          description: One or more pvbt PascalCase metric names to include. Repeatable. Default is all metrics.
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - TWRR
+                - MWRR
+                - Sharpe
+                - Sortino
+                - Calmar
+                - KellerRatio
+                - MaxDrawdown
+                - StdDev
+                - Beta
+                - Alpha
+                - TrackingError
+                - DownsideDeviation
+                - InformationRatio
+                - Treynor
+                - UlcerIndex
+                - ExcessKurtosis
+                - Skewness
+                - RSquared
+                - ValueAtRisk
+                - UpsideCaptureRatio
+                - DownsideCaptureRatio
+                - WinRate
+                - AverageWin
+                - AverageLoss
+                - ProfitFactor
+                - AverageHoldingPeriod
+                - Turnover
+                - NPositivePeriods
+                - TradeGainLossRatio
+                - AverageMFE
+                - AverageMAE
+                - MedianMFE
+                - MedianMAE
+                - EdgeRatio
+                - TradeCaptureRatio
+                - LongWinRate
+                - ShortWinRate
+                - LongProfitFactor
+                - ShortProfitFactor
+                - SafeWithdrawalRate
+                - PerpetualWithdrawalRate
+                - DynamicWithdrawalRate
+                - LTCG
+                - STCG
+                - UnrealizedLTCG
+                - UnrealizedSTCG
+                - QualifiedDividends
+                - NonQualifiedIncome
+                - TaxCostRatio
+                - TaxDrag
+                - CAGR
+                - ActiveReturn
+                - SmartSharpe
+                - SmartSortino
+                - ProbabilisticSharpe
+                - KRatio
+                - KellyCriterion
+                - OmegaRatio
+                - GainToPainRatio
+                - CVaR
+                - TailRatio
+                - RecoveryFactor
+                - Exposure
+                - ConsecutiveWins
+                - ConsecutiveLosses
+                - AvgDrawdown
+                - AvgDrawdownDays
+                - GainLossRatio
+                - AvgUlcerIndex
+                - P90UlcerIndex
+                - MedianUlcerIndex
+          style: form
+          explode: false
+      responses:
+        '200':
+          description: Metrics grouped by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioMetrics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /portfolios/{slug}/trailing-returns:
     get:
       tags: [Portfolios]
@@ -947,6 +1066,39 @@ components:
           format: double
         format:
           $ref: '#/components/schemas/MetricFormat'
+
+    MetricGroup:
+      description: Map of pvbt metric name to array of values, one per requested window.
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: number
+          format: double
+          nullable: true
+
+    PortfolioMetrics:
+      description: All pvbt metrics grouped by category, column-oriented against a shared windows list.
+      type: object
+      required: [windows]
+      properties:
+        windows:
+          type: array
+          items:
+            type: string
+          description: Ordered list of requested windows. Each metric value array is aligned to this list.
+        summary:
+          $ref: '#/components/schemas/MetricGroup'
+        risk:
+          $ref: '#/components/schemas/MetricGroup'
+        trade:
+          $ref: '#/components/schemas/MetricGroup'
+        withdrawal:
+          $ref: '#/components/schemas/MetricGroup'
+        tax:
+          $ref: '#/components/schemas/MetricGroup'
+        advanced:
+          $ref: '#/components/schemas/MetricGroup'
 
     TrailingReturnRow:
       type: object
