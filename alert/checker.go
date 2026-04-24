@@ -2,6 +2,7 @@ package alert
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/snapshot"
 )
+
+// ErrEmailNotConfigured is returned by SendSummary when no Mailgun API key is set.
+var ErrEmailNotConfigured = errors.New("email not configured: no Mailgun API key")
 
 type portfolioData struct {
 	Name         string
@@ -59,6 +63,32 @@ func (c *Checker) NotifyRunComplete(ctx context.Context, portfolioID, _ uuid.UUI
 		if sendErr := c.sendOne(ctx, a, port, now, success); sendErr != nil {
 			log.Warn().Err(sendErr).Stringer("alert_id", a.ID).Msg("alert: send failed")
 		}
+	}
+	return nil
+}
+
+// SendSummary sends a one-off portfolio summary email to recipient.
+// Returns ErrEmailNotConfigured if no Mailgun API key is set.
+func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipient string) error {
+	if c.emailConfig.APIKey == "" {
+		return ErrEmailNotConfigured
+	}
+	port, err := c.loadPortfolio(ctx, portfolioID)
+	if err != nil {
+		return fmt.Errorf("send summary: load portfolio: %w", err)
+	}
+	now := time.Now().UTC()
+	payload := c.buildPayload(ctx, Alert{}, port, now, port.Status == "success")
+	htmlBody, textBody, err := email.Render(payload)
+	if err != nil {
+		return fmt.Errorf("send summary: render: %w", err)
+	}
+	subject := fmt.Sprintf("Portfolio Update: %s", port.Name)
+	if port.Status != "success" {
+		subject = fmt.Sprintf("Portfolio Error: %s", port.Name)
+	}
+	if err := email.Send(ctx, c.emailConfig, []string{recipient}, subject, htmlBody, textBody); err != nil {
+		return fmt.Errorf("send summary: send: %w", err)
 	}
 	return nil
 }
