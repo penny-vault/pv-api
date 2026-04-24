@@ -78,13 +78,14 @@ func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipi
 		return fmt.Errorf("send summary: load portfolio: %w", err)
 	}
 	now := time.Now().UTC()
-	payload := c.buildPayload(ctx, Alert{}, port, now, port.Status == "success")
+	payload := c.buildPayload(ctx, Alert{}, port, now, port.Status == "ready")
+	payload.Trades = nil // no trade context for an on-demand summary
 	htmlBody, textBody, err := email.Render(payload)
 	if err != nil {
 		return fmt.Errorf("send summary: render: %w", err)
 	}
 	subject := fmt.Sprintf("Portfolio Update: %s", port.Name)
-	if port.Status != "success" {
+	if port.Status != "ready" {
 		subject = fmt.Sprintf("Portfolio Error: %s", port.Name)
 	}
 	if err := email.Send(ctx, c.emailConfig, []string{recipient}, subject, htmlBody, textBody); err != nil {
