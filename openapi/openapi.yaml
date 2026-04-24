@@ -621,6 +621,36 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/holdings-impact:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioHoldingsImpact
+      summary: Per-ticker contribution to portfolio return across canonical periods.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+        - name: top
+          in: query
+          required: false
+          description: Maximum number of named holdings per period (remaining folded into `rest`).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Holdings impact across canonical periods
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsImpactResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /portfolios/{slug}/alerts:
     get:
       tags: [Alerts]
@@ -1327,6 +1357,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HoldingsHistoryEntry'
+
+    HoldingsImpactResponse:
+      type: object
+      required: [portfolioSlug, asOf, currency, periods]
+      properties:
+        portfolioSlug: { type: string }
+        asOf:          { type: string, format: date }
+        currency:      { type: string, example: USD }
+        periods:
+          type: array
+          items: { $ref: '#/components/schemas/HoldingsImpactPeriod' }
+
+    HoldingsImpactPeriod:
+      type: object
+      required: [period, label, startDate, endDate, years, cumulativeReturn, annualizedReturn, items, rest]
+      properties:
+        period:
+          type: string
+          enum: [ytd, 1y, 3y, 5y, inception]
+        label:            { type: string }
+        startDate:        { type: string, format: date }
+        endDate:          { type: string, format: date }
+        years:            { type: number }
+        cumulativeReturn: { type: number }
+        annualizedReturn: { type: number }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/HoldingsImpactItem' }
+        rest: { $ref: '#/components/schemas/HoldingsImpactRest' }
+
+    HoldingsImpactItem:
+      type: object
+      required: [ticker, contribution, avgWeight, holdingDays]
+      properties:
+        ticker:       { type: string }
+        figi:         { type: string }
+        contribution: { type: number }
+        avgWeight:    { type: number }
+        holdingDays:  { type: integer }
+
+    HoldingsImpactRest:
+      type: object
+      required: [count, contribution]
+      properties:
+        count:        { type: integer }
+        contribution: { type: number }
 
     PortfolioStatus:
       type: string

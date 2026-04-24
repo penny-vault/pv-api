@@ -37,6 +37,33 @@ func (e AlertFrequency) Valid() bool {
 	}
 }
 
+// Defines values for HoldingsImpactPeriodPeriod.
+const (
+	HoldingsImpactPeriodPeriodInception HoldingsImpactPeriodPeriod = "inception"
+	HoldingsImpactPeriodPeriodN1y       HoldingsImpactPeriodPeriod = "1y"
+	HoldingsImpactPeriodPeriodN3y       HoldingsImpactPeriodPeriod = "3y"
+	HoldingsImpactPeriodPeriodN5y       HoldingsImpactPeriodPeriod = "5y"
+	HoldingsImpactPeriodPeriodYtd       HoldingsImpactPeriodPeriod = "ytd"
+)
+
+// Valid indicates whether the value is a known member of the HoldingsImpactPeriodPeriod enum.
+func (e HoldingsImpactPeriodPeriod) Valid() bool {
+	switch e {
+	case HoldingsImpactPeriodPeriodInception:
+		return true
+	case HoldingsImpactPeriodPeriodN1y:
+		return true
+	case HoldingsImpactPeriodPeriodN3y:
+		return true
+	case HoldingsImpactPeriodPeriodN5y:
+		return true
+	case HoldingsImpactPeriodPeriodYtd:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MetricFormat.
 const (
 	Number  MetricFormat = "number"
@@ -213,31 +240,31 @@ func (e TransactionType) Valid() bool {
 
 // Defines values for GetPortfolioMetricsParamsWindow.
 const (
-	Mtd            GetPortfolioMetricsParamsWindow = "mtd"
-	N1yr           GetPortfolioMetricsParamsWindow = "1yr"
-	N3yr           GetPortfolioMetricsParamsWindow = "3yr"
-	N5yr           GetPortfolioMetricsParamsWindow = "5yr"
-	SinceInception GetPortfolioMetricsParamsWindow = "since_inception"
-	Wtd            GetPortfolioMetricsParamsWindow = "wtd"
-	Ytd            GetPortfolioMetricsParamsWindow = "ytd"
+	GetPortfolioMetricsParamsWindowMtd            GetPortfolioMetricsParamsWindow = "mtd"
+	GetPortfolioMetricsParamsWindowN1yr           GetPortfolioMetricsParamsWindow = "1yr"
+	GetPortfolioMetricsParamsWindowN3yr           GetPortfolioMetricsParamsWindow = "3yr"
+	GetPortfolioMetricsParamsWindowN5yr           GetPortfolioMetricsParamsWindow = "5yr"
+	GetPortfolioMetricsParamsWindowSinceInception GetPortfolioMetricsParamsWindow = "since_inception"
+	GetPortfolioMetricsParamsWindowWtd            GetPortfolioMetricsParamsWindow = "wtd"
+	GetPortfolioMetricsParamsWindowYtd            GetPortfolioMetricsParamsWindow = "ytd"
 )
 
 // Valid indicates whether the value is a known member of the GetPortfolioMetricsParamsWindow enum.
 func (e GetPortfolioMetricsParamsWindow) Valid() bool {
 	switch e {
-	case Mtd:
+	case GetPortfolioMetricsParamsWindowMtd:
 		return true
-	case N1yr:
+	case GetPortfolioMetricsParamsWindowN1yr:
 		return true
-	case N3yr:
+	case GetPortfolioMetricsParamsWindowN3yr:
 		return true
-	case N5yr:
+	case GetPortfolioMetricsParamsWindowN5yr:
 		return true
-	case SinceInception:
+	case GetPortfolioMetricsParamsWindowSinceInception:
 		return true
-	case Wtd:
+	case GetPortfolioMetricsParamsWindowWtd:
 		return true
-	case Ytd:
+	case GetPortfolioMetricsParamsWindowYtd:
 		return true
 	default:
 		return false
@@ -599,6 +626,45 @@ type HoldingsHistoryResponse struct {
 	Items []HoldingsHistoryEntry `json:"items"`
 }
 
+// HoldingsImpactItem defines model for HoldingsImpactItem.
+type HoldingsImpactItem struct {
+	AvgWeight    float32 `json:"avgWeight"`
+	Contribution float32 `json:"contribution"`
+	Figi         *string `json:"figi,omitempty"`
+	HoldingDays  int     `json:"holdingDays"`
+	Ticker       string  `json:"ticker"`
+}
+
+// HoldingsImpactPeriod defines model for HoldingsImpactPeriod.
+type HoldingsImpactPeriod struct {
+	AnnualizedReturn float32                    `json:"annualizedReturn"`
+	CumulativeReturn float32                    `json:"cumulativeReturn"`
+	EndDate          openapi_types.Date         `json:"endDate"`
+	Items            []HoldingsImpactItem       `json:"items"`
+	Label            string                     `json:"label"`
+	Period           HoldingsImpactPeriodPeriod `json:"period"`
+	Rest             HoldingsImpactRest         `json:"rest"`
+	StartDate        openapi_types.Date         `json:"startDate"`
+	Years            float32                    `json:"years"`
+}
+
+// HoldingsImpactPeriodPeriod defines model for HoldingsImpactPeriod.Period.
+type HoldingsImpactPeriodPeriod string
+
+// HoldingsImpactResponse defines model for HoldingsImpactResponse.
+type HoldingsImpactResponse struct {
+	AsOf          openapi_types.Date     `json:"asOf"`
+	Currency      string                 `json:"currency"`
+	Periods       []HoldingsImpactPeriod `json:"periods"`
+	PortfolioSlug string                 `json:"portfolioSlug"`
+}
+
+// HoldingsImpactRest defines model for HoldingsImpactRest.
+type HoldingsImpactRest struct {
+	Contribution float32 `json:"contribution"`
+	Count        int     `json:"count"`
+}
+
 // HoldingsResponse defines model for HoldingsResponse.
 type HoldingsResponse struct {
 	Date             openapi_types.Date `json:"date"`
@@ -927,6 +993,12 @@ type Unauthorized = Problem
 
 // UnprocessableEntity RFC 7807 Problem Details.
 type UnprocessableEntity = Problem
+
+// GetPortfolioHoldingsImpactParams defines parameters for GetPortfolioHoldingsImpact.
+type GetPortfolioHoldingsImpactParams struct {
+	// Top Maximum number of named holdings per period (remaining folded into `rest`).
+	Top *int `form:"top,omitempty" json:"top,omitempty"`
+}
 
 // GetPortfolioHoldingsHistoryParams defines parameters for GetPortfolioHoldingsHistory.
 type GetPortfolioHoldingsHistoryParams struct {
