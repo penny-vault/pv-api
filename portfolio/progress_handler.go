@@ -17,6 +17,7 @@ package portfolio
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,24 +94,32 @@ func (h *Handler) StreamRunProgress(c fiber.Ctx) error {
 	reqCtx := c.Context()
 	return c.SendStreamWriter(func(w *bufio.Writer) {
 		defer unsub()
-		for {
-			select {
-			case evt, ok := <-events:
-				if !ok {
-					return
-				}
-				if evt.Progress != nil {
-					writeSSEProgress(w, evt.Progress)
-					_ = w.Flush()
-				} else if evt.Terminal != nil {
-					writeSSETerminal(w, evt.Terminal.Status, evt.Terminal.Error)
-					return
-				}
-			case <-reqCtx.Done():
+		streamProgressEvents(reqCtx, w, events)
+	})
+}
+
+// streamProgressEvents consumes a progress event channel until it's closed,
+// a terminal event arrives, or the request context is cancelled.
+func streamProgressEvents(ctx context.Context, w *bufio.Writer, events <-chan progress.Event) {
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok {
 				return
 			}
+			if evt.Progress != nil {
+				writeSSEProgress(w, evt.Progress)
+				_ = w.Flush()
+				continue
+			}
+			if evt.Terminal != nil {
+				writeSSETerminal(w, evt.Terminal.Status, evt.Terminal.Error)
+				return
+			}
+		case <-ctx.Done():
+			return
 		}
-	})
+	}
 }
 
 type progressSSEData struct {
@@ -135,7 +144,7 @@ func writeSSEProgress(w *bufio.Writer, msg *progress.ProgressMessage) {
 		EtaMS:        msg.EtaMS,
 		Measurements: msg.Measurements,
 	})
-	fmt.Fprintf(w, "event: progress\ndata: %s\n\n", data)
+	_, _ = fmt.Fprintf(w, "event: progress\ndata: %s\n\n", data)
 }
 
 type terminalSSEData struct {
@@ -149,6 +158,6 @@ func writeSSETerminal(w *bufio.Writer, status, errMsg string) {
 		evtName = "error"
 	}
 	data, _ := json.Marshal(terminalSSEData{Status: status, Error: errMsg})
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtName, data)
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtName, data)
 	_ = w.Flush()
 }
