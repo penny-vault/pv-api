@@ -376,7 +376,7 @@ Route:
 | Period with zero V(t0) (newly funded day)  | Snap start forward one day; if still zero, omit the period.                                   |
 | Residual mismatch > 1e-6 after summing     | Return 500 with a structured error; log the residual and period for debugging.                |
 | Old snapshot missing positions_daily       | Return 404 with `error_code: "snapshot_missing_positions_daily"`. Stats refresher re-runs daily; endpoint becomes live after re-backtest. |
-| `top` out of range                         | 400 with `error_code: "invalid_top"`.                                                         |
+| `top` out of range                         | Silently clamped to [1, 50]. Matches sibling `/metrics` endpoint behavior.                    |
 
 ## Testing
 

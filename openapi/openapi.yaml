@@ -631,7 +631,7 @@ paths:
         - name: top
           in: query
           required: false
-          description: Maximum number of named holdings per period (remaining folded into `rest`).
+          description: Maximum number of named holdings per period (remaining folded into `rest`). Values outside [1, 50] are clamped silently.
           schema:
             type: integer
             minimum: 1
@@ -1362,12 +1362,19 @@ components:
       type: object
       required: [portfolioSlug, asOf, currency, periods]
       properties:
-        portfolioSlug: { type: string }
-        asOf:          { type: string, format: date }
-        currency:      { type: string, example: USD }
+        portfolioSlug:
+          type: string
+        asOf:
+          type: string
+          format: date
+        currency:
+          type: string
+          example: USD
+          description: ISO 4217 currency code of the portfolio's reporting currency.
         periods:
           type: array
-          items: { $ref: '#/components/schemas/HoldingsImpactPeriod' }
+          items:
+            $ref: '#/components/schemas/HoldingsImpactPeriod'
 
     HoldingsImpactPeriod:
       type: object
@@ -1375,34 +1382,62 @@ components:
       properties:
         period:
           type: string
-          enum: [ytd, 1y, 3y, 5y, inception]
-        label:            { type: string }
-        startDate:        { type: string, format: date }
-        endDate:          { type: string, format: date }
-        years:            { type: number }
-        cumulativeReturn: { type: number }
-        annualizedReturn: { type: number }
+          enum: [inception, 5y, 3y, 1y, ytd]
+        label:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        years:
+          type: number
+          format: double
+          minimum: 0
+        cumulativeReturn:
+          type: number
+          format: double
+        annualizedReturn:
+          type: number
+          format: double
         items:
           type: array
-          items: { $ref: '#/components/schemas/HoldingsImpactItem' }
-        rest: { $ref: '#/components/schemas/HoldingsImpactRest' }
+          items:
+            $ref: '#/components/schemas/HoldingsImpactItem'
+        rest:
+          $ref: '#/components/schemas/HoldingsImpactRest'
 
     HoldingsImpactItem:
       type: object
       required: [ticker, contribution, avgWeight, holdingDays]
       properties:
-        ticker:       { type: string }
-        figi:         { type: string }
-        contribution: { type: number }
-        avgWeight:    { type: number }
-        holdingDays:  { type: integer }
+        ticker:
+          type: string
+        figi:
+          type: string
+          nullable: true
+          description: Composite FIGI. Empty string for synthetic tickers like $CASH.
+        contribution:
+          type: number
+          format: double
+        avgWeight:
+          type: number
+          format: double
+        holdingDays:
+          type: integer
+          format: int64
 
     HoldingsImpactRest:
       type: object
       required: [count, contribution]
       properties:
-        count:        { type: integer }
-        contribution: { type: number }
+        count:
+          type: integer
+          format: int64
+        contribution:
+          type: number
+          format: double
 
     PortfolioStatus:
       type: string

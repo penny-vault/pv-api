@@ -628,24 +628,26 @@ type HoldingsHistoryResponse struct {
 
 // HoldingsImpactItem defines model for HoldingsImpactItem.
 type HoldingsImpactItem struct {
-	AvgWeight    float32 `json:"avgWeight"`
-	Contribution float32 `json:"contribution"`
-	Figi         *string `json:"figi,omitempty"`
-	HoldingDays  int     `json:"holdingDays"`
-	Ticker       string  `json:"ticker"`
+	AvgWeight    float64 `json:"avgWeight"`
+	Contribution float64 `json:"contribution"`
+
+	// Figi Composite FIGI. Empty string for synthetic tickers like $CASH.
+	Figi        *string `json:"figi,omitempty"`
+	HoldingDays int64   `json:"holdingDays"`
+	Ticker      string  `json:"ticker"`
 }
 
 // HoldingsImpactPeriod defines model for HoldingsImpactPeriod.
 type HoldingsImpactPeriod struct {
-	AnnualizedReturn float32                    `json:"annualizedReturn"`
-	CumulativeReturn float32                    `json:"cumulativeReturn"`
+	AnnualizedReturn float64                    `json:"annualizedReturn"`
+	CumulativeReturn float64                    `json:"cumulativeReturn"`
 	EndDate          openapi_types.Date         `json:"endDate"`
 	Items            []HoldingsImpactItem       `json:"items"`
 	Label            string                     `json:"label"`
 	Period           HoldingsImpactPeriodPeriod `json:"period"`
 	Rest             HoldingsImpactRest         `json:"rest"`
 	StartDate        openapi_types.Date         `json:"startDate"`
-	Years            float32                    `json:"years"`
+	Years            float64                    `json:"years"`
 }
 
 // HoldingsImpactPeriodPeriod defines model for HoldingsImpactPeriod.Period.
@@ -653,7 +655,9 @@ type HoldingsImpactPeriodPeriod string
 
 // HoldingsImpactResponse defines model for HoldingsImpactResponse.
 type HoldingsImpactResponse struct {
-	AsOf          openapi_types.Date     `json:"asOf"`
+	AsOf openapi_types.Date `json:"asOf"`
+
+	// Currency ISO 4217 currency code of the portfolio's reporting currency.
 	Currency      string                 `json:"currency"`
 	Periods       []HoldingsImpactPeriod `json:"periods"`
 	PortfolioSlug string                 `json:"portfolioSlug"`
@@ -661,8 +665,8 @@ type HoldingsImpactResponse struct {
 
 // HoldingsImpactRest defines model for HoldingsImpactRest.
 type HoldingsImpactRest struct {
-	Contribution float32 `json:"contribution"`
-	Count        int     `json:"count"`
+	Contribution float64 `json:"contribution"`
+	Count        int64   `json:"count"`
 }
 
 // HoldingsResponse defines model for HoldingsResponse.
@@ -996,7 +1000,7 @@ type UnprocessableEntity = Problem
 
 // GetPortfolioHoldingsImpactParams defines parameters for GetPortfolioHoldingsImpact.
 type GetPortfolioHoldingsImpactParams struct {
-	// Top Maximum number of named holdings per period (remaining folded into `rest`).
+	// Top Maximum number of named holdings per period (remaining folded into `rest`). Values outside [1, 50] are clamped silently.
 	Top *int `form:"top,omitempty" json:"top,omitempty"`
 }
 
