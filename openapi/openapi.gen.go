@@ -329,7 +329,7 @@ type HoldingsResponse struct {
 type MetricFormat string
 
 // MetricGroup Map of pvbt metric name to array of values, one per requested window.
-type MetricGroup map[string][]*float32
+type MetricGroup map[string][]*float64
 
 // PerformancePoint defines model for PerformancePoint.
 type PerformancePoint struct {

@@ -986,6 +986,7 @@ components:
         type: array
         items:
           type: number
+          format: double
           nullable: true
 
     PortfolioMetrics:
