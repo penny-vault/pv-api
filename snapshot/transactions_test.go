@@ -42,11 +42,15 @@ var _ = Describe("Transactions", func() {
 	It("returns all transactions when no filter is provided", func() {
 		resp, err := reader.Transactions(context.Background(), snapshot.TransactionFilter{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(resp.Items).To(HaveLen(2))
+		Expect(resp.Items).To(HaveLen(4))
 		Expect(resp.Items[0].Type).To(BeEquivalentTo(openapi.Buy))
 		Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
 		Expect(resp.Items[1].Type).To(BeEquivalentTo(openapi.Dividend))
 		Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
+		Expect(resp.Items[2].Type).To(BeEquivalentTo(openapi.Sell))
+		Expect(resp.Items[2].BatchId).To(Equal(int64(4)))
+		Expect(resp.Items[3].Type).To(BeEquivalentTo(openapi.Buy))
+		Expect(resp.Items[3].BatchId).To(Equal(int64(4)))
 	})
 
 	It("filters by date range inclusively", func() {
@@ -61,8 +65,9 @@ var _ = Describe("Transactions", func() {
 	It("filters by type", func() {
 		resp, err := reader.Transactions(context.Background(), snapshot.TransactionFilter{Types: []string{"buy"}})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(resp.Items).To(HaveLen(1))
+		Expect(resp.Items).To(HaveLen(2))
 		Expect(resp.Items[0].Type).To(BeEquivalentTo(openapi.Buy))
+		Expect(resp.Items[1].Type).To(BeEquivalentTo(openapi.Buy))
 	})
 })
 

@@ -64,10 +64,11 @@ var _ = Describe("Holdings", func() {
 	})
 
 	Describe("HoldingsHistory", func() {
-		It("emits one entry per batch with cumulative holdings, portfolioValue, and annotations", func() {
+		It("only emits batches that contain buy/sell/split transactions", func() {
 			resp, err := reader.HoldingsHistory(context.Background(), nil, nil)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.Items).To(HaveLen(3))
+			// batch 2 (dividend only) and batch 3 (no transactions — monthly no-op) are excluded
+			Expect(resp.Items).To(HaveLen(2))
 
 			Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
 			Expect(resp.Items[0].Items).To(HaveLen(1))
@@ -78,26 +79,22 @@ var _ = Describe("Holdings", func() {
 			Expect(*resp.Items[0].PortfolioValue).To(BeNumerically("~", 100000, 0.01))
 			Expect(*resp.Items[0].Annotations).To(HaveKeyWithValue("reason", "initial allocation"))
 
-			Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
+			// batch 4: annual rebalance sold VTI, bought QQQ
+			Expect(resp.Items[1].BatchId).To(Equal(int64(4)))
 			Expect(resp.Items[1].Items).To(HaveLen(1))
-			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
-			Expect(resp.Items[1].PortfolioValue).NotTo(BeNil())
-			Expect(*resp.Items[1].PortfolioValue).To(BeNumerically("~", 102000, 0.01))
-
-			Expect(resp.Items[2].BatchId).To(Equal(int64(3)))
-			Expect(resp.Items[2].Items).To(HaveLen(1))
-			Expect(resp.Items[2].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
-			Expect(resp.Items[2].PortfolioValue).NotTo(BeNil())
-			Expect(*resp.Items[2].PortfolioValue).To(BeNumerically("~", 103000, 0.01))
+			Expect(resp.Items[1].Items[0].Ticker).To(Equal("QQQ"))
+			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 90, 0.01))
+			Expect(resp.Items[1].PortfolioValue).To(BeNil()) // no perf_data row for 2024-01-11
+			Expect(resp.Items[1].Annotations).To(BeNil())
 		})
 
 		It("filters the batch range by from/to timestamps", func() {
-			from := mustDate("2024-01-04")
-			to := mustDate("2024-01-06")
+			from := mustDate("2024-01-10")
+			to := mustDate("2024-01-12")
 			resp, err := reader.HoldingsHistory(context.Background(), &from, &to)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Items).To(HaveLen(1))
-			Expect(resp.Items[0].BatchId).To(Equal(int64(2)))
+			Expect(resp.Items[0].BatchId).To(Equal(int64(4)))
 		})
 	})
 })

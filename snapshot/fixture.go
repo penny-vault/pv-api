@@ -85,12 +85,15 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO positions_daily VALUES ('2024-01-08','VTI','BBG000BDTBL9',10300,100)`,
 		`INSERT INTO positions_daily VALUES ('2024-01-08','$CASH','',92700,92700)`,
 
-		`INSERT INTO batches VALUES (1, 1704205800000000000)`, // 2024-01-02T14:30:00Z
-		`INSERT INTO batches VALUES (2, 1704465000000000000)`, // 2024-01-05T14:30:00Z
-		`INSERT INTO batches VALUES (3, 1704724200000000000)`, // 2024-01-08T14:30:00Z
+		`INSERT INTO batches VALUES (1, 1704205800000000000)`, // 2024-01-02T14:30:00Z — buy (included)
+		`INSERT INTO batches VALUES (2, 1704465000000000000)`, // 2024-01-05T14:30:00Z — dividend only (excluded)
+		`INSERT INTO batches VALUES (3, 1704724200000000000)`, // 2024-01-08T14:30:00Z — no transactions (excluded, simulates monthly no-op like ncave)
+		`INSERT INTO batches VALUES (4, 1704983400000000000)`, // 2024-01-11T14:30:00Z — rebalance sell+buy (included)
 
 		`INSERT INTO transactions VALUES (1, '2024-01-02', 'buy', 'VTI', 'BBG000BDTBL9', 100, 100, 10000, 0, 'initial buy')`,
 		`INSERT INTO transactions VALUES (2, '2024-01-05', 'dividend', 'VTI', 'BBG000BDTBL9', 0, 0, 25.50, 1, 'qualified div')`,
+		`INSERT INTO transactions VALUES (4, '2024-01-11', 'sell', 'VTI', 'BBG000BDTBL9', 100, 110, 11000, 0, 'annual rebalance')`,
+		`INSERT INTO transactions VALUES (4, '2024-01-11', 'buy', 'QQQ', '', 90, 110, 9900, 0, 'annual rebalance')`,
 
 		`INSERT INTO annotations VALUES (1, 1704205800, 'reason', 'initial allocation')`,
 		`INSERT INTO annotations VALUES (2, 1704464200, 'reason', 'dividend payment')`,

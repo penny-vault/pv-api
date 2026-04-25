@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/oapi-codegen/runtime/types"
@@ -203,24 +202,19 @@ func ledgerToAsOfResponse(date time.Time, ledger map[string]*ledgerRow) *openapi
 // batch's date, so batch_id=0 rows — pvbt's dividends and end-of-backtest
 // liquidations — don't leak into earlier batches.
 func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error) {
-	batchQ := `SELECT batch_id, timestamp FROM batches`
-	var (
-		where []string
-		args  []any
-	)
+	batchQ := `SELECT b.batch_id, b.timestamp FROM batches b
+		WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.batch_id = b.batch_id AND t.type IN ('buy','sell','split'))`
+	var args []any
 	if from != nil {
-		where = append(where, "timestamp >= ?")
+		batchQ += " AND b.timestamp >= ?"
 		args = append(args, from.UnixNano())
 	}
 	if to != nil {
 		endOfTo := to.Add(24*time.Hour - time.Second)
-		where = append(where, "timestamp <= ?")
+		batchQ += " AND b.timestamp <= ?"
 		args = append(args, endOfTo.UnixNano())
 	}
-	if len(where) > 0 {
-		batchQ += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // G202: where clauses use only "timestamp >= ?" and "timestamp <= ?", no user input
-	}
-	batchQ += " ORDER BY batch_id"
+	batchQ += " ORDER BY b.batch_id"
 
 	rows, err := r.db.QueryContext(ctx, batchQ, args...)
 	if err != nil {
