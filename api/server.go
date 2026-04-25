@@ -60,6 +60,7 @@ type Config struct {
 	Dispatcher     portfolio.Dispatcher // optional: if nil, /runs POST returns 501
 	SnapshotOpener portfolio.SnapshotOpener
 	ProgressHub    *progress.Hub
+	AlertChecker   alert.EmailSummarizer // optional: if nil, email-summary returns 503
 	Ephemeral      EphemeralConfig
 }
 
@@ -138,7 +139,7 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		}
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		alertStore := alert.NewPoolStore(conf.Pool)
-		alertHandler := alert.NewAlertHandler(portfolioStore, alertStore)
+		alertHandler := alert.NewAlertHandlerWithChecker(portfolioStore, alertStore, conf.AlertChecker)
 		RegisterAlertRoutesWith(protected, alertHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(
 			strategyStore,

@@ -2,6 +2,7 @@ package alert
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/snapshot"
 )
+
+// ErrEmailNotConfigured is returned by SendSummary when no Mailgun API key is set.
+var ErrEmailNotConfigured = errors.New("email not configured: no Mailgun API key")
 
 type portfolioData struct {
 	Name         string
@@ -63,6 +67,36 @@ func (c *Checker) NotifyRunComplete(ctx context.Context, portfolioID, _ uuid.UUI
 	return nil
 }
 
+// SendSummary sends a one-off portfolio summary email to recipient.
+// Returns ErrEmailNotConfigured if no Mailgun API key is set.
+func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipient string) error {
+	if c.emailConfig.APIKey == "" {
+		return ErrEmailNotConfigured
+	}
+	port, err := c.loadPortfolio(ctx, portfolioID)
+	if err != nil {
+		return fmt.Errorf("send summary: load portfolio: %w", err)
+	}
+	now := time.Now().UTC()
+	payload := c.buildPayload(ctx, Alert{}, port, now, port.Status == "ready")
+	payload.Trades = nil // no trade context for an on-demand summary
+	htmlBody, textBody, err := email.Render(payload)
+	if err != nil {
+		return fmt.Errorf("send summary: render: %w", err)
+	}
+	subject := fmt.Sprintf("Portfolio Update: %s", port.Name)
+	if port.Status != "ready" {
+		subject = fmt.Sprintf("Portfolio Error: %s", port.Name)
+	}
+	if err := email.Send(ctx, c.emailConfig, []string{recipient}, subject, htmlBody, textBody); err != nil {
+		return fmt.Errorf("send summary: send: %w", err)
+	}
+	return nil
+}
+
+// loadPortfolio returns pgx.ErrNoRows if the portfolio does not exist. Callers
+// that reach this via SendSummary have already validated the portfolio by slug,
+// so a not-found here is a transient race and is acceptable as a 500.
 func (c *Checker) loadPortfolio(ctx context.Context, id uuid.UUID) (portfolioData, error) {
 	var p portfolioData
 	err := c.pool.QueryRow(ctx,

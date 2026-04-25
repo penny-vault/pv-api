@@ -42,6 +42,7 @@ func RegisterPortfolioRoutes(r fiber.Router) {
 	r.Get("/portfolios/:slug/holdings-impact", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings/:date", stubPortfolio)
 	r.Post("/portfolios/:slug/run", stubPortfolio)
+	r.Post("/portfolios/:slug/email-summary", stubPortfolio) // real path: RegisterAlertRoutesWith
 	r.Get("/portfolios/:slug/runs", stubPortfolio)
 	r.Get("/portfolios/:slug/runs/:runId", stubPortfolio)
 	r.Get("/portfolios/:slug/runs/:runId/progress", stubPortfolio)
@@ -77,6 +78,7 @@ func RegisterAlertRoutesWith(r fiber.Router, h *alert.AlertHandler) {
 	r.Get("/portfolios/:slug/alerts", h.List)
 	r.Patch("/portfolios/:slug/alerts/:alertId", h.Update)
 	r.Delete("/portfolios/:slug/alerts/:alertId", h.Delete)
+	r.Post("/portfolios/:slug/email-summary", h.SendSummary)
 }
 
 func stubPortfolio(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }
