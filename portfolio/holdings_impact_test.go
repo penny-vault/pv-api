@@ -139,6 +139,17 @@ var _ = Describe("Handler.HoldingsImpact", func() {
 		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
 	})
 
+	It("returns 404 when the snapshot lacks positions_daily (ErrSnapshotNotFound)", func() {
+		reader.holdingsImpactFn = func(_ context.Context, _ string, _ int) (*openapi.HoldingsImpactResponse, error) {
+			return nil, portfolio.ErrSnapshotNotFound
+		}
+
+		req := httptest.NewRequest("GET", "/portfolios/"+slug+"/holdings-impact", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+	})
+
 	It("returns 401 when no auth subject is present", func() {
 		// Build a fresh app with no middleware setting AuthSubjectKey so the
 		// subject() helper returns ErrNoSubject.

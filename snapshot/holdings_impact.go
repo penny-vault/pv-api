@@ -224,6 +224,13 @@ func applyTxFlow(day *timelineDay, typeStr, ticker, figi string, amount float64)
 		day.flows[cashKey] += amount
 	case "withdrawal":
 		day.flows[cashKey] -= amount
+	case "interest", "journal":
+		// interest: organic cash P&L from idle balance; no flow attribution
+		// (counting it as a flow would subtract the interest from cash's P&L,
+		// but the interest IS cash's P&L).
+		// journal: balance-preserving metadata adjustment; no flow attribution.
+		// If pvbt ever emits a non-zero journal that breaks the residual
+		// identity, the residual guard catches it loudly.
 	}
 }
 
@@ -257,6 +264,15 @@ func buildPeriodWindows(timeline []timelineDay) []periodWindow {
 		}
 		idx := snapForward(timeline, s.start)
 		if idx < 0 || idx >= endIdx {
+			continue
+		}
+		// Advance past leading days where portfolio equity is zero (newly
+		// funded portfolios start at V=0 before the first deposit lands).
+		// If every remaining day in the window has V==0, omit the period.
+		for idx < endIdx && timeline[idx].v == 0 {
+			idx++
+		}
+		if idx >= endIdx {
 			continue
 		}
 		out = append(out, periodWindow{id: s.id, label: s.label, startIdx: idx, endIdx: endIdx})

@@ -43,6 +43,14 @@ func (a readerAdapter) HoldingsAsOf(ctx context.Context, d time.Time) (*openapi.
 	return resp, err
 }
 
+func (a readerAdapter) HoldingsImpact(ctx context.Context, slug string, topN int) (*openapi.HoldingsImpactResponse, error) {
+	resp, err := a.Reader.HoldingsImpact(ctx, slug, topN)
+	if errors.Is(err, ErrNotFound) {
+		return nil, portfolio.ErrSnapshotNotFound
+	}
+	return resp, err
+}
+
 var _ portfolio.SnapshotReader = readerAdapter{}
 
 // Opener satisfies portfolio.SnapshotOpener.

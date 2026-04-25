@@ -228,6 +228,75 @@ var _ = Describe("Reader.HoldingsImpact", func() {
 		Expect(errors.Is(err, snapshot.ErrNotFound)).To(BeTrue())
 	})
 
+	It("treats interest transactions as cash's organic P&L (no flow attribution)", func() {
+		_ = r.Close()
+		r = nil
+
+		path2 := filepath.Join(GinkgoT().TempDir(), "interest.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path2)).To(Succeed())
+		// Inject a $50 interest credit on 2024-01-05 and propagate the
+		// matching cash bump forward through 2024-01-08 in both
+		// positions_daily.$CASH and perf_data.portfolio_value so the
+		// residual identity stays balanced.
+		Expect(execAll(path2, []string{
+			`INSERT INTO transactions VALUES (2, '2024-01-05', 'interest', '$CASH', '', 0, 0, 50, 0, 'cash interest')`,
+			`UPDATE positions_daily SET market_value=market_value+50, quantity=quantity+50 WHERE date='2024-01-05' AND ticker='$CASH'`,
+			`UPDATE positions_daily SET market_value=market_value+50, quantity=quantity+50 WHERE date='2024-01-08' AND ticker='$CASH'`,
+			`UPDATE perf_data SET value=value+50 WHERE date='2024-01-05' AND metric='portfolio_value'`,
+			`UPDATE perf_data SET value=value+50 WHERE date='2024-01-08' AND metric='portfolio_value'`,
+		})).To(Succeed())
+
+		r2, err := snapshot.Open(path2)
+		Expect(err).NotTo(HaveOccurred())
+		defer r2.Close()
+
+		resp, err := r2.HoldingsImpact(context.Background(), "acme", 10)
+		Expect(err).NotTo(HaveOccurred())
+
+		inception := findPeriod(resp, openapi.HoldingsImpactPeriodPeriodInception)
+		Expect(inception).NotTo(BeNil())
+		cash := findItem(inception, "$CASH")
+		Expect(cash).NotTo(BeNil())
+
+		// Baseline cash pnl in the standard fixture is 2674.50 (mv: 90000 -> 92700,
+		// minus the dividend inflow of +25.50). With the +$50 interest crediting
+		// cash organically (no flow attribution), cash's pnl rises by exactly $50
+		// to 2724.50; contribution = 2724.50 / 100000 = 0.027245.
+		Expect(cash.Contribution).To(BeNumerically("~", 0.027245, 1e-6))
+	})
+
+	It("snaps the period start forward past leading V=0 days", func() {
+		_ = r.Close()
+		r = nil
+
+		path2 := filepath.Join(GinkgoT().TempDir(), "zerov0.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path2)).To(Succeed())
+		// Force the first perf_data day to V=0 (pre-funding). Drop the
+		// matching positions_daily rows on that day so totals stay
+		// consistent (no positions -> V=0). Inception should snap to the
+		// first non-zero day instead of erroring on V0==0.
+		Expect(execAll(path2, []string{
+			`UPDATE perf_data SET value=0 WHERE date='2024-01-02' AND metric='portfolio_value'`,
+			`DELETE FROM positions_daily WHERE date='2024-01-02'`,
+			// Defang the pre-funding "buy" transaction on 2024-01-02 so it
+			// can't introduce flows on a now-zero day. Move it to 2024-01-03,
+			// matching the first non-zero day.
+			`UPDATE transactions SET date='2024-01-03' WHERE date='2024-01-02' AND type='buy'`,
+		})).To(Succeed())
+
+		r2, err := snapshot.Open(path2)
+		Expect(err).NotTo(HaveOccurred())
+		defer r2.Close()
+
+		resp, err := r2.HoldingsImpact(context.Background(), "acme", 10)
+		Expect(err).NotTo(HaveOccurred())
+
+		inception := findPeriod(resp, openapi.HoldingsImpactPeriodPeriodInception)
+		Expect(inception).NotTo(BeNil())
+		// Inception should now start on 2024-01-03 (first non-zero V), not 2024-01-02.
+		Expect(inception.StartDate.Format("2006-01-02")).To(Equal("2024-01-03"))
+	})
+
 	It("errors when positions do not balance perf_data (residual guard)", func() {
 		_ = r.Close()
 		r = nil

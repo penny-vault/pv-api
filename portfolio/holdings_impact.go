@@ -16,6 +16,7 @@
 package portfolio
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
@@ -27,7 +28,11 @@ func (h *Handler) HoldingsImpact(c fiber.Ctx) error {
 	slug := string([]byte(c.Params("slug")))
 	topN := parseTopN(c.Query("top"))
 	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
-		return r.HoldingsImpact(c.Context(), slug, topN)
+		resp, err := r.HoldingsImpact(c.Context(), slug, topN)
+		if errors.Is(err, ErrSnapshotNotFound) {
+			return nil, errNotFoundSentinel
+		}
+		return resp, err
 	})
 }
 

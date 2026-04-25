@@ -114,9 +114,10 @@ Response body:
 
 Invariants the response MUST satisfy:
 
-1. For every period: `sum(items[].contribution) + rest.contribution ==
-   cumulativeReturn` to within a small rounding tolerance (target: absolute
-   error < 1e-9, see §Rounding below).
+1. For every period: the absolute residual on the dollar identity
+   `(V(t1) - V(t0)) - sum_i pnl_i` is checked against `1e-4` dollars; the
+   spec invariant `sum(items) + rest == cumulativeReturn` holds exactly at
+   6 decimal places by construction (rest absorbs rounding drift).
 2. `rest` is always present. When every ticker fits in `top`, emit
    `{"count": 0, "contribution": 0}`.
 3. `years` is precise decimal years (`days / 365.25`), not rounded.
@@ -375,7 +376,7 @@ Route:
 | Cash ($CASH)                               | Normal row. Its contribution is cash-interest. Can rank into `items` or fall into `rest`.     |
 | Period with zero V(t0) (newly funded day)  | Snap start forward one day; if still zero, omit the period.                                   |
 | Residual mismatch > 1e-6 after summing     | Return 500 with a structured error; log the residual and period for debugging.                |
-| Old snapshot missing positions_daily       | Return 404 with `error_code: "snapshot_missing_positions_daily"`. Stats refresher re-runs daily; endpoint becomes live after re-backtest. |
+| Old snapshot missing positions_daily       | Returns 404. Stats refresher re-runs daily; endpoint becomes live after re-backtest. |
 | `top` out of range                         | Silently clamped to [1, 50]. Matches sibling `/metrics` endpoint behavior.                    |
 
 ## Testing
@@ -396,7 +397,8 @@ Route:
 - **Unit (`portfolio/holdings_impact_test.go`)**:
   - Handler routes slug → reader, serialises payload, honours `top` query.
   - 404 when snapshot lacks the table (simulate via fixture builder variant).
-  - 400 on `top=0`, `top=51`, `top=abc`.
+  - Tolerant parsing of `top`: `top=0`, `top=-1`, `top=abc` -> default 10;
+    `top=51`+ -> clamped to 50. Matches sibling `/metrics` endpoint.
 - **Integration**: extend `portfolio/handler_test.go` happy-path coverage with
   a fresh run to assert the whole pipeline (backtest → snapshot → API) works.
 
