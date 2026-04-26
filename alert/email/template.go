@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"encoding/base64"
 	_ "embed"
 	"fmt"
 	"math"
@@ -9,6 +10,15 @@ import (
 	"text/template"
 	"time"
 )
+
+//go:embed assets/logo-80.jpg
+var logoBytes []byte
+
+var logoDataURL string
+
+func init() {
+	logoDataURL = "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(logoBytes)
+}
 
 //go:embed templates/success.html
 var successHTML string
