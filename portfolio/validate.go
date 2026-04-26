@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/penny-vault/pv-api/strategy"
@@ -103,6 +104,85 @@ func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateReq
 func validateDates(start, end *time.Time) error {
 	if start != nil && end != nil && end.Before(*start) {
 		return ErrEndBeforeStart
+	}
+	return nil
+}
+
+// ParameterRetype describes a parameter whose declared type changed between
+// strategy versions.
+type ParameterRetype struct {
+	Name string `json:"name"`
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// ParameterDiff is the result of comparing two strategy describes.
+// A diff is "compatible" when every change can be applied without losing or
+// remapping user input.
+type ParameterDiff struct {
+	Kept                []string          `json:"kept"`
+	AddedWithDefault    []string          `json:"added_with_default"`
+	AddedWithoutDefault []string          `json:"added_without_default"`
+	Removed             []string          `json:"removed"`
+	Retyped             []ParameterRetype `json:"retyped"`
+}
+
+// Compatible reports whether the diff can be applied automatically:
+// no Removed, no Retyped, no AddedWithoutDefault.
+func (d ParameterDiff) Compatible() bool {
+	return len(d.Removed) == 0 && len(d.Retyped) == 0 && len(d.AddedWithoutDefault) == 0
+}
+
+// DiffParameters classifies every parameter declared on either describe.
+//   - Kept: same Name and same Type on both describes.
+//   - Retyped: same Name on both describes, different Type.
+//   - Removed: declared on old, absent on new.
+//   - AddedWithDefault / AddedWithoutDefault: absent on old, declared on new
+//     (split by whether new declaration has a non-nil Default).
+func DiffParameters(oldDescribe, newDescribe strategy.Describe) ParameterDiff {
+	oldByName := make(map[string]strategy.DescribeParameter, len(oldDescribe.Parameters))
+	for _, p := range oldDescribe.Parameters {
+		oldByName[p.Name] = p
+	}
+	newByName := make(map[string]strategy.DescribeParameter, len(newDescribe.Parameters))
+	for _, p := range newDescribe.Parameters {
+		newByName[p.Name] = p
+	}
+
+	var d ParameterDiff
+	for name, oldP := range oldByName {
+		newP, ok := newByName[name]
+		if !ok {
+			d.Removed = append(d.Removed, name)
+			continue
+		}
+		if oldP.Type != newP.Type {
+			d.Retyped = append(d.Retyped, ParameterRetype{Name: name, From: oldP.Type, To: newP.Type})
+			continue
+		}
+		d.Kept = append(d.Kept, name)
+	}
+	for name, newP := range newByName {
+		if _, present := oldByName[name]; present {
+			continue
+		}
+		if newP.Default != nil {
+			d.AddedWithDefault = append(d.AddedWithDefault, name)
+		} else {
+			d.AddedWithoutDefault = append(d.AddedWithoutDefault, name)
+		}
+	}
+	return d
+}
+
+// MatchPresetName returns the name of a preset on newDescribe whose
+// parameters exactly match current, or nil if none match.
+func MatchPresetName(current map[string]any, newDescribe strategy.Describe) *string {
+	for _, preset := range newDescribe.Presets {
+		if reflect.DeepEqual(preset.Parameters, current) {
+			name := preset.Name
+			return &name
+		}
 	}
 	return nil
 }
