@@ -54,9 +54,23 @@ func (d *countingDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, 
 	return d.runID, d.err
 }
 
+// applyUpgradeCall records the arguments passed to fakeStore.ApplyUpgrade.
+type applyUpgradeCall struct {
+	PortfolioID uuid.UUID
+	NewVer      string
+	NewDescribe json.RawMessage
+	NewParams   json.RawMessage
+	PresetName  *string
+}
+
 // fakeStore is a trivial in-memory implementation of portfolio.Store.
 type fakeStore struct {
 	rows []portfolio.Portfolio
+
+	// ApplyUpgrade call recording.
+	ApplyUpgradeCalls []applyUpgradeCall
+	ApplyUpgradeRunID uuid.UUID // returned to caller; uuid.Nil triggers uuid.New()
+	ApplyUpgradeErr   error     // returned to caller; nil means success
 }
 
 func (f *fakeStore) List(_ context.Context, ownerSub string) ([]portfolio.Portfolio, error) {
@@ -173,11 +187,20 @@ func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) 
 	return nil, nil
 }
 
-// ApplyUpgrade stub — handler tests do not exercise the upgrade path.
-func (f *fakeStore) ApplyUpgrade(_ context.Context, _ uuid.UUID, _ string,
-	_ json.RawMessage, _ json.RawMessage, _ *string,
+func (f *fakeStore) ApplyUpgrade(_ context.Context, portfolioID uuid.UUID, newVer string,
+	newDescribe, newParams json.RawMessage, presetName *string,
 ) (uuid.UUID, error) {
-	return uuid.New(), nil
+	f.ApplyUpgradeCalls = append(f.ApplyUpgradeCalls, applyUpgradeCall{
+		PortfolioID: portfolioID, NewVer: newVer,
+		NewDescribe: newDescribe, NewParams: newParams, PresetName: presetName,
+	})
+	if f.ApplyUpgradeErr != nil {
+		return uuid.Nil, f.ApplyUpgradeErr
+	}
+	if f.ApplyUpgradeRunID == uuid.Nil {
+		return uuid.New(), nil
+	}
+	return f.ApplyUpgradeRunID, nil
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
