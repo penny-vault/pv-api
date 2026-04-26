@@ -144,6 +144,23 @@ func FormatMoneyVal(v float64) string {
 	return result.String()
 }
 
+// FormatReturnPct formats a fractional return (e.g. 0.034) as "+3.4%" and
+// returns the appropriate color string for light-mode rendering.
+func FormatReturnPct(v float64) (pct, color string) {
+	sign := "+"
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
+	pct = fmt.Sprintf("%s%.1f%%", sign, v*100)
+	if sign == "+" {
+		color = "#16a34a"
+	} else {
+		color = "#dc2626"
+	}
+	return
+}
+
 func buildPlaintext(p Payload) string {
 	var b strings.Builder
 	b.WriteString(p.PortfolioName + " — " + p.RunDate + "\n\n")

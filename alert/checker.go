@@ -184,6 +184,10 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 	}
 
 	if port.SnapshotPath != nil {
+		c.fillReturns(ctx, &p, *port.SnapshotPath)
+	}
+
+	if port.SnapshotPath != nil {
 		c.fillHoldingsAndTrades(ctx, &p, a, port)
 	}
 
@@ -234,6 +238,29 @@ func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snap
 		p.RelativeDelta = fmt.Sprintf("%s%.1f%%", relSign, rel)
 		p.RelativeColor = relColor
 	}
+}
+
+func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPath string) {
+	r, err := snapshot.Open(snapshotPath)
+	if err != nil {
+		return
+	}
+	defer r.Close()
+
+	short, err := r.ShortTermReturns(ctx)
+	if err != nil {
+		return
+	}
+	kpis, err := r.Kpis(ctx)
+	if err != nil {
+		return
+	}
+
+	p.DayChangePct, p.DayChangeColor = email.FormatReturnPct(short.Day)
+	p.WtdPct, p.WtdColor = email.FormatReturnPct(short.WTD)
+	p.MtdPct, p.MtdColor = email.FormatReturnPct(short.MTD)
+	p.YtdPct, p.YtdColor = email.FormatReturnPct(kpis.YtdReturn)
+	p.OneYearPct, p.OneYearColor = email.FormatReturnPct(kpis.OneYearReturn)
 }
 
 func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a Alert, port portfolioData) {
