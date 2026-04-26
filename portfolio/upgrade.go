@@ -27,16 +27,16 @@ import (
 
 // Upgrade implements POST /portfolios/{slug}/upgrade.
 //
-// Handled paths:
-//   - 401 unauthorized
-//   - 404 not found
-//   - 409 run_in_progress
-//   - 422 strategy_not_installable
-//   - 200 already_at_latest
-//   - 200 upgraded (compatible empty-body path)
-//
-// The supplied-parameters and 409 parameters_incompatible paths are wired in
-// Task 11.
+// Flow:
+//  1. Authenticate; load the portfolio; reject if status='running'.
+//  2. Look up the registry strategy; return 422 if not installable.
+//  3. If portfolio.strategy_ver == registry.installed_ver → 200 already_at_latest.
+//  4. Diff the old (frozen on the portfolio) vs new (registry) describe.
+//  5. If body has parameters → validate against new describe; on success use them.
+//     Else if diff is compatible → merge kept values + new defaults.
+//     Else → 409 parameters_incompatible with diff body.
+//  6. Atomically update the portfolio (ApplyUpgrade).
+//  7. Enqueue a new run via Dispatcher.Submit; return 200 with run_id.
 //
 // See docs/superpowers/specs/2026-04-25-portfolio-strategy-upgrade-design.md.
 func (h *Handler) Upgrade(c fiber.Ctx) error {
@@ -168,7 +168,7 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 	if err != nil {
 		if errors.Is(err, ErrQueueFull) {
 			return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
-				"backtest queue is full, try again later")
+				"backtest queue is full; the upgrade was committed but no run was queued. Retry by calling POST /portfolios/{slug}/runs")
 		}
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}

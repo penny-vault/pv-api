@@ -18,6 +18,7 @@ package portfolio_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -584,5 +585,102 @@ var _ = Describe("Upgrade handler skeleton", func() {
 		Expect(sonic.Unmarshal(st.ApplyUpgradeCalls[0].NewParams, &gotParams)).To(Succeed())
 		Expect(gotParams).To(HaveKeyWithValue("a", "x"))
 		Expect(gotParams).To(HaveKeyWithValue("b", "y"))
+	})
+
+	// compatibleUpgradeSeed returns a fakeStore and fakeStrategyStore seeded for a
+	// compatible upgrade: portfolio at v1.0.0, registry at v1.1.0, same single-param
+	// describe on both sides.
+	compatibleUpgradeSeed := func() (*fakeStore, *fakeStrategyStore, uuid.UUID) {
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v1.1.0"
+		portID := uuid.Must(uuid.NewV7())
+		singleParamDescribe := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: singleParamDescribe,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: singleParamDescribe,
+			},
+		}
+		return st, ss, portID
+	}
+
+	It("returns 500 when ApplyUpgrade fails with a generic error", func() {
+		st, ss, portID := compatibleUpgradeSeed()
+		st.ApplyUpgradeErr = errors.New("db gone")
+
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		h := portfolio.NewHandler(st, ss, nil, disp, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		status, _ := doUpgrade(a, slug, ownerSub, nil)
+
+		Expect(status).To(Equal(500))
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
+		Expect(st.ApplyUpgradeCalls[0].PortfolioID).To(Equal(portID))
+		Expect(disp.SubmitCalls).To(BeEmpty())
+	})
+
+	It("returns 503 when the dispatcher queue is full", func() {
+		st, ss, _ := compatibleUpgradeSeed()
+
+		disp := &countingDispatcher{err: portfolio.ErrQueueFull}
+		h := portfolio.NewHandler(st, ss, nil, disp, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		status, body := doUpgrade(a, slug, ownerSub, nil)
+
+		Expect(status).To(Equal(503))
+		detail, _ := body["detail"].(string)
+		Expect(detail).To(ContainSubstring("queue is full"))
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
+	})
+
+	It("returns 200 without run_id when no dispatcher is configured", func() {
+		st, ss, _ := compatibleUpgradeSeed()
+
+		// Build a Handler with dispatcher=nil.
+		h := portfolio.NewHandler(st, ss, nil, nil, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		status, body := doUpgrade(a, slug, ownerSub, nil)
+
+		Expect(status).To(Equal(200))
+		Expect(body["status"]).To(Equal("upgraded"))
+		_, hasRunID := body["run_id"]
+		Expect(hasRunID).To(BeFalse())
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
 	})
 })

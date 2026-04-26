@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/penny-vault/pv-api/strategy"
@@ -177,9 +176,11 @@ func DiffParameters(oldDescribe, newDescribe strategy.Describe) ParameterDiff {
 
 // MatchPresetName returns the name of a preset on newDescribe whose
 // parameters exactly match current, or nil if none match.
+// Comparison is done via canonical-JSON normalisation so that type
+// differences (e.g. int vs float64) do not cause spurious mismatches.
 func MatchPresetName(current map[string]any, newDescribe strategy.Describe) *string {
 	for _, preset := range newDescribe.Presets {
-		if reflect.DeepEqual(preset.Parameters, current) {
+		if presetParametersEqual(preset.Parameters, current) {
 			name := preset.Name
 			return &name
 		}
