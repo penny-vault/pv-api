@@ -135,13 +135,13 @@ func buildPlaintext(p Payload) string {
 	} else {
 		b.WriteString("Trades to Execute:\n")
 		for _, tr := range p.Trades {
-			b.WriteString(fmt.Sprintf("  %s %s %s shares (~%s)\n", tr.Action, tr.Ticker, tr.Shares, tr.Value))
+			fmt.Fprintf(&b, "  %s %s %s shares (~%s)\n", tr.Action, tr.Ticker, tr.Shares, tr.Value)
 		}
 		b.WriteString("\n")
 	}
 	b.WriteString("Target Allocation:\n")
 	for _, h := range p.Holdings {
-		b.WriteString(fmt.Sprintf("  %s  %s%%  %s\n", h.Ticker, h.WeightPct, h.Value))
+		fmt.Fprintf(&b, "  %s  %s%%  %s\n", h.Ticker, h.WeightPct, h.Value)
 	}
 	return b.String()
 }
