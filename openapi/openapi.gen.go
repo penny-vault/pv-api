@@ -1072,6 +1072,13 @@ type GetPortfolioTransactionsParams struct {
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
 }
 
+// UpgradePortfolioStrategyJSONBody defines parameters for UpgradePortfolioStrategy.
+type UpgradePortfolioStrategyJSONBody struct {
+	// Parameters Explicit parameter values, validated against the new describe.
+	// Required only if a prior call returned 409 parameters_incompatible.
+	Parameters *map[string]interface{} `json:"parameters,omitempty"`
+}
+
 // DescribeStrategyParams defines parameters for DescribeStrategy.
 type DescribeStrategyParams struct {
 	// CloneUrl HTTPS GitHub clone URL.
@@ -1092,3 +1099,6 @@ type UpdatePortfolioAlertJSONRequestBody = AlertUpdateRequest
 
 // SendPortfolioEmailSummaryJSONRequestBody defines body for SendPortfolioEmailSummary for application/json ContentType.
 type SendPortfolioEmailSummaryJSONRequestBody = EmailSummaryRequest
+
+// UpgradePortfolioStrategyJSONRequestBody defines body for UpgradePortfolioStrategy for application/json ContentType.
+type UpgradePortfolioStrategyJSONRequestBody UpgradePortfolioStrategyJSONBody

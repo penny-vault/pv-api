@@ -269,6 +269,119 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/upgrade:
+    post:
+      tags: [Portfolios]
+      operationId: upgradePortfolioStrategy
+      summary: Upgrade portfolio to the latest installed strategy version
+      description: |
+        Re-pins the portfolio to the registry's currently installed strategy version
+        and dispatches a fresh backtest run. If the supplied (or stored) parameters
+        are compatible with the new describe, no body is required.
+
+        If parameters cannot be auto-merged (any removed, retyped, or added-without-default),
+        the response is 409 with a structured diff and the new describe; the client must
+        resubmit the call with an explicit `parameters` map validated against the new describe.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  description: |
+                    Explicit parameter values, validated against the new describe.
+                    Required only if a prior call returned 409 parameters_incompatible.
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Upgraded, or already at latest. The body's `status` field disambiguates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [upgraded, already_at_latest]
+                  from_version:
+                    type: string
+                  to_version:
+                    type: string
+                  version:
+                    type: string
+                    description: Set on already_at_latest only.
+                  run_id:
+                    type: string
+                    format: uuid
+                    description: Set on `upgraded` when a dispatcher is configured.
+                required: [status]
+        '400':
+          description: Resubmit body invalid (missing required parameter or unknown key).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Either a run is already in progress (`error: run_in_progress`),
+            or parameters cannot be auto-merged and a resubmit is required
+            (`error: parameters_incompatible`, with `incompatibilities` and `new_describe`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum: [run_in_progress, parameters_incompatible]
+                  from_version:
+                    type: string
+                  to_version:
+                    type: string
+                  incompatibilities:
+                    type: object
+                    properties:
+                      removed:
+                        type: array
+                        items:
+                          type: string
+                      added_without_default:
+                        type: array
+                        items:
+                          type: string
+                      retyped:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name: { type: string }
+                            from: { type: string }
+                            to: { type: string }
+                  current_parameters:
+                    type: object
+                    additionalProperties: true
+                  new_describe:
+                    type: object
+        '422':
+          description: Strategy is not installable (no registry row, missing installed_ver, or install_error set).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum: [strategy_not_installable]
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          description: Backtest queue is full; portfolio was upgraded but no run was queued.
+
   /portfolios/{slug}/runs/{runId}:
     get:
       tags: [Portfolios]
