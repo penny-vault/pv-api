@@ -41,6 +41,7 @@ type TradeRow struct {
 
 type HoldingRow struct {
 	Ticker    string
+	Shares    string // formatted with commas; "—" for $CASH
 	WeightPct string
 	Value     string
 }
@@ -50,6 +51,8 @@ type Payload struct {
 	StrategyCode  string
 	RunDate       string
 	Success       bool
+
+	LogoDataURL string
 
 	CurrentValue string
 	HasDelta     bool
@@ -63,8 +66,22 @@ type Payload struct {
 	RelativeDelta     string
 	RelativeColor     string
 
+	DayChangePct   string
+	DayChangeColor string
+	WtdPct         string
+	WtdColor       string
+	MtdPct         string
+	MtdColor       string
+	YtdPct         string
+	YtdColor       string
+	OneYearPct     string
+	OneYearColor   string
+
 	Trades   []TradeRow
 	Holdings []HoldingRow
+
+	PortfolioURL   string
+	UnsubscribeURL string
 
 	ErrorMessage   string
 	LastKnownValue string
@@ -135,22 +152,31 @@ func buildPlaintext(p Payload) string {
 		return b.String()
 	}
 	b.WriteString("Portfolio Value: " + p.CurrentValue + "\n")
-	if p.HasDelta {
-		b.WriteString(p.DeltaPct + " (" + p.DeltaAbs + ") since " + p.SinceLabel + "\n")
-		b.WriteString("Benchmark (" + p.Benchmark + ") " + p.BenchmarkDeltaPct + "\n\n")
+	if p.DayChangePct != "" {
+		fmt.Fprintf(&b, "Day: %s  WTD: %s  MTD: %s  YTD: %s  1Y: %s\n\n",
+			p.DayChangePct, p.WtdPct, p.MtdPct, p.YtdPct, p.OneYearPct)
 	}
 	if len(p.Trades) == 0 {
 		b.WriteString("No trades required.\n\n")
 	} else {
 		b.WriteString("Trades to Execute:\n")
 		for _, tr := range p.Trades {
-			b.WriteString(fmt.Sprintf("  %s %s %s shares (~%s)\n", tr.Action, tr.Ticker, tr.Shares, tr.Value))
+			fmt.Fprintf(&b, "  %s %s %s shares (~%s)\n", tr.Action, tr.Ticker, tr.Shares, tr.Value)
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString("Target Allocation:\n")
-	for _, h := range p.Holdings {
-		b.WriteString(fmt.Sprintf("  %s  %s%%  %s\n", h.Ticker, h.WeightPct, h.Value))
+	if len(p.Holdings) > 0 {
+		b.WriteString("Current Holdings:\n")
+		for _, h := range p.Holdings {
+			fmt.Fprintf(&b, "  %s  %s shares  %s  %s%%\n", h.Ticker, h.Shares, h.Value, h.WeightPct)
+		}
+		b.WriteString("\n")
+	}
+	if p.PortfolioURL != "" {
+		b.WriteString("View portfolio: " + p.PortfolioURL + "\n")
+	}
+	if p.UnsubscribeURL != "" {
+		b.WriteString("Unsubscribe: " + p.UnsubscribeURL + "\n")
 	}
 	return b.String()
 }
