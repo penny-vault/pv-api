@@ -65,7 +65,7 @@ type CreateRequest struct {
 	Benchmark        string
 	StartDate        *time.Time
 	EndDate          *time.Time
-	RunRetention     *int `json:"run_retention"`
+	RunRetention     *int
 }
 
 // UpdateRequest is what PATCH /portfolios/{slug} passes to the domain layer.
