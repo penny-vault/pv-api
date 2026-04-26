@@ -20,3 +20,7 @@ clean:
 
 gen:
 	go generate ./openapi/...
+
+email-templates:
+	sips -z 80 80 alert/email/assets/pv-icon-blue.jpg --out alert/email/assets/logo-80.jpg
+	cd alert/email/templates/src && npm install && npm run build

@@ -1,0 +1,10 @@
+{
+  "name": "pv-email-templates",
+  "private": true,
+  "devDependencies": {
+    "mjml": "5.0.0-alpha.4"
+  },
+  "scripts": {
+    "build": "mjml success.mjml -o ../success.html && mjml failure.mjml -o ../failure.html"
+  }
+}

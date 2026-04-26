@@ -28,6 +28,9 @@ pvapi.toml
 *.json
 # allow test fixtures
 !**/testdata/*.json
+# allow email template npm manifests
+!alert/email/templates/src/package.json
+!alert/email/templates/src/package-lock.json
 
 # worktrees
 .worktrees/
