@@ -32,13 +32,15 @@ import (
 )
 
 type fakePortfolioStore struct {
-	row          backtest.PortfolioRow
-	markRunning  bool
-	markReady    bool
-	markFailed   string
-	lastKpis     backtest.SetKpis
-	snapshotOut  string
-	durationMsOk int32
+	row             backtest.PortfolioRow
+	markRunning     bool
+	markReady       bool
+	markFailed      string
+	lastKpis        backtest.SetKpis
+	snapshotOut     string
+	durationMsOk    int32
+	PruneRunsCalls  []uuid.UUID
+	PruneRunsReturn []string
 }
 
 func (f *fakePortfolioStore) GetByID(_ context.Context, _ uuid.UUID) (backtest.PortfolioRow, error) {
@@ -67,6 +69,10 @@ func (f *fakePortfolioStore) MarkReadyTx(_ context.Context, _, _ uuid.UUID, path
 func (f *fakePortfolioStore) MarkFailedTx(_ context.Context, _, _ uuid.UUID, errMsg string, _ int32) error {
 	f.markFailed = errMsg
 	return nil
+}
+func (f *fakePortfolioStore) PruneRuns(_ context.Context, id uuid.UUID) ([]string, error) {
+	f.PruneRunsCalls = append(f.PruneRunsCalls, id)
+	return f.PruneRunsReturn, nil
 }
 
 type fakeRunStoreFull struct {
@@ -255,5 +261,84 @@ var _ = Describe("Run orchestration", func() {
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
+	})
+
+	It("calls PruneRuns after MarkReadyTx", func() {
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
+
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		Expect(ps.PruneRunsCalls).To(HaveLen(1))
+		Expect(ps.PruneRunsCalls[0]).To(Equal(ps.row.ID))
+	})
+
+	It("calls PruneRuns after MarkFailedTx", func() {
+		snapsDir := GinkgoT().TempDir()
+		Expect(os.Setenv("FAKESTRAT_BEHAVIOR", "fail")).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_BEHAVIOR") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host", Timeout: 5 * time.Second},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
+
+		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
+		Expect(ps.PruneRunsCalls).To(HaveLen(1))
+	})
+
+	It("removes snapshot files returned by PruneRuns", func() {
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		// Create a temp file that PruneRuns will return as stale snapshot path.
+		tmpFile, err := os.CreateTemp("", "stale-snapshot-*.sqlite")
+		Expect(err).NotTo(HaveOccurred())
+		stalePath := tmpFile.Name()
+		Expect(tmpFile.Close()).To(Succeed())
+		DeferCleanup(func() { os.Remove(stalePath) }) // best-effort cleanup if test fails
+
+		ps := &fakePortfolioStore{
+			row: backtest.PortfolioRow{
+				ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+				Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+			},
+			PruneRunsReturn: []string{stalePath},
+		}
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
+
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		_, statErr := os.Stat(stalePath)
+		Expect(os.IsNotExist(statErr)).To(BeTrue())
 	})
 })

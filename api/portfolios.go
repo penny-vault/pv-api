@@ -41,6 +41,7 @@ func RegisterPortfolioRoutes(r fiber.Router) {
 	r.Get("/portfolios/:slug/holdings/history", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings-impact", stubPortfolio)
 	r.Get("/portfolios/:slug/holdings/:date", stubPortfolio)
+	r.Post("/portfolios/:slug/upgrade", stubPortfolio)
 	r.Post("/portfolios/:slug/run", stubPortfolio)
 	r.Post("/portfolios/:slug/email-summary", stubPortfolio) // real path: RegisterAlertRoutesWith
 	r.Get("/portfolios/:slug/runs", stubPortfolio)
@@ -66,6 +67,7 @@ func RegisterPortfolioRoutesWith(r fiber.Router, h *portfolio.Handler) {
 	r.Get("/portfolios/:slug/holdings-impact", h.HoldingsImpact)
 	r.Get("/portfolios/:slug/performance", h.Performance)
 	r.Get("/portfolios/:slug/transactions", h.Transactions)
+	r.Post("/portfolios/:slug/upgrade", h.Upgrade)
 	r.Post("/portfolios/:slug/run", h.CreateRun)
 	r.Get("/portfolios/:slug/runs", h.ListRuns)
 	r.Get("/portfolios/:slug/runs/:runId", h.GetRun)

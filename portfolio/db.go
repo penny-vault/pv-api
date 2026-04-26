@@ -39,7 +39,7 @@ const portfolioColumns = `
 	id, owner_sub, slug, name, strategy_code, strategy_ver, strategy_clone_url,
 	strategy_describe_json, parameters,
 	preset_name, benchmark, start_date, end_date, status, last_run_at,
-	last_error, snapshot_path, created_at, updated_at
+	last_error, snapshot_path, created_at, updated_at, run_retention
 `
 
 // List returns every portfolio owned by ownerSub, sorted newest-first.
@@ -90,12 +90,12 @@ func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
 		INSERT INTO portfolios (
 			owner_sub, slug, name, strategy_code, strategy_ver,
 			strategy_clone_url, strategy_describe_json, parameters,
-			preset_name, benchmark, start_date, end_date, status
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			preset_name, benchmark, start_date, end_date, status, run_retention
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`, p.OwnerSub, p.Slug, p.Name, p.StrategyCode, p.StrategyVer,
 		p.StrategyCloneURL, p.StrategyDescribeJSON, paramsJSON,
 		p.PresetName, p.Benchmark, p.StartDate, p.EndDate,
-		string(p.Status))
+		string(p.Status), p.RunRetention)
 	if err != nil {
 		if uniqueViolation(err) {
 			return ErrDuplicateSlug
@@ -135,6 +135,23 @@ func UpdateDates(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string,
 	`, ownerSub, slug, startDate, endDate)
 	if err != nil {
 		return fmt.Errorf("updating portfolio dates: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateRunRetention updates a portfolio's run_retention. Returns ErrNotFound
+// if the (ownerSub, slug) pair does not match any row.
+func UpdateRunRetention(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string, value int) error {
+	tag, err := pool.Exec(ctx, `
+		UPDATE portfolios
+		   SET run_retention = $3, updated_at = NOW()
+		 WHERE owner_sub = $1 AND slug = $2
+	`, ownerSub, slug, value)
+	if err != nil {
+		return fmt.Errorf("updating run_retention: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
@@ -299,6 +316,102 @@ func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason stri
 	return int(tag.RowsAffected()), nil
 }
 
+// PruneRuns deletes backtest_runs rows older than the most recent run_retention
+// runs for the given portfolio. Returns the snapshot file paths of deleted
+// rows so the caller can remove them from disk.
+func PruneRuns(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID) ([]string, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var retention int
+	if err := tx.QueryRow(ctx,
+		`SELECT run_retention FROM portfolios WHERE id=$1`, portfolioID,
+	).Scan(&retention); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("loading run_retention: %w", err)
+	}
+
+	deleteRows, err := tx.Query(ctx, `
+		WITH ranked AS (
+			SELECT id, snapshot_path,
+			       ROW_NUMBER() OVER (ORDER BY id DESC) AS rn
+			FROM backtest_runs
+			WHERE portfolio_id = $1
+		)
+		DELETE FROM backtest_runs
+		 WHERE id IN (SELECT id FROM ranked WHERE rn > $2)
+		RETURNING COALESCE(snapshot_path, '')
+	`, portfolioID, retention)
+	if err != nil {
+		return nil, fmt.Errorf("pruning backtest_runs: %w", err)
+	}
+	defer deleteRows.Close()
+
+	var deleted []string
+	for deleteRows.Next() {
+		var p string
+		if err := deleteRows.Scan(&p); err != nil {
+			return nil, err
+		}
+		if p != "" {
+			deleted = append(deleted, p)
+		}
+	}
+	if err := deleteRows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return deleted, nil
+}
+
+// ApplyUpgrade atomically replaces strategy_ver, strategy_describe_json,
+// parameters and preset_name on the portfolio, and sets status='pending' and
+// last_error=NULL. The caller is responsible for enqueuing a backtest run via
+// Dispatcher.Submit after this returns.
+//
+// Returns ErrNotFound when the portfolio does not exist.
+func ApplyUpgrade(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID,
+	newVer string, newDescribe json.RawMessage, newParams json.RawMessage,
+	newPresetName *string,
+) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE portfolios SET
+			strategy_ver = $2,
+			strategy_describe_json = $3,
+			parameters = $4,
+			preset_name = $5,
+			status = 'pending',
+			last_error = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`, portfolioID, newVer, newDescribe, newParams, newPresetName)
+	if err != nil {
+		return fmt.Errorf("updating portfolio: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
 // ClaimDue returns up to batchSize portfolio IDs that are open-ended
 // (end_date IS NULL) and have not yet run today.
 func ClaimDue(ctx context.Context, pool *pgxpool.Pool, batchSize int) ([]uuid.UUID, error) {
@@ -341,7 +454,7 @@ func scan(r scanner) (Portfolio, error) {
 		&p.StrategyCloneURL, &p.StrategyDescribeJSON, &paramsJSON,
 		&p.PresetName, &p.Benchmark, &p.StartDate, &p.EndDate,
 		&statusStr, &p.LastRunAt, &p.LastError, &p.SnapshotPath,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.CreatedAt, &p.UpdatedAt, &p.RunRetention,
 	)
 	if err != nil {
 		return Portfolio{}, err

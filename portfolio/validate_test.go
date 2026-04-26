@@ -205,3 +205,98 @@ var _ = Describe("ValidateCreateUnofficial", func() {
 		Expect(errors.Is(err, portfolio.ErrEndBeforeStart)).To(BeTrue())
 	})
 })
+
+var _ = Describe("DiffParameters", func() {
+	It("classifies an unchanged parameter as kept", func() {
+		old := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "int"}}}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "int"}}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.Kept).To(ConsistOf("p"))
+		Expect(d.Compatible()).To(BeTrue())
+	})
+
+	It("classifies a new parameter with default as added_with_default", func() {
+		old := strategy.Describe{}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{
+			{Name: "p", Type: "int", Default: 7},
+		}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.AddedWithDefault).To(ConsistOf("p"))
+		Expect(d.Compatible()).To(BeTrue())
+	})
+
+	It("classifies a new parameter without default as added_without_default", func() {
+		old := strategy.Describe{}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "int"}}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.AddedWithoutDefault).To(ConsistOf("p"))
+		Expect(d.Compatible()).To(BeFalse())
+	})
+
+	It("classifies a removed parameter", func() {
+		old := strategy.Describe{Parameters: []strategy.DescribeParameter{
+			{Name: "p", Type: "int"},
+			{Name: "q", Type: "int"},
+		}}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "int"}}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.Removed).To(ConsistOf("q"))
+		Expect(d.Compatible()).To(BeFalse())
+	})
+
+	It("classifies a retyped parameter", func() {
+		old := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "int"}}}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{{Name: "p", Type: "string"}}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.Retyped).To(HaveLen(1))
+		Expect(d.Retyped[0].Name).To(Equal("p"))
+		Expect(d.Retyped[0].From).To(Equal("int"))
+		Expect(d.Retyped[0].To).To(Equal("string"))
+		Expect(d.Compatible()).To(BeFalse())
+	})
+
+	It("handles a mix of all five buckets", func() {
+		old := strategy.Describe{Parameters: []strategy.DescribeParameter{
+			{Name: "kept", Type: "int"},
+			{Name: "removed", Type: "int"},
+			{Name: "retyped", Type: "int"},
+		}}
+		newDesc := strategy.Describe{Parameters: []strategy.DescribeParameter{
+			{Name: "kept", Type: "int"},
+			{Name: "added_default", Type: "int", Default: 0},
+			{Name: "added_no_default", Type: "int"},
+			{Name: "retyped", Type: "string"},
+		}}
+		d := portfolio.DiffParameters(old, newDesc)
+		Expect(d.Kept).To(ConsistOf("kept"))
+		Expect(d.AddedWithDefault).To(ConsistOf("added_default"))
+		Expect(d.AddedWithoutDefault).To(ConsistOf("added_no_default"))
+		Expect(d.Removed).To(ConsistOf("removed"))
+		Expect(d.Retyped).To(HaveLen(1))
+		Expect(d.Compatible()).To(BeFalse())
+	})
+})
+
+var _ = Describe("MatchPresetName", func() {
+	presets := []strategy.DescribePreset{
+		{Name: "conservative", Parameters: map[string]any{"p": 1.0}},
+		{Name: "aggressive", Parameters: map[string]any{"p": 9.0}},
+	}
+	desc := strategy.Describe{Presets: presets}
+
+	It("returns the matching preset name when parameters match", func() {
+		n := portfolio.MatchPresetName(map[string]any{"p": 1.0}, desc)
+		Expect(n).NotTo(BeNil())
+		Expect(*n).To(Equal("conservative"))
+	})
+
+	It("returns nil when no preset matches", func() {
+		n := portfolio.MatchPresetName(map[string]any{"p": 5.0}, desc)
+		Expect(n).To(BeNil())
+	})
+
+	It("returns nil when describe has no presets", func() {
+		n := portfolio.MatchPresetName(map[string]any{"p": 1.0}, strategy.Describe{})
+		Expect(n).To(BeNil())
+	})
+})
