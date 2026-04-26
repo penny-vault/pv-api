@@ -1011,6 +1011,11 @@ components:
         updatedAt:
           type: string
           format: date-time
+        runRetention:
+          type: integer
+          minimum: 1
+          default: 2
+          description: Number of recent backtest runs to retain. Defaults to 2; minimum 1.
         lastRunAt:
           type: string
           format: date-time
@@ -1514,11 +1519,16 @@ components:
           type: string
           format: date
           description: Backtest end date (YYYY-MM-DD). Omit to use today.
+        runRetention:
+          type: integer
+          minimum: 1
+          default: 2
+          description: Number of recent backtest runs to retain. Defaults to 2; minimum 1.
 
     PortfolioUpdateRequest:
       type: object
       description: |
-        PATCH body. Only `name`, `startDate`, and `endDate` are mutable.
+        PATCH body. Only `name`, `startDate`, `endDate`, and `runRetention` are mutable.
         Any other field is rejected with 422. All fields are optional; omit
         any field you do not want to change.
       properties:
@@ -1532,6 +1542,11 @@ components:
           type: string
           format: date
           description: Backtest end date (YYYY-MM-DD).
+        runRetention:
+          type: integer
+          minimum: 1
+          default: 2
+          description: Number of recent backtest runs to retain. Defaults to 2; minimum 1.
 
     BacktestRun:
       type: object

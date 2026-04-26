@@ -366,7 +366,7 @@ func applyStoreUpdate(c fiber.Ctx, slug string, fn func() error) error {
 }
 
 // Patch implements PATCH /portfolios/{slug}.
-// Allows updating: name, startDate, endDate.
+// Allows updating: name, startDate, endDate, runRetention.
 func (h *Handler) Patch(c fiber.Ctx) error {
 	ownerSub, err := subject(c)
 	if err != nil {
