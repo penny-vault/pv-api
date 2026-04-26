@@ -32,18 +32,20 @@ var (
 )
 
 type TradeRow struct {
-	Ticker      string
-	Action      string
-	ActionColor string
-	Shares      string
-	Value       string
+	Ticker        string
+	Action        string
+	ActionColor   string
+	ActionBgColor string
+	Shares        string
+	Value         string
 }
 
 type HoldingRow struct {
-	Ticker    string
-	Shares    string // formatted with commas; "—" for $CASH
-	WeightPct string
-	Value     string
+	Ticker      string
+	TickerColor string
+	Shares      string // formatted with commas; "—" for $CASH
+	WeightPct   string
+	Value       string
 }
 
 type Payload struct {

@@ -1,40 +1,422 @@
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 0;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;max-width:600px;width:100%;">
+<!doctype html>
+<html lang="und" dir="auto" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+  <head>
+    <title>{{.PortfolioName}} — Run Failed — Penny Vault</title>
+    <!--[if !mso]><!-->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!--<![endif]-->
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type="text/css">
+      #outlook a {
+        padding: 0;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      table,
+      td {
+        border-collapse: collapse;
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+      }
+      img {
+        border: 0;
+        height: auto;
+        line-height: 100%;
+        outline: none;
+        text-decoration: none;
+        -ms-interpolation-mode: bicubic;
+      }
+      p {
+        display: block;
+        margin: 13px 0;
+      }
+    </style>
+    <!--[if mso]>
+      <noscript>
+        <xml>
+          <o:OfficeDocumentSettings>
+            <o:AllowPNG />
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+          </o:OfficeDocumentSettings>
+        </xml>
+      </noscript>
+    <![endif]-->
+    <!--[if lte mso 11]>
+      <style type="text/css">
+        .mj-outlook-group-fix {
+          width: 100% !important;
+        }
+      </style>
+    <![endif]-->
 
-  <!-- Header -->
-  <tr><td style="background:#0f172a;padding:28px 32px;">
-    <p style="margin:0;color:#f8fafc;font-size:20px;font-weight:700;letter-spacing:-0.3px;">{{.PortfolioName}}</p>
-    <p style="margin:6px 0 0;color:#94a3b8;font-size:13px;">
-      {{.StrategyCode}} &middot; {{.RunDate}}
-      &nbsp;<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;">Error</span>
-    </p>
-  </td></tr>
+    <style type="text/css">
+      @media only screen and (min-width: 480px) {
+        .mj-column-per-100 {
+          width: 100% !important;
+          max-width: 100%;
+        }
+        .mj-column-px-88 {
+          width: 88px !important;
+          max-width: 88px;
+        }
+        .mj-column-per-50 {
+          width: 50% !important;
+          max-width: 50%;
+        }
+      }
+    </style>
+    <style media="screen and (min-width:480px)">
+      .moz-text-html .mj-column-per-100 {
+        width: 100% !important;
+        max-width: 100%;
+      }
+      .moz-text-html .mj-column-px-88 {
+        width: 88px !important;
+        max-width: 88px;
+      }
+      .moz-text-html .mj-column-per-50 {
+        width: 50% !important;
+        max-width: 50%;
+      }
+    </style>
 
-  <!-- Error -->
-  <tr><td style="padding:28px 32px;">
-    {{if .LastKnownValue}}
-    <p style="margin:0 0 4px;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">Last Known Value</p>
-    <p style="margin:0 0 24px;color:#0f172a;font-size:28px;font-weight:700;">{{.LastKnownValue}}</p>
-    {{end}}
-    <p style="margin:0 0 8px;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">Error</p>
-    <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:14px 16px;border-radius:4px;">
-      <p style="margin:0;color:#7f1d1d;font-size:14px;line-height:1.5;font-family:monospace;">{{.ErrorMessage}}</p>
+    <style type="text/css">
+      @media only screen and (max-width: 479px) {
+        table.mj-full-width-mobile {
+          width: 100% !important;
+        }
+        td.mj-full-width-mobile {
+          width: auto !important;
+        }
+      }
+    </style>
+
+    <style type="text/css">
+      @media (prefers-color-scheme: dark) {
+        body,
+        .email-bg {
+          background-color: #0f172a !important;
+        }
+        .card {
+          background-color: #1e293b !important;
+        }
+        .pv-heading {
+          color: #f1f5f9 !important;
+        }
+        .pv-muted {
+          color: #94a3b8 !important;
+        }
+        .pv-divider {
+          border-color: #334155 !important;
+        }
+        .error-card {
+          background-color: #3f1111 !important;
+          border-color: #f87171 !important;
+        }
+        td {
+          color: #f1f5f9 !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="word-spacing: normal; background-color: #f1f5f9">
+    <div class="email-bg" style="background-color: #f1f5f9" lang="und" dir="auto">
+      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div style="background: #f1f5f9; background-color: #f1f5f9; margin: 0px auto; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f1f5f9; background-color: #f1f5f9; width: 100%">
+          <tbody>
+            <tr>
+              <td style="direction: ltr; font-size: 0px; padding: 16px 0 0; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
+
+                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
+                    <tbody>
+                      <tr>
+                        <td align="left" style="font-size: 0px; padding: 10px 25px; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000"></div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><![endif]-->
+
+      <!-- HEADER -->
+
+      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div class="card" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; border-radius: 12px 12px 0 0; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%; border-radius: 12px 12px 0 0">
+          <tbody>
+            <tr>
+              <td style="border-top: 4px solid #dc2626; direction: ltr; font-size: 0px; padding: 0; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:middle;width:88px;" ><![endif]-->
+
+                <div class="mj-column-px-88 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: middle; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                    <tbody>
+                      <tr>
+                        <td style="vertical-align: middle; padding: 20px 0 20px 24px">
+                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
+                            <tbody>
+                              <tr>
+                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
+                                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse: collapse; border-spacing: 0px">
+                                    <tbody>
+                                      <tr>
+                                        <td style="width: 56px">
+                                          <img
+                                            alt="Penny Vault"
+                                            src="{{.LogoDataURL}}"
+                                            style="border: 0; border-radius: 10px; display: block; outline: none; text-decoration: none; height: auto; width: 100%; font-size: 13px"
+                                            width="56"
+                                            height="auto"
+                                          />
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td><td class="" style="vertical-align:middle;width:300px;" ><![endif]-->
+
+                <div class="mj-column-per-50 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: middle; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                    <tbody>
+                      <tr>
+                        <td style="vertical-align: middle; padding: 20px 24px 20px 8px">
+                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
+                            <tbody>
+                              <tr>
+                                <td align="left" style="font-size: 0px; padding: 0 0 4px; word-break: break-word">
+                                  <div
+                                    style="
+                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
+                                      font-size: 10px;
+                                      font-weight: 700;
+                                      letter-spacing: 2px;
+                                      line-height: 1;
+                                      text-align: left;
+                                      text-transform: uppercase;
+                                      color: #dc2626;
+                                    "
+                                  >
+                                    PENNY VAULT
+                                  </div>
+                                </td>
+                              </tr>
+
+                              <tr>
+                                <td align="left" class="pv-heading" style="font-size: 0px; padding: 0; word-break: break-word">
+                                  <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 21px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; text-align: left; color: #0f172a">
+                                    {{.PortfolioName}}
+                                  </div>
+                                </td>
+                              </tr>
+
+                              <tr>
+                                <td align="left" class="pv-muted" style="font-size: 0px; padding: 5px 0 0; word-break: break-word">
+                                  <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; line-height: 1; text-align: left; color: #64748b">{{.StrategyCode}} &middot; {{.RunDate}}</div>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><![endif]-->
+
+      <!-- LAST KNOWN VALUE -->{{if .LastKnownValue}}
+
+      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
+          <tbody>
+            <tr>
+              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 24px 24px 0; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+
+                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
+                    <tbody>
+                      <tr>
+                        <td align="left" class="pv-muted" style="font-size: 0px; padding: 0 0 8px; word-break: break-word">
+                          <div
+                            style="
+                              font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
+                              font-size: 10px;
+                              font-weight: 700;
+                              letter-spacing: 1.2px;
+                              line-height: 1;
+                              text-align: left;
+                              text-transform: uppercase;
+                              color: #64748b;
+                            "
+                          >
+                            Last Known Value
+                          </div>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td align="left" class="pv-value" style="font-size: 0px; padding: 0 0 24px; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 36px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; text-align: left; color: #0f172a">
+                            {{.LastKnownValue}}
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><![endif]-->
+
+      {{end}}<!-- ERROR CARD -->
+
+      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook error-card-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#fef2f2" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div class="card error-card" style="background: #fef2f2; background-color: #fef2f2; margin: 0px auto; border-radius: 0 0 0 0; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #fef2f2; background-color: #fef2f2; width: 100%; border-radius: 0 0 0 0">
+          <tbody>
+            <tr>
+              <td style="border-top: 1px solid #dc2626; direction: ltr; font-size: 0px; padding: 24px; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+
+                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
+                    <tbody>
+                      <tr>
+                        <td align="left" style="font-size: 0px; padding: 0 0 12px; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 14px; font-weight: 700; line-height: 1; text-align: left; color: #dc2626">&#9888; Error: Run Failed</div>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td align="left" style="font-size: 0px; padding: 0; word-break: break-word">
+                          <div style="font-family: &quot;Menlo&quot;, &quot;Consolas&quot;, &quot;Courier New&quot;, monospace; font-size: 13px; line-height: 1; text-align: left; color: #7f1d1d">{{.ErrorMessage}}</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><![endif]-->
+
+      <!-- FOOTER -->
+
+      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#f8fafc" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div class="card pv-divider" style="background: #f8fafc; background-color: #f8fafc; margin: 0px auto; border-radius: 0 0 12px 12px; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f8fafc; background-color: #f8fafc; width: 100%; border-radius: 0 0 12px 12px">
+          <tbody>
+            <tr>
+              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 20px 24px; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+
+                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
+                    <tbody>
+                      <tr>
+                        <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 8px; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; line-height: 1; text-align: center; color: #94a3b8">Penny Vault &middot; Portfolio Alerts</div>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td align="center" class="pv-muted" style="font-size: 0px; padding: 0; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 11px; line-height: 1; text-align: center; color: #cbd5e1">
+                            {{if .UnsubscribeURL}}<a href="{{.UnsubscribeURL}}" style="color: #94a3b8; text-decoration: underline">Unsubscribe</a>{{end}}
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+
+      <div style="background: #f1f5f9; background-color: #f1f5f9; margin: 0px auto; max-width: 600px">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f1f5f9; background-color: #f1f5f9; width: 100%">
+          <tbody>
+            <tr>
+              <td style="direction: ltr; font-size: 0px; padding: 16px 0; text-align: center">
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
+
+                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
+                    <tbody>
+                      <tr>
+                        <td align="left" style="font-size: 0px; padding: 10px 25px; word-break: break-word">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000"></div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!--[if mso | IE]></td></tr></table><![endif]-->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--[if mso | IE]></td></tr></table><![endif]-->
     </div>
-    <p style="margin:16px 0 0;color:#64748b;font-size:13px;">No trades were executed. The previous allocation remains unchanged.</p>
-  </td></tr>
-
-  <!-- Footer -->
-  <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-    <p style="margin:0;color:#94a3b8;font-size:12px;text-align:center;">Penny Vault &middot; Portfolio Alerts</p>
-  </td></tr>
-
-</table>
-</td></tr>
-</table>
-</body>
+  </body>
 </html>

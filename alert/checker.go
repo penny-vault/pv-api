@@ -313,11 +313,16 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 		} else {
 			shares = email.FormatMoneyVal(h.Quantity)
 		}
+		tickerColor := "#0f172a"
+		if h.Ticker == "$CASH" {
+			tickerColor = "#94a3b8"
+		}
 		p.Holdings = append(p.Holdings, email.HoldingRow{
-			Ticker:    h.Ticker,
-			Shares:    shares,
-			WeightPct: fmt.Sprintf("%.1f", weight),
-			Value:     "$" + email.FormatMoneyVal(h.MarketValue),
+			Ticker:      h.Ticker,
+			TickerColor: tickerColor,
+			Shares:      shares,
+			WeightPct:   fmt.Sprintf("%.1f", weight),
+			Value:       "$" + email.FormatMoneyVal(h.MarketValue),
 		})
 	}
 
@@ -327,11 +332,12 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 				continue
 			}
 			p.Trades = append(p.Trades, email.TradeRow{
-				Ticker:      h.Ticker,
-				Action:      "Buy",
-				ActionColor: "#22c55e",
-				Shares:      fmt.Sprintf("%.0f", h.Quantity),
-				Value:       "$" + email.FormatMoneyVal(h.MarketValue),
+				Ticker:        h.Ticker,
+				Action:        "Buy",
+				ActionColor:   "#22c55e",
+				ActionBgColor: "#dcfce7",
+				Shares:        fmt.Sprintf("%.0f", h.Quantity),
+				Value:         "$" + email.FormatMoneyVal(h.MarketValue),
 			})
 		}
 		return
@@ -371,17 +377,18 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 		if diff == 0 {
 			continue
 		}
-		action, color := "Buy", "#22c55e"
+		action, color, bgColor := "Buy", "#22c55e", "#dcfce7"
 		if diff < 0 {
-			action, color = "Sell", "#ef4444"
+			action, color, bgColor = "Sell", "#ef4444", "#fee2e2"
 			diff = -diff
 		}
 		p.Trades = append(p.Trades, email.TradeRow{
-			Ticker:      h.Ticker,
-			Action:      action,
-			ActionColor: color,
-			Shares:      fmt.Sprintf("%.0f", diff),
-			Value:       "$" + email.FormatMoneyVal(diff*h.MarketValue/h.Quantity),
+			Ticker:        h.Ticker,
+			Action:        action,
+			ActionColor:   color,
+			ActionBgColor: bgColor,
+			Shares:        fmt.Sprintf("%.0f", diff),
+			Value:         "$" + email.FormatMoneyVal(diff*h.MarketValue/h.Quantity),
 		})
 	}
 	for _, h := range prevHoldings.Items {
@@ -389,11 +396,12 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 			continue
 		}
 		p.Trades = append(p.Trades, email.TradeRow{
-			Ticker:      h.Ticker,
-			Action:      "Sell",
-			ActionColor: "#ef4444",
-			Shares:      fmt.Sprintf("%.0f", h.Quantity),
-			Value:       "$" + email.FormatMoneyVal(h.MarketValue),
+			Ticker:        h.Ticker,
+			Action:        "Sell",
+			ActionColor:   "#ef4444",
+			ActionBgColor: "#fee2e2",
+			Shares:        fmt.Sprintf("%.0f", h.Quantity),
+			Value:         "$" + email.FormatMoneyVal(h.MarketValue),
 		})
 	}
 }

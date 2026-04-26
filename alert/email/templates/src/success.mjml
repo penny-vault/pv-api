@@ -58,6 +58,41 @@
       </mj-column>
     </mj-section>
 
+    <!-- DELTA SINCE LAST SEND -->
+    <mj-raw>{{if .HasDelta}}</mj-raw>
+    <mj-section background-color="#ffffff" padding="8px 24px 20px"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column>
+        <mj-text font-size="13px" color="{{.DeltaColor}}" font-weight="700" padding="0">
+          {{.DeltaPct}} ({{.DeltaAbs}}) since {{.SinceLabel}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-raw>{{end}}</mj-raw>
+
+    <!-- BENCHMARK COMPARISON -->
+    <mj-raw>{{if .Benchmark}}</mj-raw>
+    <mj-section background-color="#ffffff" padding="8px 24px 20px"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">{{.Benchmark}}</mj-text>
+        <mj-text font-size="15px" font-weight="700" color="#334155"
+                 align="center" padding="0">{{.BenchmarkDeltaPct}}</mj-text>
+      </mj-column>
+      <mj-raw>{{if .RelativeDelta}}</mj-raw>
+      <mj-column padding="0 0 0 16px">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">vs Benchmark</mj-text>
+        <mj-text font-size="15px" font-weight="700" color="{{.RelativeColor}}"
+                 align="center" padding="0">{{.RelativeDelta}}</mj-text>
+      </mj-column>
+      <mj-raw>{{end}}</mj-raw>
+    </mj-section>
+    <mj-raw>{{end}}</mj-raw>
+
     <!-- RETURNS GRID: Day / WTD / MTD / YTD / 1Y -->
     <mj-section background-color="#ffffff" padding="20px 24px 28px"
                 border-bottom="1px solid #e2e8f0" css-class="card pv-divider">
@@ -121,7 +156,7 @@
               <tr style="border-top:1px solid #e2e8f0;">
                 <td style="padding:13px 14px;font-size:14px;font-weight:700;color:#0f172a;">{{.Ticker}}</td>
                 <td style="padding:13px 14px;font-size:13px;">
-                  <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{if eq .Action "Buy"}}#dcfce7{{else}}#fee2e2{{end}};color:{{.ActionColor}};">{{.Action}}</span>
+                  <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{.ActionBgColor}};color:{{.ActionColor}};">{{.Action}}</span>
                 </td>
                 <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
                 <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
@@ -158,7 +193,7 @@
             <tbody>
               {{range .Holdings}}
               <tr style="border-top:1px solid #e2e8f0;">
-                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:{{if eq .Ticker "$CASH"}}#94a3b8{{else}}#0f172a{{end}};">{{.Ticker}}</td>
+                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};">{{.Ticker}}</td>
                 <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
                 <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
                 <td style="padding:13px 14px;font-size:14px;color:#64748b;text-align:right;">{{.WeightPct}}%</td>
