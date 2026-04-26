@@ -20,6 +20,7 @@ var ErrEmailNotConfigured = errors.New("email not configured: no Mailgun API key
 
 type portfolioData struct {
 	Name         string
+	Slug         string
 	StrategyCode string
 	Benchmark    string
 	CurrentValue *float64
@@ -108,9 +109,9 @@ func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipi
 func (c *Checker) loadPortfolio(ctx context.Context, id uuid.UUID) (portfolioData, error) {
 	var p portfolioData
 	err := c.pool.QueryRow(ctx,
-		`SELECT name, strategy_code, benchmark, current_value, status, last_error, snapshot_path
+		`SELECT name, slug, strategy_code, benchmark, current_value, status, last_error, snapshot_path
 		   FROM portfolios WHERE id=$1`, id,
-	).Scan(&p.Name, &p.StrategyCode, &p.Benchmark,
+	).Scan(&p.Name, &p.Slug, &p.StrategyCode, &p.Benchmark,
 		&p.CurrentValue, &p.Status, &p.LastError, &p.SnapshotPath)
 	return p, err
 }
@@ -130,11 +131,10 @@ func (c *Checker) snapshotPathBefore(ctx context.Context, portfolioID uuid.UUID,
 }
 
 func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now time.Time, success bool) error {
-	payload := c.buildPayload(ctx, a, port, now, success)
+	basePayload := c.buildPayload(ctx, a, port, now, success)
 
-	htmlBody, textBody, err := email.Render(payload)
-	if err != nil {
-		return fmt.Errorf("render: %w", err)
+	if c.appBaseURL != "" && port.Slug != "" {
+		basePayload.PortfolioURL = c.appBaseURL + "/portfolios/" + port.Slug
 	}
 
 	subject := fmt.Sprintf("Portfolio Update: %s", port.Name)
@@ -142,8 +142,22 @@ func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now 
 		subject = fmt.Sprintf("Portfolio Error: %s", port.Name)
 	}
 
-	if err := email.Send(ctx, c.emailConfig, a.Recipients, subject, htmlBody, textBody); err != nil {
-		return fmt.Errorf("send: %w", err)
+	for _, recipient := range a.Recipients {
+		p := basePayload
+		if c.unsubscribeSecret != "" && c.appBaseURL != "" {
+			tok, err := GenerateUnsubscribeToken(c.unsubscribeSecret, a.ID, recipient)
+			if err == nil {
+				p.UnsubscribeURL = c.appBaseURL + "/api/alerts/unsubscribe?token=" + tok
+			}
+		}
+		htmlBody, textBody, err := email.Render(p)
+		if err != nil {
+			log.Warn().Err(err).Str("recipient", recipient).Msg("alert: render failed")
+			continue
+		}
+		if err := email.Send(ctx, c.emailConfig, []string{recipient}, subject, htmlBody, textBody); err != nil {
+			log.Warn().Err(err).Str("recipient", recipient).Msg("alert: send failed")
+		}
 	}
 
 	curVal := 0.0
