@@ -81,4 +81,10 @@ func RegisterAlertRoutesWith(r fiber.Router, h *alert.AlertHandler) {
 	r.Post("/portfolios/:slug/email-summary", h.SendSummary)
 }
 
+// RegisterPublicAlertRoutesWith mounts unauthenticated alert endpoints on the
+// root router. These routes must be registered before the auth middleware group.
+func RegisterPublicAlertRoutesWith(r fiber.Router, h *alert.AlertHandler) {
+	r.Get("/api/alerts/unsubscribe", h.Unsubscribe)
+}
+
 func stubPortfolio(c fiber.Ctx) error { return WriteProblem(c, ErrNotImplemented) }

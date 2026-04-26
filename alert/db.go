@@ -20,6 +20,7 @@ type Store interface {
 	Update(ctx context.Context, id uuid.UUID, frequency string, recipients []string) (Alert, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time, value float64) error
+	RemoveRecipient(ctx context.Context, id uuid.UUID, recipient string) error
 }
 
 const alertColumns = `id, portfolio_id, frequency, recipients, last_sent_at, last_sent_value, created_at, updated_at`
@@ -118,6 +119,29 @@ func (s *PoolStore) MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time
 		   SET last_sent_at=$2, last_sent_value=$3, updated_at=now()
 		 WHERE id=$1`,
 		id, sentAt, value,
+	)
+	return err
+}
+
+// RemoveRecipient removes one recipient from the alert. If recipients becomes
+// empty, the alert is deleted.
+func (s *PoolStore) RemoveRecipient(ctx context.Context, id uuid.UUID, recipient string) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE portfolio_alerts
+		   SET recipients = array_remove(recipients, $2), updated_at = now()
+		 WHERE id = $1`,
+		id, recipient,
+	)
+	if err != nil {
+		return fmt.Errorf("remove recipient: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	_, err = s.pool.Exec(ctx, `
+		DELETE FROM portfolio_alerts
+		 WHERE id = $1 AND array_length(recipients, 1) IS NULL`,
+		id,
 	)
 	return err
 }

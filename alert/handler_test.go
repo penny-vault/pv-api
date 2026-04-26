@@ -44,6 +44,9 @@ func (s stubAlertStore) Delete(_ context.Context, _ uuid.UUID) error { panic("un
 func (s stubAlertStore) MarkSent(_ context.Context, _ uuid.UUID, _ time.Time, _ float64) error {
 	panic("unexpected call")
 }
+func (s stubAlertStore) RemoveRecipient(_ context.Context, _ uuid.UUID, _ string) error {
+	panic("unexpected call")
+}
 
 // stubSummarizer implements alert.EmailSummarizer for tests.
 type stubSummarizer struct{ err error }
@@ -62,7 +65,7 @@ func newTestApp(h *alert.AlertHandler) *fiber.App {
 }
 
 func TestSendSummaryNilChecker(t *testing.T) {
-	h := alert.NewAlertHandlerWithChecker(stubPortfolio{}, stubAlertStore{}, nil)
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{}, stubAlertStore{}, nil, "")
 	app := newTestApp(h)
 
 	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",
@@ -80,7 +83,7 @@ func TestSendSummaryNilChecker(t *testing.T) {
 
 func TestSendSummaryMissingRecipient(t *testing.T) {
 	port := portfolio.Portfolio{ID: uuid.New(), OwnerSub: "user-1", Slug: "my-port", Status: portfolio.StatusReady}
-	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{})
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{}, "")
 	app := newTestApp(h)
 
 	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",
@@ -98,7 +101,7 @@ func TestSendSummaryMissingRecipient(t *testing.T) {
 
 func TestSendSummaryInvalidJSON(t *testing.T) {
 	port := portfolio.Portfolio{ID: uuid.New(), OwnerSub: "user-1", Slug: "my-port", Status: portfolio.StatusReady}
-	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{})
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{}, "")
 	app := newTestApp(h)
 
 	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",
@@ -116,7 +119,7 @@ func TestSendSummaryInvalidJSON(t *testing.T) {
 
 func TestSendSummarySuccess(t *testing.T) {
 	port := portfolio.Portfolio{ID: uuid.New(), OwnerSub: "user-1", Slug: "my-port", Status: portfolio.StatusReady}
-	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{err: nil})
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{err: nil}, "")
 	app := newTestApp(h)
 
 	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",
@@ -134,7 +137,7 @@ func TestSendSummarySuccess(t *testing.T) {
 
 func TestSendSummaryEmailNotConfigured(t *testing.T) {
 	port := portfolio.Portfolio{ID: uuid.New(), OwnerSub: "user-1", Slug: "my-port", Status: portfolio.StatusReady}
-	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{err: alert.ErrEmailNotConfigured})
+	h := alert.NewAlertHandlerWithChecker(stubPortfolio{p: port}, stubAlertStore{}, stubSummarizer{err: alert.ErrEmailNotConfigured}, "")
 	app := newTestApp(h)
 
 	req := httptest.NewRequest("POST", "/portfolios/my-port/email-summary",

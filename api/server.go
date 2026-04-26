@@ -52,16 +52,17 @@ type EphemeralConfig struct {
 
 // Config holds HTTP-layer configuration.
 type Config struct {
-	Port           int
-	AllowOrigins   string
-	Auth           AuthConfig
-	Registry       RegistryConfig
-	Pool           *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
-	Dispatcher     portfolio.Dispatcher // optional: if nil, /runs POST returns 501
-	SnapshotOpener portfolio.SnapshotOpener
-	ProgressHub    *progress.Hub
-	AlertChecker   alert.EmailSummarizer // optional: if nil, email-summary returns 503
-	Ephemeral      EphemeralConfig
+	Port              int
+	AllowOrigins      string
+	Auth              AuthConfig
+	Registry          RegistryConfig
+	Pool              *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
+	Dispatcher        portfolio.Dispatcher // optional: if nil, /runs POST returns 501
+	SnapshotOpener    portfolio.SnapshotOpener
+	ProgressHub       *progress.Hub
+	AlertChecker      alert.EmailSummarizer // optional: if nil, email-summary returns 503
+	UnsubscribeSecret string               // optional: HMAC secret for unsubscribe tokens
+	Ephemeral         EphemeralConfig
 }
 
 // RegistryConfig configures the strategy registry sync and its install
@@ -139,8 +140,9 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		}
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		alertStore := alert.NewPoolStore(conf.Pool)
-		alertHandler := alert.NewAlertHandlerWithChecker(portfolioStore, alertStore, conf.AlertChecker)
+		alertHandler := alert.NewAlertHandlerWithChecker(portfolioStore, alertStore, conf.AlertChecker, conf.UnsubscribeSecret)
 		RegisterAlertRoutesWith(protected, alertHandler)
+		RegisterPublicAlertRoutesWith(app, alertHandler)
 		RegisterStrategyRoutesWith(protected, NewStrategyHandler(
 			strategyStore,
 			strategy.EphemeralBuild,

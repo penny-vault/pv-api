@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
@@ -23,17 +24,23 @@ type EmailSummarizer interface {
 }
 
 type AlertHandler struct {
-	portfolios  PortfolioReader
-	alerts      Store
-	summarizer  EmailSummarizer
+	portfolios        PortfolioReader
+	alerts            Store
+	summarizer        EmailSummarizer
+	unsubscribeSecret string
 }
 
 func NewAlertHandler(portfolios PortfolioReader, alerts Store) *AlertHandler {
 	return &AlertHandler{portfolios: portfolios, alerts: alerts}
 }
 
-func NewAlertHandlerWithChecker(portfolios PortfolioReader, alerts Store, summarizer EmailSummarizer) *AlertHandler {
-	return &AlertHandler{portfolios: portfolios, alerts: alerts, summarizer: summarizer}
+func NewAlertHandlerWithChecker(portfolios PortfolioReader, alerts Store, summarizer EmailSummarizer, unsubscribeSecret string) *AlertHandler {
+	return &AlertHandler{
+		portfolios:        portfolios,
+		alerts:            alerts,
+		summarizer:        summarizer,
+		unsubscribeSecret: unsubscribeSecret,
+	}
 }
 
 func (h *AlertHandler) Create(c fiber.Ctx) error {
@@ -185,6 +192,38 @@ func (h *AlertHandler) SendSummary(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", sendErr.Error())
 	}
 	return c.SendStatus(fiber.StatusCreated)
+}
+
+// Unsubscribe handles GET /api/alerts/unsubscribe?token=<token>.
+// Unauthenticated — the HMAC token is the credential.
+func (h *AlertHandler) Unsubscribe(c fiber.Ctx) error {
+	if h.unsubscribeSecret == "" {
+		return c.Status(fiber.StatusNotFound).SendString("Unsubscribe is not configured.")
+	}
+	token := string([]byte(c.Query("token")))
+	alertID, recipient, err := VerifyUnsubscribeToken(h.unsubscribeSecret, token)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid or expired unsubscribe link.")
+	}
+	_, err = h.alerts.Get(c.Context(), alertID)
+	if errors.Is(err, ErrNotFound) {
+		return c.Status(fiber.StatusOK).Type("html").
+			SendString("<html><body><p>You have been unsubscribed.</p></body></html>")
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Something went wrong.")
+	}
+	if err := h.alerts.RemoveRecipient(c.Context(), alertID, recipient); err != nil && !errors.Is(err, ErrNotFound) {
+		return c.Status(fiber.StatusInternalServerError).SendString("Something went wrong.")
+	}
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Unsubscribed</title>
+<style>body{font-family:-apple-system,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#0f172a}
+h1{color:#0ea5e9}p{color:#64748b}</style></head>
+<body><h1>Penny Vault</h1>
+<p>You have been unsubscribed from portfolio alerts for portfolio <strong>%s</strong>.</p>
+</body></html>`, alertID)
+	return c.Status(fiber.StatusOK).Type("html").SendString(html)
 }
 
 func (h *AlertHandler) resolvePortfolio(c fiber.Ctx) (string, portfolio.Portfolio, error) {
