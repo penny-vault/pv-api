@@ -323,6 +323,218 @@ var _ = Describe("Upgrade handler skeleton", func() {
 		Expect(disp.SubmitCalls[0]).To(Equal(portID))
 	})
 
+	It("returns 409 parameters_incompatible with a diff body when params changed", func() {
+		// Portfolio at v1.0.0 with parameters {"riskOn":"SPY"}.
+		// Old describe declares only `riskOn` of type universe.
+		// New describe declares only `riskOff` of type universe (no default).
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v2.0.0"
+		portID := uuid.Must(uuid.NewV7())
+		oldDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		newDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOff","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: oldDescribeJSON,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: newDescribeJSON,
+			},
+		}
+		h := portfolio.NewHandler(st, ss, nil, nil, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		// POST with empty body — expect 409 parameters_incompatible.
+		status, body := doUpgrade(a, slug, ownerSub, nil)
+
+		Expect(status).To(Equal(409))
+		Expect(body["error"]).To(Equal("parameters_incompatible"))
+		Expect(body["from_version"]).To(Equal("v1.0.0"))
+		Expect(body["to_version"]).To(Equal("v2.0.0"))
+
+		incompat, ok := body["incompatibilities"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		removed, ok := incompat["removed"].([]any)
+		Expect(ok).To(BeTrue())
+		Expect(removed).To(ContainElement("riskOn"))
+		addedNoDefault, ok := incompat["added_without_default"].([]any)
+		Expect(ok).To(BeTrue())
+		Expect(addedNoDefault).To(ContainElement("riskOff"))
+
+		Expect(st.ApplyUpgradeCalls).To(BeEmpty())
+	})
+
+	It("accepts a resubmit with valid parameters", func() {
+		// Same incompatible seed: old=riskOn, new=riskOff (no default).
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v2.0.0"
+		portID := uuid.Must(uuid.NewV7())
+		oldDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		newDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOff","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: oldDescribeJSON,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: newDescribeJSON,
+			},
+		}
+		knownRunID := uuid.Must(uuid.NewV7())
+		disp := &countingDispatcher{runID: knownRunID}
+		h := portfolio.NewHandler(st, ss, nil, disp, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		// POST with valid parameters for the new describe.
+		status, body := doUpgrade(a, slug, ownerSub, map[string]any{"parameters": map[string]any{"riskOff": "QQQ"}})
+
+		Expect(status).To(Equal(200))
+		Expect(body["status"]).To(Equal("upgraded"))
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
+		Expect(st.ApplyUpgradeCalls[0].PortfolioID).To(Equal(portID))
+		var gotParams map[string]any
+		Expect(sonic.Unmarshal(st.ApplyUpgradeCalls[0].NewParams, &gotParams)).To(Succeed())
+		Expect(gotParams).To(HaveKeyWithValue("riskOff", "QQQ"))
+		Expect(disp.SubmitCalls).To(HaveLen(1))
+		Expect(disp.SubmitCalls[0]).To(Equal(portID))
+	})
+
+	It("rejects a resubmit with invalid parameters as 400", func() {
+		// Same incompatible seed: old=riskOn, new=riskOff (no default).
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v2.0.0"
+		portID := uuid.Must(uuid.NewV7())
+		oldDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		newDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOff","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: oldDescribeJSON,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: newDescribeJSON,
+			},
+		}
+		h := portfolio.NewHandler(st, ss, nil, nil, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		// POST with unknown parameter.
+		status, body := doUpgrade(a, slug, ownerSub, map[string]any{"parameters": map[string]any{"unknown": "X"}})
+
+		Expect(status).To(Equal(400))
+		detail, _ := body["detail"].(string)
+		Expect(detail).To(ContainSubstring("unknown parameter"))
+		Expect(st.ApplyUpgradeCalls).To(BeEmpty())
+	})
+
+	It("rejects a resubmit missing a required parameter as 400", func() {
+		// Same incompatible seed: old=riskOn, new=riskOff (no default).
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v2.0.0"
+		portID := uuid.Must(uuid.NewV7())
+		oldDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		newDescribeJSON := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOff","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: oldDescribeJSON,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: newDescribeJSON,
+			},
+		}
+		h := portfolio.NewHandler(st, ss, nil, nil, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		// POST with empty parameters — riskOff is required and missing.
+		status, body := doUpgrade(a, slug, ownerSub, map[string]any{"parameters": map[string]any{}})
+
+		Expect(status).To(Equal(400))
+		detail, _ := body["detail"].(string)
+		Expect(detail).To(ContainSubstring("missing required parameter"))
+		Expect(st.ApplyUpgradeCalls).To(BeEmpty())
+	})
+
 	It("auto-fills added-with-default parameters on a compatible upgrade", func() {
 		// Portfolio at v1.0.0 with only param "a"; new describe adds "b" with default "y".
 		portfolioVer1 := "v1.0.0"

@@ -107,15 +107,39 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 	var nextParams map[string]any
 	switch {
 	case body.Parameters != nil:
-		// Resubmit branch — implemented in Task 11.
-		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented",
-			"supplied parameters path implemented in next task")
+		// Resubmit branch: caller supplies explicit parameters for the new describe.
+		if err := validateParameters(body.Parameters, newDescribe); err != nil {
+			return writeProblem(c, fiber.StatusBadRequest, "Bad Request", err.Error())
+		}
+		nextParams = body.Parameters
 	case diff.Compatible():
 		nextParams = mergeKeptAndDefaults(p.Parameters, newDescribe, diff)
 	default:
-		// 409 incompatible-diff branch — implemented in Task 11.
-		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented",
-			"incompatible-diff path implemented in next task")
+		// Parameters changed in a breaking way; caller must resubmit with parameters.
+		removed := diff.Removed
+		if removed == nil {
+			removed = []string{}
+		}
+		addedNoDefault := diff.AddedWithoutDefault
+		if addedNoDefault == nil {
+			addedNoDefault = []string{}
+		}
+		retyped := diff.Retyped
+		if retyped == nil {
+			retyped = []ParameterRetype{}
+		}
+		return writeJSON(c, fiber.StatusConflict, fiber.Map{
+			"error":        "parameters_incompatible",
+			"from_version": deref(p.StrategyVer),
+			"to_version":   *s.InstalledVer,
+			"incompatibilities": fiber.Map{
+				"removed":               removed,
+				"added_without_default": addedNoDefault,
+				"retyped":               retyped,
+			},
+			"current_parameters": p.Parameters,
+			"new_describe":       json.RawMessage(s.DescribeJSON),
+		})
 	}
 
 	paramsJSON, err := json.Marshal(nextParams)
