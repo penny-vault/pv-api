@@ -31,6 +31,7 @@ type Store interface {
 	Insert(ctx context.Context, p Portfolio) error
 	UpdateName(ctx context.Context, ownerSub, slug, name string) error
 	UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error
+	UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error
 	Delete(ctx context.Context, ownerSub, slug string) error
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
 }
@@ -115,6 +116,10 @@ func (p PoolStore) MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUI
 // UpdateDates updates a portfolio's start_date and/or end_date.
 func (p PoolStore) UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error {
 	return UpdateDates(ctx, p.Pool, ownerSub, slug, startDate, endDate)
+}
+
+func (p PoolStore) UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error {
+	return UpdateRunRetention(ctx, p.Pool, ownerSub, slug, value)
 }
 
 // ClaimDue returns open-ended portfolio IDs not yet run today.

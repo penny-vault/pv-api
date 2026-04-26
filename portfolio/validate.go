@@ -32,7 +32,7 @@ var (
 	ErrInvalidStrategyDescribe = errors.New("strategy describe JSON is malformed")
 	ErrInvalidDate             = errors.New("invalid date")
 	ErrEndBeforeStart          = errors.New("endDate must be on or after startDate")
-	ErrImmutableField          = errors.New("field is not updatable; only `name`, `startDate`, `endDate` may be patched")
+	ErrImmutableField          = errors.New("field is not updatable; only `name`, `startDate`, `endDate`, `runRetention` may be patched")
 	ErrInvalidRunRetention     = errors.New("run_retention must be >= 1")
 )
 

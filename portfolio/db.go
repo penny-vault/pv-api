@@ -142,6 +142,23 @@ func UpdateDates(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string,
 	return nil
 }
 
+// UpdateRunRetention updates a portfolio's run_retention. Returns ErrNotFound
+// if the (ownerSub, slug) pair does not match any row.
+func UpdateRunRetention(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string, value int) error {
+	tag, err := pool.Exec(ctx,
+		`UPDATE portfolios SET run_retention=$3, updated_at=NOW()
+         WHERE owner_sub=$1 AND slug=$2`,
+		ownerSub, slug, value,
+	)
+	if err != nil {
+		return fmt.Errorf("updating run_retention: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Delete removes a portfolio by (ownerSub, slug). Returns ErrNotFound if
 // no row was deleted.
 func Delete(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) error {

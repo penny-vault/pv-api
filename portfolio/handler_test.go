@@ -156,6 +156,17 @@ func (f *fakeStore) UpdateDates(_ context.Context, ownerSub, slug string, startD
 	return portfolio.ErrNotFound
 }
 
+func (f *fakeStore) UpdateRunRetention(_ context.Context, ownerSub, slug string, value int) error {
+	for i, p := range f.rows {
+		if p.OwnerSub == ownerSub && p.Slug == slug {
+			f.rows[i].RunRetention = value
+			f.rows[i].UpdatedAt = time.Now().UTC()
+			return nil
+		}
+	}
+	return portfolio.ErrNotFound
+}
+
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
 // strategy; anything else is ErrNotFound.
 type fakeStrategyStore struct {
@@ -386,6 +397,42 @@ var _ = Describe("portfolio.Handler", func() {
 		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
 			"startDate": "2024-01-01",
 			"endDate":   "2020-01-01",
+		})
+		Expect(status).To(Equal(422))
+	})
+
+	It("updates run_retention via PATCH", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "retention-test",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"runRetention": 4,
+		})
+		Expect(status).To(Equal(200))
+
+		got, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got.RunRetention).To(Equal(4))
+	})
+
+	It("rejects PATCH with run_retention=0", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "retention-zero",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"runRetention": 0,
 		})
 		Expect(status).To(Equal(422))
 	})
