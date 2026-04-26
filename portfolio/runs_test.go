@@ -119,23 +119,6 @@ var _ = Describe("PoolStore run_retention", Ordered, func() {
 		})
 	})
 
-	It("persists run_retention with a default of 2 when omitted", func() {
-		p := portfolio.Portfolio{
-			OwnerSub:     "smoke|rr-user",
-			Slug:         "rr-default-test",
-			Name:         "RR default",
-			StrategyCode: "__rr_stub__",
-			Parameters:   map[string]any{},
-			Benchmark:    "SPY",
-			Status:       portfolio.StatusPending,
-		}
-		Expect(store.Insert(ctx, p)).To(Succeed())
-
-		got, err := store.Get(ctx, p.OwnerSub, p.Slug)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(got.RunRetention).To(Equal(2))
-	})
-
 	It("persists an explicit run_retention", func() {
 		p := portfolio.Portfolio{
 			OwnerSub:     "smoke|rr-user",

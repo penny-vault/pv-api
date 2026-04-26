@@ -95,7 +95,7 @@ func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
 	`, p.OwnerSub, p.Slug, p.Name, p.StrategyCode, p.StrategyVer,
 		p.StrategyCloneURL, p.StrategyDescribeJSON, paramsJSON,
 		p.PresetName, p.Benchmark, p.StartDate, p.EndDate,
-		string(p.Status), retentionOrDefault(p.RunRetention))
+		string(p.Status), p.RunRetention)
 	if err != nil {
 		if uniqueViolation(err) {
 			return ErrDuplicateSlug
@@ -363,12 +363,4 @@ func uniqueViolation(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "SQLSTATE 23505")
-}
-
-// retentionOrDefault returns v when v >= 1, otherwise the default of 2.
-func retentionOrDefault(v int) int {
-	if v <= 0 {
-		return 2
-	}
-	return v
 }
