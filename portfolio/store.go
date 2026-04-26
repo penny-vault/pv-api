@@ -32,6 +32,7 @@ type Store interface {
 	UpdateName(ctx context.Context, ownerSub, slug, name string) error
 	UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error
 	UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error
+	PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error)
 	Delete(ctx context.Context, ownerSub, slug string) error
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
 }
@@ -120,6 +121,10 @@ func (p PoolStore) UpdateDates(ctx context.Context, ownerSub, slug string, start
 
 func (p PoolStore) UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error {
 	return UpdateRunRetention(ctx, p.Pool, ownerSub, slug, value)
+}
+
+func (p PoolStore) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error) {
+	return PruneRuns(ctx, p.Pool, portfolioID)
 }
 
 // ClaimDue returns open-ended portfolio IDs not yet run today.

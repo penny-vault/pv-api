@@ -316,6 +316,62 @@ func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason stri
 	return int(tag.RowsAffected()), nil
 }
 
+// PruneRuns deletes backtest_runs rows older than the most recent run_retention
+// runs for the given portfolio. Returns the snapshot file paths of deleted
+// rows so the caller can remove them from disk.
+func PruneRuns(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID) ([]string, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var retention int
+	if err := tx.QueryRow(ctx,
+		`SELECT run_retention FROM portfolios WHERE id=$1`, portfolioID,
+	).Scan(&retention); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("loading run_retention: %w", err)
+	}
+
+	deleteRows, err := tx.Query(ctx, `
+		WITH ranked AS (
+			SELECT id, snapshot_path,
+			       ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+			FROM backtest_runs
+			WHERE portfolio_id = $1
+		)
+		DELETE FROM backtest_runs
+		 WHERE id IN (SELECT id FROM ranked WHERE rn > $2)
+		RETURNING COALESCE(snapshot_path, '')
+	`, portfolioID, retention)
+	if err != nil {
+		return nil, fmt.Errorf("pruning backtest_runs: %w", err)
+	}
+	defer deleteRows.Close()
+
+	var deleted []string
+	for deleteRows.Next() {
+		var p string
+		if err := deleteRows.Scan(&p); err != nil {
+			return nil, err
+		}
+		if p != "" {
+			deleted = append(deleted, p)
+		}
+	}
+	if err := deleteRows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return deleted, nil
+}
+
 // ClaimDue returns up to batchSize portfolio IDs that are open-ended
 // (end_date IS NULL) and have not yet run today.
 func ClaimDue(ctx context.Context, pool *pgxpool.Pool, batchSize int) ([]uuid.UUID, error) {

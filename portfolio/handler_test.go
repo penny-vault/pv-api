@@ -167,6 +167,11 @@ func (f *fakeStore) UpdateRunRetention(_ context.Context, ownerSub, slug string,
 	return portfolio.ErrNotFound
 }
 
+// PruneRuns stub — handler tests do not exercise the prune path.
+func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) {
+	return nil, nil
+}
+
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
 // strategy; anything else is ErrNotFound.
 type fakeStrategyStore struct {
