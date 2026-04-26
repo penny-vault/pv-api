@@ -135,6 +135,99 @@ func (r *Reader) perfAsOf(ctx context.Context, metricClause string, t time.Time,
 	return 0, err
 }
 
+// ShortTermReturns holds Day, WTD, and MTD returns computed from perf_data.
+// All values are fractional (e.g. 0.03 = 3%). Calculation is relative to the
+// most recent date in perf_data, not today's wall clock.
+type ShortTermReturns struct {
+	Day float64
+	WTD float64
+	MTD float64
+}
+
+// ShortTermReturns reads the portfolio equity series and derives the return
+// since the previous trading day, the most recent Monday, and the 1st of the
+// current month (all relative to the last date in perf_data).
+func (r *Reader) ShortTermReturns(ctx context.Context) (ShortTermReturns, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT date, value FROM perf_data WHERE `+portfolioValueClause+
+			` ORDER BY date DESC`)
+	if err != nil {
+		return ShortTermReturns{}, fmt.Errorf("short term returns: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type perfRow struct {
+		date time.Time
+		val  float64
+	}
+	var series []perfRow
+	for rows.Next() {
+		var dateStr string
+		var val float64
+		if err := rows.Scan(&dateStr, &val); err != nil {
+			return ShortTermReturns{}, fmt.Errorf("short term returns scan: %w", err)
+		}
+		t, err := time.Parse(dateLayout, dateStr)
+		if err != nil {
+			return ShortTermReturns{}, fmt.Errorf("short term returns parse: %w", err)
+		}
+		series = append(series, perfRow{t, val})
+	}
+	if err := rows.Err(); err != nil {
+		return ShortTermReturns{}, err
+	}
+	if len(series) == 0 {
+		return ShortTermReturns{}, nil
+	}
+
+	latest := series[0]
+
+	pctReturn := func(baseline float64) float64 {
+		if baseline <= 0 {
+			return 0
+		}
+		return (latest.val - baseline) / baseline
+	}
+
+	// Day: second element in series (previous trading day).
+	dayBaseline := latest.val
+	if len(series) > 1 {
+		dayBaseline = series[1].val
+	}
+
+	// WTD: oldest row on or after the Monday of latest's week.
+	// series is DESC so iterating 0→len-1 goes newest→oldest; the last
+	// qualifying assignment gives the oldest qualifying row (the baseline).
+	weekday := int(latest.date.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday → 7
+	}
+	monday := latest.date.AddDate(0, 0, -(weekday - 1))
+	mondayStr := monday.Format(dateLayout)
+	wtdBaseline := latest.val
+	for i := 0; i < len(series); i++ {
+		if series[i].date.Format(dateLayout) >= mondayStr {
+			wtdBaseline = series[i].val
+		}
+	}
+
+	// MTD: oldest row on or after the 1st of latest's month.
+	monthStart := time.Date(latest.date.Year(), latest.date.Month(), 1, 0, 0, 0, 0, time.UTC)
+	monthStr := monthStart.Format(dateLayout)
+	mtdBaseline := latest.val
+	for i := 0; i < len(series); i++ {
+		if series[i].date.Format(dateLayout) >= monthStr {
+			mtdBaseline = series[i].val
+		}
+	}
+
+	return ShortTermReturns{
+		Day: pctReturn(dayBaseline),
+		WTD: pctReturn(wtdBaseline),
+		MTD: pctReturn(mtdBaseline),
+	}, nil
+}
+
 // PortfolioValueAt returns the portfolio equity at or before t.
 func (r *Reader) PortfolioValueAt(ctx context.Context, t time.Time) (float64, error) {
 	return r.perfAsOf(ctx, portfolioValueClause, t, false)

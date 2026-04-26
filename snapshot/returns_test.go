@@ -26,6 +26,27 @@ import (
 	"github.com/penny-vault/pv-api/snapshot"
 )
 
+var _ = Describe("ShortTermReturns", func() {
+	It("computes day, WTD, and MTD from perf_data", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
+		r, err := snapshot.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		defer r.Close()
+
+		ret, err := r.ShortTermReturns(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		// Last date is 2024-01-08 (value 103000), prev trading day 2024-01-05 (value 102000)
+		// Day = (103000-102000)/102000 ≈ 0.0098
+		Expect(ret.Day).To(BeNumerically("~", 0.0098, 0.001))
+		// WTD: 2024-01-08 is Monday; first row on/after that Monday is 2024-01-08 itself → 0
+		Expect(ret.WTD).To(BeNumerically("~", 0.0, 0.001))
+		// MTD: first row on/after 2024-01-01 is 2024-01-02 (100000)
+		// MTD = (103000-100000)/100000 = 0.03
+		Expect(ret.MTD).To(BeNumerically("~", 0.03, 0.001))
+	})
+})
+
 var _ = Describe("TrailingReturns", func() {
 	It("emits portfolio and benchmark rows with since-inception populated", func() {
 		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
