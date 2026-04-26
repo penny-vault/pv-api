@@ -185,6 +185,8 @@ func init() {
 	serverCmd.Flags().String("mailgun-domain", "", "Mailgun sending domain")
 	serverCmd.Flags().String("mailgun-api-key", "", "Mailgun API key; empty disables email alerts")
 	serverCmd.Flags().String("mailgun-from-address", "Penny Vault <no-reply@mg.pennyvault.com>", "From address for alert emails")
+	serverCmd.Flags().String("app-base-url", "https://www.pennyvault.com", "Base URL for the Penny Vault web app (used in email links)")
+	serverCmd.Flags().String("unsubscribe-secret", "", "HMAC secret for signing unsubscribe tokens; if empty, unsubscribe links are omitted")
 	bindPFlagsToViper(serverCmd)
 
 	// The auto-transform in bindPFlagsToViper only handles one dash→dot
@@ -341,11 +343,13 @@ var serverCmd = &cobra.Command{
 		portfolioAdapter := backtestPortfolioStoreAdapter{store: portfolioStore}
 		runAdapter := backtestRunStoreAdapter{store: portfolioStore.PoolRunStore}
 		orch := backtest.NewRunner(btCfg, runner, artifactKind, portfolioAdapter, runAdapter, resolve)
+		appBaseURL := conf.AppBaseURL
+		unsubscribeSecret := conf.UnsubscribeSecret
 		checker := alert.NewChecker(pool, alertEmail.Config{
 			Domain:      conf.Mailgun.Domain,
 			APIKey:      conf.Mailgun.APIKey,
 			FromAddress: conf.Mailgun.FromAddress,
-		})
+		}, appBaseURL, unsubscribeSecret)
 		orch.WithNotifier(checker)
 		hub := progress.NewHub()
 		orch.WithProgressHub(hub)

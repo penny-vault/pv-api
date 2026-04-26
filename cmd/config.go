@@ -23,17 +23,19 @@ import (
 // Config is the top-level pvapi configuration shape. New sections are added
 // as later plans land (runner, scheduler, ...).
 type Config struct {
-	DataDir   string `mapstructure:"data_dir"`
-	Log       logConf
-	DB        dbConf
-	Server    serverConf
-	Auth      authConf
-	GitHub    githubConf
-	Strategy  strategyConf
-	Backtest  backtestConf
-	Runner    runnerConf
-	Scheduler schedulerConf
-	Mailgun   mailgunConf
+	DataDir           string `mapstructure:"data_dir"`
+	AppBaseURL        string `mapstructure:"app_base_url"`
+	UnsubscribeSecret string `mapstructure:"unsubscribe_secret"`
+	Log               logConf
+	DB                dbConf
+	Server            serverConf
+	Auth              authConf
+	GitHub            githubConf
+	Strategy          strategyConf
+	Backtest          backtestConf
+	Runner            runnerConf
+	Scheduler         schedulerConf
+	Mailgun           mailgunConf
 }
 
 // dbConf holds the PostgreSQL connection string.

@@ -30,14 +30,22 @@ type portfolioData struct {
 
 // Checker implements Notifier using Postgres and Mailgun.
 type Checker struct {
-	pool        *pgxpool.Pool
-	store       *PoolStore
-	emailConfig email.Config
+	pool              *pgxpool.Pool
+	store             *PoolStore
+	emailConfig       email.Config
+	appBaseURL        string
+	unsubscribeSecret string
 }
 
 // NewChecker creates a Checker. Sends are skipped if emailConfig.APIKey is empty.
-func NewChecker(pool *pgxpool.Pool, cfg email.Config) *Checker {
-	return &Checker{pool: pool, store: NewPoolStore(pool), emailConfig: cfg}
+func NewChecker(pool *pgxpool.Pool, cfg email.Config, appBaseURL, unsubscribeSecret string) *Checker {
+	return &Checker{
+		pool:              pool,
+		store:             NewPoolStore(pool),
+		emailConfig:       cfg,
+		appBaseURL:        appBaseURL,
+		unsubscribeSecret: unsubscribeSecret,
+	}
 }
 
 // NotifyRunComplete evaluates and dispatches alerts for portfolioID.
