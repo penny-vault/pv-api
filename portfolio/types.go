@@ -52,6 +52,7 @@ type Portfolio struct {
 	SnapshotPath         *string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	RunRetention         int       `json:"run_retention"`
 }
 
 // CreateRequest is what the POST /portfolios handler passes to the domain layer.

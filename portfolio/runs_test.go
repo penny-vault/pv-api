@@ -87,3 +87,70 @@ var _ = Describe("PoolRunStore", Ordered, func() {
 		Expect(len(runs)).To(BeNumerically(">=", 1))
 	})
 })
+
+var _ = Describe("PoolStore run_retention", Ordered, func() {
+	var (
+		pool  *pgxpool.Pool
+		store *portfolio.PoolStore
+		ctx   = context.Background()
+	)
+
+	BeforeAll(func() {
+		dbURL := os.Getenv("PVAPI_SMOKE_DB_URL")
+		if dbURL == "" {
+			Skip("PVAPI_SMOKE_DB_URL not set; skipping run_retention smoke test")
+		}
+		var err error
+		pool, err = pgxpool.New(ctx, dbURL)
+		Expect(err).NotTo(HaveOccurred())
+		store = portfolio.NewPoolStore(pool)
+
+		_, err = pool.Exec(ctx, `
+			INSERT INTO strategies (short_code, repo_owner, repo_name, clone_url, is_official)
+			VALUES ('__rr_stub__', 'smoke', 'smoke', '', true)
+			ON CONFLICT (short_code) DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		DeferCleanup(func() {
+			_, _ = pool.Exec(ctx, `DELETE FROM portfolios WHERE owner_sub='smoke|rr-user'`)
+			_, _ = pool.Exec(ctx, `DELETE FROM strategies WHERE short_code='__rr_stub__'`)
+			pool.Close()
+		})
+	})
+
+	It("persists run_retention with a default of 2 when omitted", func() {
+		p := portfolio.Portfolio{
+			OwnerSub:     "smoke|rr-user",
+			Slug:         "rr-default-test",
+			Name:         "RR default",
+			StrategyCode: "__rr_stub__",
+			Parameters:   map[string]any{},
+			Benchmark:    "SPY",
+			Status:       portfolio.StatusPending,
+		}
+		Expect(store.Insert(ctx, p)).To(Succeed())
+
+		got, err := store.Get(ctx, p.OwnerSub, p.Slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got.RunRetention).To(Equal(2))
+	})
+
+	It("persists an explicit run_retention", func() {
+		p := portfolio.Portfolio{
+			OwnerSub:     "smoke|rr-user",
+			Slug:         "rr-explicit-test",
+			Name:         "RR explicit",
+			StrategyCode: "__rr_stub__",
+			Parameters:   map[string]any{},
+			Benchmark:    "SPY",
+			Status:       portfolio.StatusPending,
+			RunRetention: 5,
+		}
+		Expect(store.Insert(ctx, p)).To(Succeed())
+
+		got, err := store.Get(ctx, p.OwnerSub, p.Slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got.RunRetention).To(Equal(5))
+	})
+})

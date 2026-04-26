@@ -39,7 +39,7 @@ const portfolioColumns = `
 	id, owner_sub, slug, name, strategy_code, strategy_ver, strategy_clone_url,
 	strategy_describe_json, parameters,
 	preset_name, benchmark, start_date, end_date, status, last_run_at,
-	last_error, snapshot_path, created_at, updated_at
+	last_error, snapshot_path, created_at, updated_at, run_retention
 `
 
 // List returns every portfolio owned by ownerSub, sorted newest-first.
@@ -90,12 +90,12 @@ func Insert(ctx context.Context, pool *pgxpool.Pool, p Portfolio) error {
 		INSERT INTO portfolios (
 			owner_sub, slug, name, strategy_code, strategy_ver,
 			strategy_clone_url, strategy_describe_json, parameters,
-			preset_name, benchmark, start_date, end_date, status
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			preset_name, benchmark, start_date, end_date, status, run_retention
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`, p.OwnerSub, p.Slug, p.Name, p.StrategyCode, p.StrategyVer,
 		p.StrategyCloneURL, p.StrategyDescribeJSON, paramsJSON,
 		p.PresetName, p.Benchmark, p.StartDate, p.EndDate,
-		string(p.Status))
+		string(p.Status), retentionOrDefault(p.RunRetention))
 	if err != nil {
 		if uniqueViolation(err) {
 			return ErrDuplicateSlug
@@ -341,7 +341,7 @@ func scan(r scanner) (Portfolio, error) {
 		&p.StrategyCloneURL, &p.StrategyDescribeJSON, &paramsJSON,
 		&p.PresetName, &p.Benchmark, &p.StartDate, &p.EndDate,
 		&statusStr, &p.LastRunAt, &p.LastError, &p.SnapshotPath,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.CreatedAt, &p.UpdatedAt, &p.RunRetention,
 	)
 	if err != nil {
 		return Portfolio{}, err
@@ -363,4 +363,12 @@ func uniqueViolation(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "SQLSTATE 23505")
+}
+
+// retentionOrDefault returns v when v >= 1, otherwise the default of 2.
+func retentionOrDefault(v int) int {
+	if v <= 0 {
+		return 2
+	}
+	return v
 }
