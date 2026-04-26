@@ -372,6 +372,55 @@ func PruneRuns(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID) (
 	return deleted, nil
 }
 
+// ApplyUpgrade atomically replaces strategy_ver, strategy_describe_json,
+// parameters and preset_name on the portfolio, sets status='pending' and
+// last_error=NULL, and inserts a new queued backtest_runs row. Returns the
+// new run UUID.
+//
+// Returns ErrNotFound when the portfolio does not exist.
+func ApplyUpgrade(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID,
+	newVer string, newDescribe json.RawMessage, newParams json.RawMessage,
+	newPresetName *string,
+) (uuid.UUID, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE portfolios SET
+			strategy_ver = $2,
+			strategy_describe_json = $3,
+			parameters = $4,
+			preset_name = $5,
+			status = 'pending',
+			last_error = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`, portfolioID, newVer, newDescribe, newParams, newPresetName)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("updating portfolio: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return uuid.Nil, ErrNotFound
+	}
+
+	var runID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO backtest_runs (id, portfolio_id, status)
+		VALUES (uuidv7(), $1, 'queued')
+		RETURNING id
+	`, portfolioID).Scan(&runID); err != nil {
+		return uuid.Nil, fmt.Errorf("inserting run: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return uuid.Nil, fmt.Errorf("commit: %w", err)
+	}
+	return runID, nil
+}
+
 // ClaimDue returns up to batchSize portfolio IDs that are open-ended
 // (end_date IS NULL) and have not yet run today.
 func ClaimDue(ctx context.Context, pool *pgxpool.Pool, batchSize int) ([]uuid.UUID, error) {

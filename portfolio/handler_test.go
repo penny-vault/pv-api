@@ -18,6 +18,7 @@ package portfolio_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http/httptest"
@@ -170,6 +171,13 @@ func (f *fakeStore) UpdateRunRetention(_ context.Context, ownerSub, slug string,
 // PruneRuns stub — handler tests do not exercise the prune path.
 func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) {
 	return nil, nil
+}
+
+// ApplyUpgrade stub — handler tests do not exercise the upgrade path.
+func (f *fakeStore) ApplyUpgrade(_ context.Context, _ uuid.UUID, _ string,
+	_ json.RawMessage, _ json.RawMessage, _ *string,
+) (uuid.UUID, error) {
+	return uuid.New(), nil
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured

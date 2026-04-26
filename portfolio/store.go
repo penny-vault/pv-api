@@ -17,6 +17,7 @@ package portfolio
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +36,9 @@ type Store interface {
 	PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error)
 	Delete(ctx context.Context, ownerSub, slug string) error
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
+	ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID, newVer string,
+		newDescribe json.RawMessage, newParams json.RawMessage,
+		newPresetName *string) (uuid.UUID, error)
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -130,4 +134,14 @@ func (p PoolStore) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]stri
 // ClaimDue returns open-ended portfolio IDs not yet run today.
 func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
 	return ClaimDue(ctx, p.Pool, batchSize)
+}
+
+// ApplyUpgrade atomically updates the portfolio's strategy version, describe
+// JSON, parameters, and preset_name; sets status='pending'; and inserts a
+// queued backtest_runs row. Returns the new run UUID.
+func (p PoolStore) ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID,
+	newVer string, newDescribe json.RawMessage, newParams json.RawMessage,
+	newPresetName *string,
+) (uuid.UUID, error) {
+	return ApplyUpgrade(ctx, p.Pool, portfolioID, newVer, newDescribe, newParams, newPresetName)
 }
