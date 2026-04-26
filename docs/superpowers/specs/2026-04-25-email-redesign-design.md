@@ -192,6 +192,30 @@ If `PortfolioURL` is empty the button is omitted (graceful degradation for on-de
 
 ---
 
+## Unsubscribe
+
+A low-prominence "Unsubscribe" text link appears in the footer below the View Portfolio button (standard placement, per email convention).
+
+### Token
+
+The unsubscribe URL is `{appBaseURL}/api/alerts/unsubscribe?token=<token>` where `token` is an HMAC-SHA256 signature over `alertID:recipientEmail` using a server secret (`--unsubscribe-secret` flag). This prevents anyone from unsubscribing an address they don't control.
+
+`Payload` gains an `UnsubscribeURL template.URL` field. It is populated per-recipient at send time.
+
+### Endpoint
+
+A new unauthenticated `GET /api/alerts/unsubscribe` endpoint:
+1. Verifies the HMAC token
+2. Removes the recipient from the alert's `recipients` array
+3. If the recipients array becomes empty, deletes the alert entirely
+4. Returns a plain HTML confirmation page ("You have been unsubscribed from alerts for {portfolio name}")
+
+The endpoint lives in the `alert` package alongside the existing handler. It requires no auth middleware since the token is the credential.
+
+On-demand `SendSummary` emails omit the unsubscribe link (no persistent alert record to unsubscribe from).
+
+---
+
 ## Scope Boundaries
 
 - Failure email redesign is included (same header, error card replaces body).
