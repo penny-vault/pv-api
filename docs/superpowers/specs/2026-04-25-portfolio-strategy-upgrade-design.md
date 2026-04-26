@@ -160,7 +160,7 @@ ALTER TABLE portfolios
 Triggered by the orchestrator after `SetReady` or `SetFailed` commits. Implemented as `portfolio.Store.PruneRuns(ctx, portfolioID)`:
 
 1. Read `portfolios.run_retention` for this portfolio.
-2. Select run IDs and `snapshot_path` for this portfolio ordered by `created_at DESC`, skipping the first `run_retention` rows.
+2. Select run IDs and `snapshot_path` for this portfolio ordered by `id DESC` (UUIDv7 is monotonically time-ordered; backtest_runs has no created_at), skipping the first `run_retention` rows.
 3. Delete those `backtest_runs` rows in a transaction.
 4. After the DB commit, best-effort delete each snapshot file (log on failure; do not error).
 
