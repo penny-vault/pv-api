@@ -44,13 +44,15 @@ import (
 // returns a canned (runID, err). Pointer receiver for Submit so call
 // counts persist across the interface boundary.
 type countingDispatcher struct {
-	calls atomic.Int64
-	runID uuid.UUID
-	err   error
+	calls       atomic.Int64
+	runID       uuid.UUID
+	err         error
+	SubmitCalls []uuid.UUID
 }
 
-func (d *countingDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
+func (d *countingDispatcher) Submit(_ context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
 	d.calls.Add(1)
+	d.SubmitCalls = append(d.SubmitCalls, portfolioID)
 	return d.runID, d.err
 }
 
@@ -69,8 +71,7 @@ type fakeStore struct {
 
 	// ApplyUpgrade call recording.
 	ApplyUpgradeCalls []applyUpgradeCall
-	ApplyUpgradeRunID uuid.UUID // returned to caller; uuid.Nil triggers uuid.New()
-	ApplyUpgradeErr   error     // returned to caller; nil means success
+	ApplyUpgradeErr   error // returned to caller; nil means success
 }
 
 func (f *fakeStore) List(_ context.Context, ownerSub string) ([]portfolio.Portfolio, error) {
@@ -189,18 +190,12 @@ func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) 
 
 func (f *fakeStore) ApplyUpgrade(_ context.Context, portfolioID uuid.UUID, newVer string,
 	newDescribe, newParams json.RawMessage, presetName *string,
-) (uuid.UUID, error) {
+) error {
 	f.ApplyUpgradeCalls = append(f.ApplyUpgradeCalls, applyUpgradeCall{
 		PortfolioID: portfolioID, NewVer: newVer,
 		NewDescribe: newDescribe, NewParams: newParams, PresetName: presetName,
 	})
-	if f.ApplyUpgradeErr != nil {
-		return uuid.Nil, f.ApplyUpgradeErr
-	}
-	if f.ApplyUpgradeRunID == uuid.Nil {
-		return uuid.New(), nil
-	}
-	return f.ApplyUpgradeRunID, nil
+	return f.ApplyUpgradeErr
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured

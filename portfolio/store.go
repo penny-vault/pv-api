@@ -38,7 +38,7 @@ type Store interface {
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
 	ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID, newVer string,
 		newDescribe json.RawMessage, newParams json.RawMessage,
-		newPresetName *string) (uuid.UUID, error)
+		newPresetName *string) error
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -136,12 +136,12 @@ func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, er
 	return ClaimDue(ctx, p.Pool, batchSize)
 }
 
-// ApplyUpgrade atomically updates the portfolio's strategy version, describe
-// JSON, parameters, and preset_name; sets status='pending'; and inserts a
-// queued backtest_runs row. Returns the new run UUID.
+// ApplyUpgrade updates the portfolio's strategy version, describe JSON,
+// parameters, and preset_name; sets status='pending' and last_error=NULL.
+// The caller must enqueue a backtest run via Dispatcher.Submit afterward.
 func (p PoolStore) ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID,
 	newVer string, newDescribe json.RawMessage, newParams json.RawMessage,
 	newPresetName *string,
-) (uuid.UUID, error) {
+) error {
 	return ApplyUpgrade(ctx, p.Pool, portfolioID, newVer, newDescribe, newParams, newPresetName)
 }

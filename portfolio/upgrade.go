@@ -16,22 +16,27 @@
 package portfolio
 
 import (
+	"encoding/json"
 	"errors"
 
+	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/penny-vault/pv-api/strategy"
 )
 
 // Upgrade implements POST /portfolios/{slug}/upgrade.
 //
-// This skeleton handles the early-exit paths only:
+// Handled paths:
 //   - 401 unauthorized
 //   - 404 not found
 //   - 409 run_in_progress
 //   - 422 strategy_not_installable
 //   - 200 already_at_latest
+//   - 200 upgraded (compatible empty-body path)
 //
-// The compatible-upgrade and 409 parameters_incompatible paths are wired in
-// Tasks 10 and 11.
+// The supplied-parameters and 409 parameters_incompatible paths are wired in
+// Task 11.
 //
 // See docs/superpowers/specs/2026-04-25-portfolio-strategy-upgrade-design.md.
 func (h *Handler) Upgrade(c fiber.Ctx) error {
@@ -70,6 +75,110 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 		})
 	}
 
-	// Compatibility checks and apply happen in Tasks 10 + 11.
-	return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "upgrade flow not yet implemented")
+	// Body is optional. Parse only if present.
+	type upgradeRequestBody struct {
+		Parameters map[string]any `json:"parameters"`
+	}
+	var body upgradeRequestBody
+	if raw := c.Body(); len(raw) > 0 {
+		if err := sonic.Unmarshal(raw, &body); err != nil {
+			return writeProblem(c, fiber.StatusBadRequest, "Bad Request", "body is not valid JSON")
+		}
+	}
+
+	// Old describe is on the portfolio row.
+	var oldDescribe strategy.Describe
+	if len(p.StrategyDescribeJSON) > 0 {
+		if err := json.Unmarshal(p.StrategyDescribeJSON, &oldDescribe); err != nil {
+			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
+				"stored describe is invalid: "+err.Error())
+		}
+	}
+
+	// New describe comes from the registry.
+	var newDescribe strategy.Describe
+	if err := json.Unmarshal(s.DescribeJSON, &newDescribe); err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
+			"registry describe is invalid: "+err.Error())
+	}
+
+	diff := DiffParameters(oldDescribe, newDescribe)
+
+	var nextParams map[string]any
+	switch {
+	case body.Parameters != nil:
+		// Resubmit branch — implemented in Task 11.
+		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented",
+			"supplied parameters path implemented in next task")
+	case diff.Compatible():
+		nextParams = mergeKeptAndDefaults(p.Parameters, newDescribe, diff)
+	default:
+		// 409 incompatible-diff branch — implemented in Task 11.
+		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented",
+			"incompatible-diff path implemented in next task")
+	}
+
+	paramsJSON, err := json.Marshal(nextParams)
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	presetName := MatchPresetName(nextParams, newDescribe)
+
+	// Atomic portfolio update; run insert happens via Dispatcher.Submit below.
+	if err := h.store.ApplyUpgrade(c.Context(), p.ID, *s.InstalledVer,
+		json.RawMessage(s.DescribeJSON), paramsJSON, presetName); err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+
+	// Enqueue the run via the same path Create uses.
+	if h.dispatcher == nil {
+		// Without a dispatcher the upgrade is committed but no run is queued. The
+		// user can call POST /portfolios/:slug/run later.
+		return writeJSON(c, fiber.StatusOK, fiber.Map{
+			"status":       "upgraded",
+			"from_version": deref(p.StrategyVer),
+			"to_version":   *s.InstalledVer,
+		})
+	}
+	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
+	if err != nil {
+		if errors.Is(err, ErrQueueFull) {
+			return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
+				"backtest queue is full, try again later")
+		}
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+
+	return writeJSON(c, fiber.StatusOK, fiber.Map{
+		"status":       "upgraded",
+		"from_version": deref(p.StrategyVer),
+		"to_version":   *s.InstalledVer,
+		"run_id":       runID.String(),
+	})
+}
+
+// mergeKeptAndDefaults builds the next parameter map from kept parameters and
+// newly-added parameters that have defaults.
+func mergeKeptAndDefaults(current map[string]any, d strategy.Describe, diff ParameterDiff) map[string]any {
+	out := make(map[string]any, len(current)+len(diff.AddedWithDefault))
+	for _, k := range diff.Kept {
+		out[k] = current[k]
+	}
+	for _, name := range diff.AddedWithDefault {
+		for _, p := range d.Parameters {
+			if p.Name == name {
+				out[name] = p.Default
+				break
+			}
+		}
+	}
+	return out
+}
+
+// deref returns the string a pointer points to, or "" if the pointer is nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

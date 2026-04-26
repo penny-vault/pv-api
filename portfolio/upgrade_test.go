@@ -36,10 +36,9 @@ import (
 
 var _ = Describe("ApplyUpgrade", Ordered, func() {
 	var (
-		ctx      context.Context
-		pool     *pgxpool.Pool
-		store    *portfolio.PoolStore
-		runStore *portfolio.PoolRunStore
+		ctx   context.Context
+		pool  *pgxpool.Pool
+		store *portfolio.PoolStore
 	)
 
 	BeforeAll(func() {
@@ -54,7 +53,6 @@ var _ = Describe("ApplyUpgrade", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { pool.Close() })
 		store = portfolio.NewPoolStore(pool)
-		runStore = portfolio.NewPoolRunStore(pool)
 
 		_, err = pool.Exec(ctx, `
 			INSERT INTO strategies (short_code, repo_owner, repo_name, clone_url, is_official)
@@ -84,18 +82,17 @@ var _ = Describe("ApplyUpgrade", Ordered, func() {
 		return got.ID
 	}
 
-	It("replaces version, describe, parameters, preset_name; inserts a queued run; sets status pending", func() {
+	It("replaces version, describe, parameters, preset_name; sets status pending; last_error nil", func() {
 		portID := seed()
 
 		newDescribe := []byte(`{"shortcode":"__smoke_stub__","name":"smoke","parameters":[{"name":"riskOn","type":"universe"}],"schedule":"@monthend","benchmark":"SPY"}`)
 		newParams := []byte(`{"riskOn":"QQQ"}`)
 		presetName := "balanced"
 
-		runID, err := store.ApplyUpgrade(ctx, portID,
+		err := store.ApplyUpgrade(ctx, portID,
 			"v1.3.0", newDescribe, newParams, &presetName,
 		)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(runID).NotTo(Equal(uuid.Nil))
 
 		p, err := store.GetByID(ctx, portID)
 		Expect(err).NotTo(HaveOccurred())
@@ -105,23 +102,16 @@ var _ = Describe("ApplyUpgrade", Ordered, func() {
 		Expect(p.PresetName).NotTo(BeNil())
 		Expect(*p.PresetName).To(Equal("balanced"))
 		Expect(string(p.Status)).To(Equal("pending"))
-
-		rs, err := runStore.ListRuns(ctx, portID)
-		Expect(err).NotTo(HaveOccurred())
-		// Newest first; the queued run we just inserted should be index 0.
-		Expect(rs).NotTo(BeEmpty())
-		Expect(rs[0].Status).To(Equal("queued"))
-		Expect(rs[0].ID).To(Equal(runID))
+		Expect(p.LastError).To(BeNil())
 	})
 
 	It("nils preset_name when nil is passed", func() {
 		portID := seed()
 
-		runID, err := store.ApplyUpgrade(ctx, portID,
+		err := store.ApplyUpgrade(ctx, portID,
 			"v1.3.0", []byte(`{}`), []byte(`{}`), nil,
 		)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(runID).NotTo(Equal(uuid.Nil))
 
 		p, err := store.GetByID(ctx, portID)
 		Expect(err).NotTo(HaveOccurred())
@@ -129,7 +119,7 @@ var _ = Describe("ApplyUpgrade", Ordered, func() {
 	})
 
 	It("returns ErrNotFound when the portfolio does not exist", func() {
-		_, err := store.ApplyUpgrade(ctx, uuid.New(),
+		err := store.ApplyUpgrade(ctx, uuid.New(),
 			"v1.3.0", []byte(`{}`), []byte(`{}`), nil,
 		)
 		Expect(err).To(MatchError(portfolio.ErrNotFound))
@@ -274,5 +264,113 @@ var _ = Describe("Upgrade handler skeleton", func() {
 		a := newUpgradeApp(store, strategies, false /* no auth middleware */)
 		status, _ := doUpgrade(a, slug, "", map[string]any{})
 		Expect(status).To(Equal(401))
+	})
+
+	It("upgrades when the registry has a newer compatible version (empty body)", func() {
+		// Put the portfolio on v1.0.0 and the registry on v1.1.0.
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v1.1.0"
+		portID := uuid.Must(uuid.NewV7())
+		singleParamDescribe := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"riskOn","type":"universe"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: singleParamDescribe,
+				Parameters:           map[string]any{"riskOn": "SPY"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: singleParamDescribe, // same describe → all params kept → compatible
+			},
+		}
+		knownRunID := uuid.Must(uuid.NewV7())
+		disp := &countingDispatcher{runID: knownRunID}
+		h := portfolio.NewHandler(st, ss, nil, disp, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		status, body := doUpgrade(a, slug, ownerSub, nil /* empty body */)
+
+		Expect(status).To(Equal(200))
+		Expect(body["status"]).To(Equal("upgraded"))
+		Expect(body["from_version"]).To(Equal("v1.0.0"))
+		Expect(body["to_version"]).To(Equal("v1.1.0"))
+		Expect(body["run_id"]).To(Equal(knownRunID.String()))
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
+		Expect(st.ApplyUpgradeCalls[0].PortfolioID).To(Equal(portID))
+		Expect(st.ApplyUpgradeCalls[0].NewVer).To(Equal("v1.1.0"))
+		var gotParams map[string]any
+		Expect(sonic.Unmarshal(st.ApplyUpgradeCalls[0].NewParams, &gotParams)).To(Succeed())
+		Expect(gotParams).To(HaveKeyWithValue("riskOn", "SPY"))
+		Expect(disp.SubmitCalls).To(HaveLen(1))
+		Expect(disp.SubmitCalls[0]).To(Equal(portID))
+	})
+
+	It("auto-fills added-with-default parameters on a compatible upgrade", func() {
+		// Portfolio at v1.0.0 with only param "a"; new describe adds "b" with default "y".
+		portfolioVer1 := "v1.0.0"
+		registryVer := "v2.0.0"
+		portID := uuid.Must(uuid.NewV7())
+		oldDescribe := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"a","type":"string"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+		newDescribe := []byte(`{"shortCode":"adm","name":"ADM","description":"","parameters":[{"name":"a","type":"string"},{"name":"b","type":"string","default":"y"}],"presets":[],"schedule":"@monthend","benchmark":"SPY"}`)
+
+		st := &fakeStore{
+			rows: []portfolio.Portfolio{{
+				ID:                   portID,
+				OwnerSub:             ownerSub,
+				Slug:                 slug,
+				Name:                 "ADM standard",
+				StrategyCode:         "adm",
+				StrategyVer:          &portfolioVer1,
+				StrategyDescribeJSON: oldDescribe,
+				Parameters:           map[string]any{"a": "x"},
+				Benchmark:            "SPY",
+				Status:               portfolio.StatusReady,
+				RunRetention:         2,
+			}},
+		}
+		ss := &fakeStrategyStore{
+			row: strategy.Strategy{
+				ShortCode:    "adm",
+				IsOfficial:   true,
+				InstalledVer: &registryVer,
+				DescribeJSON: newDescribe,
+			},
+		}
+		disp := &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
+		h := portfolio.NewHandler(st, ss, nil, disp, nil, nil, strategy.EphemeralOptions{})
+		a := fiber.New()
+		a.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, ownerSub)
+			return c.Next()
+		})
+		a.Post("/portfolios/:slug/upgrade", h.Upgrade)
+
+		status, body := doUpgrade(a, slug, ownerSub, nil /* empty body */)
+
+		Expect(status).To(Equal(200))
+		Expect(body["status"]).To(Equal("upgraded"))
+		Expect(st.ApplyUpgradeCalls).To(HaveLen(1))
+		var gotParams map[string]any
+		Expect(sonic.Unmarshal(st.ApplyUpgradeCalls[0].NewParams, &gotParams)).To(Succeed())
+		Expect(gotParams).To(HaveKeyWithValue("a", "x"))
+		Expect(gotParams).To(HaveKeyWithValue("b", "y"))
 	})
 })
