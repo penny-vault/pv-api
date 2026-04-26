@@ -17,6 +17,7 @@ package portfolio
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,8 +32,13 @@ type Store interface {
 	Insert(ctx context.Context, p Portfolio) error
 	UpdateName(ctx context.Context, ownerSub, slug, name string) error
 	UpdateDates(ctx context.Context, ownerSub, slug string, startDate, endDate *time.Time) error
+	UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error
+	PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error)
 	Delete(ctx context.Context, ownerSub, slug string) error
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
+	ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID, newVer string,
+		newDescribe json.RawMessage, newParams json.RawMessage,
+		newPresetName *string) error
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -117,7 +123,25 @@ func (p PoolStore) UpdateDates(ctx context.Context, ownerSub, slug string, start
 	return UpdateDates(ctx, p.Pool, ownerSub, slug, startDate, endDate)
 }
 
+func (p PoolStore) UpdateRunRetention(ctx context.Context, ownerSub, slug string, value int) error {
+	return UpdateRunRetention(ctx, p.Pool, ownerSub, slug, value)
+}
+
+func (p PoolStore) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error) {
+	return PruneRuns(ctx, p.Pool, portfolioID)
+}
+
 // ClaimDue returns open-ended portfolio IDs not yet run today.
 func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
 	return ClaimDue(ctx, p.Pool, batchSize)
+}
+
+// ApplyUpgrade updates the portfolio's strategy version, describe JSON,
+// parameters, and preset_name; sets status='pending' and last_error=NULL.
+// The caller must enqueue a backtest run via Dispatcher.Submit afterward.
+func (p PoolStore) ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID,
+	newVer string, newDescribe json.RawMessage, newParams json.RawMessage,
+	newPresetName *string,
+) error {
+	return ApplyUpgrade(ctx, p.Pool, portfolioID, newVer, newDescribe, newParams, newPresetName)
 }

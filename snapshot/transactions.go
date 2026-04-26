@@ -26,6 +26,50 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 )
 
+// LatestBatchTrade holds the fields needed to render a single buy or sell
+// trade from the most recent rebalance batch.
+type LatestBatchTrade struct {
+	Ticker   string
+	Type     string
+	Quantity float64
+	Price    float64
+	Amount   float64
+}
+
+// LatestBatchTrades returns the buy and sell transactions from the highest
+// batch_id that contains at least one buy or sell. Returns an empty (non-nil)
+// slice when no such batch exists.
+func (r *Reader) LatestBatchTrades(ctx context.Context) ([]LatestBatchTrade, error) {
+	const q = `
+		SELECT t.ticker, t.type, t.quantity, t.price, t.amount
+		  FROM transactions t
+		 WHERE t.batch_id = (
+		           SELECT MAX(batch_id) FROM transactions
+		            WHERE type IN ('buy','sell')
+		       )
+		   AND t.type IN ('buy','sell')
+		 ORDER BY t.rowid`
+
+	rows, err := r.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("latest batch trades query: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []LatestBatchTrade{}
+	for rows.Next() {
+		var trade LatestBatchTrade
+		if err := rows.Scan(&trade.Ticker, &trade.Type, &trade.Quantity, &trade.Price, &trade.Amount); err != nil {
+			return nil, fmt.Errorf("latest batch trades scan: %w", err)
+		}
+		out = append(out, trade)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("latest batch trades iterate: %w", err)
+	}
+	return out, nil
+}
+
 // TransactionFilter scopes a Transactions read.
 type TransactionFilter struct {
 	From  *time.Time // inclusive

@@ -259,6 +259,10 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 		return Portfolio{}, err
 	}
 	presetName := presetMatch(norm.Parameters, describe)
+	retention := 2
+	if norm.RunRetention != nil {
+		retention = *norm.RunRetention
+	}
 	p := Portfolio{
 		OwnerSub:             ownerSub,
 		Slug:                 slug,
@@ -272,6 +276,7 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 		StartDate:            norm.StartDate,
 		EndDate:              norm.EndDate,
 		Status:               StatusPending,
+		RunRetention:         retention,
 	}
 	if norm.StrategyVer != "" {
 		v := norm.StrategyVer
@@ -309,9 +314,10 @@ type problemBody struct {
 
 // patchBody holds the fields accepted by PATCH /portfolios/{slug}.
 type patchBody struct {
-	Name      string `json:"name"`
-	StartDate string `json:"startDate"`
-	EndDate   string `json:"endDate"`
+	Name         string `json:"name"`
+	StartDate    string `json:"startDate"`
+	EndDate      string `json:"endDate"`
+	RunRetention *int   `json:"runRetention"`
 }
 
 // parsePatchBody validates that the request contains only allowed fields and
@@ -321,7 +327,7 @@ func parsePatchBody(data []byte) (patchBody, *time.Time, *time.Time, error) {
 	if err := sonic.Unmarshal(data, &raw); err != nil {
 		return patchBody{}, nil, nil, fmt.Errorf("body is not valid JSON: %w", err)
 	}
-	allowed := map[string]bool{"name": true, "startDate": true, "endDate": true}
+	allowed := map[string]bool{"name": true, "startDate": true, "endDate": true, "runRetention": true}
 	for k := range raw {
 		if !allowed[k] {
 			return patchBody{}, nil, nil, fmt.Errorf("rejected field %q: %w", k, ErrImmutableField)
@@ -342,6 +348,9 @@ func parsePatchBody(data []byte) (patchBody, *time.Time, *time.Time, error) {
 	if err := validateDates(startDate, endDate); err != nil {
 		return patchBody{}, nil, nil, err
 	}
+	if err := validateRunRetention(body.RunRetention); err != nil {
+		return patchBody{}, nil, nil, err
+	}
 	return body, startDate, endDate, nil
 }
 
@@ -357,7 +366,7 @@ func applyStoreUpdate(c fiber.Ctx, slug string, fn func() error) error {
 }
 
 // Patch implements PATCH /portfolios/{slug}.
-// Allows updating: name, startDate, endDate.
+// Allows updating: name, startDate, endDate, runRetention.
 func (h *Handler) Patch(c fiber.Ctx) error {
 	ownerSub, err := subject(c)
 	if err != nil {
@@ -380,6 +389,13 @@ func (h *Handler) Patch(c fiber.Ctx) error {
 	if startDate != nil || endDate != nil {
 		if err := applyStoreUpdate(c, slug, func() error {
 			return h.store.UpdateDates(c.Context(), ownerSub, slug, startDate, endDate)
+		}); err != nil {
+			return err
+		}
+	}
+	if body.RunRetention != nil {
+		if err := applyStoreUpdate(c, slug, func() error {
+			return h.store.UpdateRunRetention(c.Context(), ownerSub, slug, *body.RunRetention)
 		}); err != nil {
 			return err
 		}
@@ -419,6 +435,7 @@ type createBody struct {
 	Benchmark        string         `json:"benchmark,omitempty"`
 	StartDate        string         `json:"startDate,omitempty"`
 	EndDate          string         `json:"endDate,omitempty"`
+	RunRetention     *int           `json:"runRetention"`
 }
 
 func (b createBody) toRequest(startDate, endDate *time.Time) CreateRequest {
@@ -431,6 +448,7 @@ func (b createBody) toRequest(startDate, endDate *time.Time) CreateRequest {
 		Benchmark:        b.Benchmark,
 		StartDate:        startDate,
 		EndDate:          endDate,
+		RunRetention:     b.RunRetention,
 	}
 }
 

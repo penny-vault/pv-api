@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,7 +12,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/alert/email"
-	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/snapshot"
 )
 
@@ -116,20 +116,6 @@ func (c *Checker) loadPortfolio(ctx context.Context, id uuid.UUID) (portfolioDat
 	return p, err
 }
 
-func (c *Checker) snapshotPathBefore(ctx context.Context, portfolioID uuid.UUID, before time.Time) *string {
-	var path string
-	err := c.pool.QueryRow(ctx,
-		`SELECT snapshot_path FROM backtest_runs
-		  WHERE portfolio_id=$1 AND status='success' AND finished_at <= $2
-		  ORDER BY finished_at DESC LIMIT 1`,
-		portfolioID, before,
-	).Scan(&path)
-	if err != nil {
-		return nil
-	}
-	return &path
-}
-
 func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now time.Time, success bool) error {
 	basePayload := c.buildPayload(ctx, a, port, now, success)
 
@@ -208,10 +194,7 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 
 	if port.SnapshotPath != nil {
 		c.fillReturns(ctx, &p, *port.SnapshotPath)
-	}
-
-	if port.SnapshotPath != nil {
-		c.fillHoldingsAndTrades(ctx, &p, a, port)
+		c.fillHoldingsAndTrades(ctx, &p, port)
 	}
 
 	return p
@@ -286,7 +269,7 @@ func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPat
 	p.OneYearPct, p.OneYearColor = email.FormatReturnPct(kpis.OneYearReturn)
 }
 
-func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a Alert, port portfolioData) {
+func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, port portfolioData) {
 	r, err := snapshot.Open(*port.SnapshotPath)
 	if err != nil {
 		return
@@ -326,82 +309,24 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 		})
 	}
 
-	if a.LastSentAt == nil {
-		for _, h := range cur.Items {
-			if h.Ticker == "$CASH" {
-				continue
-			}
-			p.Trades = append(p.Trades, email.TradeRow{
-				Ticker:        h.Ticker,
-				Action:        "Buy",
-				ActionColor:   "#22c55e",
-				ActionBgColor: "#dcfce7",
-				Shares:        fmt.Sprintf("%.0f", h.Quantity),
-				Value:         "$" + email.FormatMoneyVal(h.MarketValue),
-			})
-		}
-		return
-	}
-
-	prevPath := c.snapshotPathBefore(ctx, a.PortfolioID, *a.LastSentAt)
-	if prevPath == nil {
-		return
-	}
-	prev, err := snapshot.Open(*prevPath)
+	trades, err := r.LatestBatchTrades(ctx)
 	if err != nil {
+		log.Warn().Err(err).Msg("alert: latest batch trades")
 		return
 	}
-	defer prev.Close()
-
-	prevHoldings, err := prev.CurrentHoldings(ctx)
-	if err != nil || prevHoldings == nil {
-		return
-	}
-
-	curMap := map[string]openapi.Holding{}
-	for _, h := range cur.Items {
-		curMap[h.Ticker] = h
-	}
-	prevMap := map[string]float64{}
-	for _, h := range prevHoldings.Items {
-		prevMap[h.Ticker] = h.Quantity
-	}
-
-	seen := map[string]bool{}
-	for _, h := range cur.Items {
-		if h.Ticker == "$CASH" {
-			continue
-		}
-		seen[h.Ticker] = true
-		diff := h.Quantity - prevMap[h.Ticker]
-		if diff == 0 {
-			continue
-		}
-		action, color, bgColor := "Buy", "#22c55e", "#dcfce7"
-		if diff < 0 {
-			action, color, bgColor = "Sell", "#ef4444", "#fee2e2"
-			diff = -diff
+	for _, tx := range trades {
+		action := strings.ToUpper(tx.Type[:1]) + tx.Type[1:]
+		actionColor, actionBgColor := "#16a34a", "#dcfce7"
+		if tx.Type == "sell" {
+			actionColor, actionBgColor = "#ef4444", "#fee2e2"
 		}
 		p.Trades = append(p.Trades, email.TradeRow{
-			Ticker:        h.Ticker,
+			Ticker:        tx.Ticker,
 			Action:        action,
-			ActionColor:   color,
-			ActionBgColor: bgColor,
-			Shares:        fmt.Sprintf("%.0f", diff),
-			Value:         "$" + email.FormatMoneyVal(diff*h.MarketValue/h.Quantity),
-		})
-	}
-	for _, h := range prevHoldings.Items {
-		if h.Ticker == "$CASH" || seen[h.Ticker] {
-			continue
-		}
-		p.Trades = append(p.Trades, email.TradeRow{
-			Ticker:        h.Ticker,
-			Action:        "Sell",
-			ActionColor:   "#ef4444",
-			ActionBgColor: "#fee2e2",
-			Shares:        fmt.Sprintf("%.0f", h.Quantity),
-			Value:         "$" + email.FormatMoneyVal(h.MarketValue),
+			ActionColor:   actionColor,
+			ActionBgColor: actionBgColor,
+			Shares:        email.FormatMoneyVal(tx.Quantity),
+			Value:         "$" + email.FormatMoneyVal(tx.Amount),
 		})
 	}
 }

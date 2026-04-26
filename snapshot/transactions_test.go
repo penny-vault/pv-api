@@ -39,6 +39,46 @@ var _ = Describe("Transactions", func() {
 		DeferCleanup(reader.Close)
 	})
 
+	Describe("LatestBatchTrades", func() {
+		It("returns buy and sell rows from the highest batch_id that has buy/sell transactions", func() {
+			trades, err := reader.LatestBatchTrades(context.Background())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(trades).To(HaveLen(2))
+
+			// sell VTI comes first (rowid order within batch 4)
+			sell := trades[0]
+			Expect(sell.Ticker).To(Equal("VTI"))
+			Expect(sell.Type).To(Equal("sell"))
+			Expect(sell.Quantity).To(BeNumerically("==", 100))
+			Expect(sell.Price).To(BeNumerically("==", 110))
+			Expect(sell.Amount).To(BeNumerically("==", 11000))
+
+			// buy QQQ comes second
+			buy := trades[1]
+			Expect(buy.Ticker).To(Equal("QQQ"))
+			Expect(buy.Type).To(Equal("buy"))
+			Expect(buy.Quantity).To(BeNumerically("==", 90))
+			Expect(buy.Price).To(BeNumerically("==", 110))
+			Expect(buy.Amount).To(BeNumerically("==", 9900))
+		})
+
+		It("returns empty slice when no buy/sell transactions exist", func() {
+			path := filepath.Join(GinkgoT().TempDir(), "nodiv.sqlite")
+			Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
+			Expect(execAll(path, []string{
+				`DELETE FROM transactions WHERE type IN ('buy','sell')`,
+			})).To(Succeed())
+
+			r, err := snapshot.Open(path)
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(r.Close)
+
+			trades, err := r.LatestBatchTrades(context.Background())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(trades).To(BeEmpty())
+		})
+	})
+
 	It("returns all transactions when no filter is provided", func() {
 		resp, err := reader.Transactions(context.Background(), snapshot.TransactionFilter{})
 		Expect(err).NotTo(HaveOccurred())

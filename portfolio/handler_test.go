@@ -18,6 +18,7 @@ package portfolio_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http/httptest"
@@ -43,19 +44,34 @@ import (
 // returns a canned (runID, err). Pointer receiver for Submit so call
 // counts persist across the interface boundary.
 type countingDispatcher struct {
-	calls atomic.Int64
-	runID uuid.UUID
-	err   error
+	calls       atomic.Int64
+	runID       uuid.UUID
+	err         error
+	SubmitCalls []uuid.UUID
 }
 
-func (d *countingDispatcher) Submit(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
+func (d *countingDispatcher) Submit(_ context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
 	d.calls.Add(1)
+	d.SubmitCalls = append(d.SubmitCalls, portfolioID)
 	return d.runID, d.err
+}
+
+// applyUpgradeCall records the arguments passed to fakeStore.ApplyUpgrade.
+type applyUpgradeCall struct {
+	PortfolioID uuid.UUID
+	NewVer      string
+	NewDescribe json.RawMessage
+	NewParams   json.RawMessage
+	PresetName  *string
 }
 
 // fakeStore is a trivial in-memory implementation of portfolio.Store.
 type fakeStore struct {
 	rows []portfolio.Portfolio
+
+	// ApplyUpgrade call recording.
+	ApplyUpgradeCalls []applyUpgradeCall
+	ApplyUpgradeErr   error // returned to caller; nil means success
 }
 
 func (f *fakeStore) List(_ context.Context, ownerSub string) ([]portfolio.Portfolio, error) {
@@ -154,6 +170,32 @@ func (f *fakeStore) UpdateDates(_ context.Context, ownerSub, slug string, startD
 		}
 	}
 	return portfolio.ErrNotFound
+}
+
+func (f *fakeStore) UpdateRunRetention(_ context.Context, ownerSub, slug string, value int) error {
+	for i, p := range f.rows {
+		if p.OwnerSub == ownerSub && p.Slug == slug {
+			f.rows[i].RunRetention = value
+			f.rows[i].UpdatedAt = time.Now().UTC()
+			return nil
+		}
+	}
+	return portfolio.ErrNotFound
+}
+
+// PruneRuns stub — handler tests do not exercise the prune path.
+func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) ApplyUpgrade(_ context.Context, portfolioID uuid.UUID, newVer string,
+	newDescribe, newParams json.RawMessage, presetName *string,
+) error {
+	f.ApplyUpgradeCalls = append(f.ApplyUpgradeCalls, applyUpgradeCall{
+		PortfolioID: portfolioID, NewVer: newVer,
+		NewDescribe: newDescribe, NewParams: newParams, PresetName: presetName,
+	})
+	return f.ApplyUpgradeErr
 }
 
 // fakeStrategyStore implements strategy.ReadStore. Returns one configured
@@ -390,6 +432,42 @@ var _ = Describe("portfolio.Handler", func() {
 		Expect(status).To(Equal(422))
 	})
 
+	It("updates run_retention via PATCH", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "retention-test",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"runRetention": 4,
+		})
+		Expect(status).To(Equal(200))
+
+		got, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got.RunRetention).To(Equal(4))
+	})
+
+	It("rejects PATCH with run_retention=0", func() {
+		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "retention-zero",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		var created map[string]any
+		Expect(sonic.Unmarshal(createdBody, &created)).To(Succeed())
+		slug := created["slug"].(string)
+
+		status, _, _ := request("PATCH", "/portfolios/"+slug, sub1, map[string]any{
+			"runRetention": 0,
+		})
+		Expect(status).To(Equal(422))
+	})
+
 	It("deletes the portfolio and subsequent GET is 404", func() {
 		_, createdBody, _ := request("POST", "/portfolios", sub1, map[string]any{
 			"name":         "goner",
@@ -426,6 +504,51 @@ var _ = Describe("portfolio.Handler", func() {
 		var out map[string]any
 		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
 		Expect(out["status"]).To(Equal("ready"))
+	})
+
+	It("accepts run_retention=5 and persists it", func() {
+		status, body, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "foo",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+			"runRetention": 5,
+		})
+		Expect(status).To(Equal(201))
+
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		slug := out["slug"].(string)
+
+		p, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.RunRetention).To(Equal(5))
+	})
+
+	It("defaults run_retention to 2 when omitted", func() {
+		status, body, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "bar",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		Expect(status).To(Equal(201))
+
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		slug := out["slug"].(string)
+
+		p, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.RunRetention).To(Equal(2))
+	})
+
+	It("rejects run_retention=0 with 422", func() {
+		status, _, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "baz",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+			"runRetention": 0,
+		})
+		Expect(status).To(Equal(422))
 	})
 })
 

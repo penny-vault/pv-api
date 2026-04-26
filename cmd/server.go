@@ -122,6 +122,10 @@ func (a backtestPortfolioStoreAdapter) MarkFailedTx(ctx context.Context, portfol
 	return a.store.MarkFailedTx(ctx, portfolioID, runID, errMsg, durationMs)
 }
 
+func (a backtestPortfolioStoreAdapter) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error) {
+	return a.store.PruneRuns(ctx, portfolioID)
+}
+
 // dispatcherAdapter wraps *backtest.Dispatcher and translates backtest.ErrQueueFull
 // to portfolio.ErrQueueFull so the portfolio handler can return 503 without
 // importing the backtest package.

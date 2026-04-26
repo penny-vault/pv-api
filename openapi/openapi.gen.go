@@ -712,7 +712,10 @@ type Portfolio struct {
 
 	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
 	PresetName *string `json:"presetName,omitempty"`
-	Slug       string  `json:"slug"`
+
+	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
+	RunRetention *int   `json:"runRetention,omitempty"`
+	Slug         string `json:"slug"`
 
 	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
@@ -744,6 +747,9 @@ type PortfolioCreateRequest struct {
 	// Parameters Values validated against the strategy's declared parameters.
 	Parameters map[string]interface{} `json:"parameters"`
 
+	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
+	RunRetention *int `json:"runRetention,omitempty"`
+
 	// StartDate Backtest start date (YYYY-MM-DD). Omit to use the strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 
@@ -774,7 +780,10 @@ type PortfolioCreated struct {
 
 	// RunId ID of the backtest run automatically queued on creation. Present only when a dispatcher is configured; use with the SSE progress endpoint.
 	RunId *openapi_types.UUID `json:"runId,omitempty"`
-	Slug  string              `json:"slug"`
+
+	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
+	RunRetention *int   `json:"runRetention,omitempty"`
+	Slug         string `json:"slug"`
 
 	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
@@ -855,13 +864,16 @@ type PortfolioSummary struct {
 	YtdReturn          float64  `json:"ytdReturn"`
 }
 
-// PortfolioUpdateRequest PATCH body. Only `name`, `startDate`, and `endDate` are mutable.
+// PortfolioUpdateRequest PATCH body. Only `name`, `startDate`, `endDate`, and `runRetention` are mutable.
 // Any other field is rejected with 422. All fields are optional; omit
 // any field you do not want to change.
 type PortfolioUpdateRequest struct {
 	// EndDate Backtest end date (YYYY-MM-DD).
 	EndDate *openapi_types.Date `json:"endDate,omitempty"`
 	Name    *string             `json:"name,omitempty"`
+
+	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
+	RunRetention *int `json:"runRetention,omitempty"`
 
 	// StartDate Backtest start date (YYYY-MM-DD).
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
@@ -1060,6 +1072,13 @@ type GetPortfolioTransactionsParams struct {
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
 }
 
+// UpgradePortfolioStrategyJSONBody defines parameters for UpgradePortfolioStrategy.
+type UpgradePortfolioStrategyJSONBody struct {
+	// Parameters Explicit parameter values, validated against the new describe.
+	// Required only if a prior call returned 409 parameters_incompatible.
+	Parameters *map[string]interface{} `json:"parameters,omitempty"`
+}
+
 // DescribeStrategyParams defines parameters for DescribeStrategy.
 type DescribeStrategyParams struct {
 	// CloneUrl HTTPS GitHub clone URL.
@@ -1080,3 +1099,6 @@ type UpdatePortfolioAlertJSONRequestBody = AlertUpdateRequest
 
 // SendPortfolioEmailSummaryJSONRequestBody defines body for SendPortfolioEmailSummary for application/json ContentType.
 type SendPortfolioEmailSummaryJSONRequestBody = EmailSummaryRequest
+
+// UpgradePortfolioStrategyJSONRequestBody defines body for UpgradePortfolioStrategy for application/json ContentType.
+type UpgradePortfolioStrategyJSONRequestBody UpgradePortfolioStrategyJSONBody

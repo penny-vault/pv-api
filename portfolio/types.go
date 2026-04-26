@@ -52,6 +52,7 @@ type Portfolio struct {
 	SnapshotPath         *string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	RunRetention         int       `json:"run_retention"`
 }
 
 // CreateRequest is what the POST /portfolios handler passes to the domain layer.
@@ -64,6 +65,7 @@ type CreateRequest struct {
 	Benchmark        string
 	StartDate        *time.Time
 	EndDate          *time.Time
+	RunRetention     *int
 }
 
 // UpdateRequest is what PATCH /portfolios/{slug} passes to the domain layer.
