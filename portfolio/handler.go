@@ -259,6 +259,10 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 		return Portfolio{}, err
 	}
 	presetName := presetMatch(norm.Parameters, describe)
+	retention := 2
+	if norm.RunRetention != nil {
+		retention = *norm.RunRetention
+	}
 	p := Portfolio{
 		OwnerSub:             ownerSub,
 		Slug:                 slug,
@@ -272,6 +276,7 @@ func (h *Handler) buildPortfolio(ownerSub string, norm CreateRequest, describe s
 		StartDate:            norm.StartDate,
 		EndDate:              norm.EndDate,
 		Status:               StatusPending,
+		RunRetention:         retention,
 	}
 	if norm.StrategyVer != "" {
 		v := norm.StrategyVer
@@ -419,6 +424,7 @@ type createBody struct {
 	Benchmark        string         `json:"benchmark,omitempty"`
 	StartDate        string         `json:"startDate,omitempty"`
 	EndDate          string         `json:"endDate,omitempty"`
+	RunRetention     *int           `json:"runRetention"`
 }
 
 func (b createBody) toRequest(startDate, endDate *time.Time) CreateRequest {
@@ -431,6 +437,7 @@ func (b createBody) toRequest(startDate, endDate *time.Time) CreateRequest {
 		Benchmark:        b.Benchmark,
 		StartDate:        startDate,
 		EndDate:          endDate,
+		RunRetention:     b.RunRetention,
 	}
 }
 

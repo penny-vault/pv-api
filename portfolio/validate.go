@@ -33,11 +33,27 @@ var (
 	ErrInvalidDate             = errors.New("invalid date")
 	ErrEndBeforeStart          = errors.New("endDate must be on or after startDate")
 	ErrImmutableField          = errors.New("field is not updatable; only `name`, `startDate`, `endDate` may be patched")
+	ErrInvalidRunRetention     = errors.New("run_retention must be >= 1")
 )
+
+// validateRunRetention returns ErrInvalidRunRetention when v is non-nil and < 1.
+func validateRunRetention(v *int) error {
+	if v == nil {
+		return nil
+	}
+	if *v < 1 {
+		return ErrInvalidRunRetention
+	}
+	return nil
+}
 
 // ValidateCreate validates and normalises an official-strategy create request.
 func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, error) {
 	norm := req
+
+	if err := validateRunRetention(req.RunRetention); err != nil {
+		return CreateRequest{}, err
+	}
 
 	if s.InstalledVer == nil || len(s.DescribeJSON) == 0 {
 		return norm, fmt.Errorf("%w: %s is still installing — try again shortly", ErrStrategyNotReady, s.ShortCode)
@@ -68,6 +84,9 @@ func ValidateCreate(req CreateRequest, s strategy.Strategy) (CreateRequest, erro
 // request. Skips the install-lifecycle checks.
 func ValidateCreateUnofficial(req CreateRequest, d strategy.Describe) (CreateRequest, error) {
 	norm := req
+	if err := validateRunRetention(req.RunRetention); err != nil {
+		return CreateRequest{}, err
+	}
 	if err := validateParameters(norm.Parameters, d); err != nil {
 		return norm, err
 	}

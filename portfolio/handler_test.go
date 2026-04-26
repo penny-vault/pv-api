@@ -427,6 +427,51 @@ var _ = Describe("portfolio.Handler", func() {
 		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
 		Expect(out["status"]).To(Equal("ready"))
 	})
+
+	It("accepts run_retention=5 and persists it", func() {
+		status, body, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "foo",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+			"runRetention": 5,
+		})
+		Expect(status).To(Equal(201))
+
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		slug := out["slug"].(string)
+
+		p, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.RunRetention).To(Equal(5))
+	})
+
+	It("defaults run_retention to 2 when omitted", func() {
+		status, body, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "bar",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+		})
+		Expect(status).To(Equal(201))
+
+		var out map[string]any
+		Expect(sonic.Unmarshal(body, &out)).To(Succeed())
+		slug := out["slug"].(string)
+
+		p, err := store.Get(context.Background(), sub1, slug)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.RunRetention).To(Equal(2))
+	})
+
+	It("rejects run_retention=0 with 422", func() {
+		status, _, _ := request("POST", "/portfolios", sub1, map[string]any{
+			"name":         "baz",
+			"strategyCode": "adm",
+			"parameters":   map[string]any{"riskOn": "SPY"},
+			"runRetention": 0,
+		})
+		Expect(status).To(Equal(422))
+	})
 })
 
 // Minimal fakes for derived-endpoint specs.
