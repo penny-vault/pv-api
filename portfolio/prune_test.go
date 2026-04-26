@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -113,7 +112,6 @@ var _ = Describe("PruneRuns", Ordered, func() {
 			path := fmt.Sprintf("/tmp/snap-%d-%s.sqlite", i, uuid.NewString()[:8])
 			Expect(runStore.UpdateRunSuccess(ctx, run.ID, path, 100)).To(Succeed())
 			snapshots = append(snapshots, path)
-			time.Sleep(2 * time.Millisecond) // ensure distinct created_at ordering
 		}
 
 		deleted, err := store.PruneRuns(ctx, portID)
@@ -136,7 +134,6 @@ var _ = Describe("PruneRuns", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			path := fmt.Sprintf("/tmp/x-%d-%s.sqlite", i, uuid.NewString()[:8])
 			Expect(runStore.UpdateRunSuccess(ctx, run.ID, path, 100)).To(Succeed())
-			time.Sleep(2 * time.Millisecond)
 		}
 
 		deleted, err := store.PruneRuns(ctx, portID)

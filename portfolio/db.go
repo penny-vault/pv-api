@@ -339,7 +339,7 @@ func PruneRuns(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID) (
 	deleteRows, err := tx.Query(ctx, `
 		WITH ranked AS (
 			SELECT id, snapshot_path,
-			       ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+			       ROW_NUMBER() OVER (ORDER BY id DESC) AS rn
 			FROM backtest_runs
 			WHERE portfolio_id = $1
 		)
