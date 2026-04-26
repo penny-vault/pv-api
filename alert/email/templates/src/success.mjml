@@ -1,0 +1,211 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{.PortfolioName}} — Penny Vault</mj-title>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" />
+      <mj-body background-color="#f1f5f9" />
+    </mj-attributes>
+    <mj-style>
+      @media (prefers-color-scheme: dark) {
+        body, .email-bg { background-color: #0f172a !important; }
+        .card { background-color: #1e293b !important; }
+        .pv-heading { color: #f1f5f9 !important; }
+        .pv-value { color: #f1f5f9 !important; }
+        .pv-muted { color: #94a3b8 !important; }
+        .pv-divider { border-color: #334155 !important; border-top-color: #334155 !important; }
+        .pv-divider-right { border-right-color: #334155 !important; }
+        td { color: #f1f5f9 !important; }
+      }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#f1f5f9" css-class="email-bg">
+
+    <!-- Top spacer -->
+    <mj-section padding="16px 0 0" background-color="#f1f5f9">
+      <mj-column><mj-text> </mj-text></mj-column>
+    </mj-section>
+
+    <!-- HEADER: logo + portfolio name -->
+    <mj-section background-color="#ffffff" padding="0"
+                border-radius="12px 12px 0 0"
+                border-top="4px solid #0ea5e9"
+                css-class="card">
+      <mj-column width="88px" padding="20px 0 20px 24px" vertical-align="middle">
+        <mj-image src="{{.LogoDataURL}}" width="56px" alt="Penny Vault"
+                  border-radius="10px" padding="0" />
+      </mj-column>
+      <mj-column padding="20px 24px 20px 8px" vertical-align="middle">
+        <mj-text font-size="10px" font-weight="700" color="#0ea5e9"
+                 text-transform="uppercase" letter-spacing="2px"
+                 padding="0 0 4px">PENNY VAULT</mj-text>
+        <mj-text font-size="21px" font-weight="700" color="#0f172a"
+                 letter-spacing="-0.5px" padding="0" css-class="pv-heading">{{.PortfolioName}}</mj-text>
+        <mj-text font-size="12px" color="#64748b" padding="5px 0 0"
+                 css-class="pv-muted">{{.StrategyCode}} &middot; {{.RunDate}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- HERO: Portfolio Value -->
+    <mj-section background-color="#ffffff" padding="28px 24px 8px"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column>
+        <mj-text font-size="10px" font-weight="700" color="#64748b"
+                 text-transform="uppercase" letter-spacing="1.2px"
+                 padding="0 0 8px" css-class="pv-muted">Portfolio Value</mj-text>
+        <mj-text font-size="42px" font-weight="800" color="#0f172a"
+                 letter-spacing="-2px" line-height="1" padding="0"
+                 css-class="pv-value">{{.CurrentValue}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- RETURNS GRID: Day / WTD / MTD / YTD / 1Y -->
+    <mj-section background-color="#ffffff" padding="20px 24px 28px"
+                border-bottom="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">Day</mj-text>
+        <mj-text font-size="16px" font-weight="700" color="{{.DayChangeColor}}"
+                 align="center" padding="0">{{.DayChangePct}}</mj-text>
+      </mj-column>
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">WTD</mj-text>
+        <mj-text font-size="16px" font-weight="700" color="{{.WtdColor}}"
+                 align="center" padding="0">{{.WtdPct}}</mj-text>
+      </mj-column>
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">MTD</mj-text>
+        <mj-text font-size="16px" font-weight="700" color="{{.MtdColor}}"
+                 align="center" padding="0">{{.MtdPct}}</mj-text>
+      </mj-column>
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">YTD</mj-text>
+        <mj-text font-size="16px" font-weight="700" color="{{.YtdColor}}"
+                 align="center" padding="0">{{.YtdPct}}</mj-text>
+      </mj-column>
+      <mj-column padding="0 0 0 16px">
+        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
+                 text-transform="uppercase" letter-spacing="0.8px"
+                 align="center" padding="0 0 6px" css-class="pv-muted">1Y</mj-text>
+        <mj-text font-size="16px" font-weight="700" color="{{.OneYearColor}}"
+                 align="center" padding="0">{{.OneYearPct}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- TRADES -->
+    <mj-section background-color="#ffffff" padding="24px 24px 0"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column>
+        <mj-text font-size="11px" font-weight="700" color="#0f172a"
+                 text-transform="uppercase" letter-spacing="1px"
+                 padding="0 0 16px" css-class="pv-heading">Trades to Execute</mj-text>
+        <mj-text padding="0 0 24px">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background-color:#0ea5e9;">
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Ticker</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Action</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Shares</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Value</td>
+              </tr>
+            </thead>
+            <tbody>
+              {{if .Trades}}{{range .Trades}}
+              <tr style="border-top:1px solid #e2e8f0;">
+                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:#0f172a;">{{.Ticker}}</td>
+                <td style="padding:13px 14px;font-size:13px;">
+                  <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{if eq .Action "Buy"}}#dcfce7{{else}}#fee2e2{{end}};color:{{.ActionColor}};">{{.Action}}</span>
+                </td>
+                <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
+                <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
+              </tr>
+              {{end}}{{else}}
+              <tr>
+                <td colspan="4" style="padding:20px 14px;font-size:14px;color:#94a3b8;text-align:center;font-style:italic;">No trades required</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- HOLDINGS -->
+    <mj-section background-color="#ffffff" padding="24px 24px 0"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column>
+        <mj-text font-size="11px" font-weight="700" color="#0f172a"
+                 text-transform="uppercase" letter-spacing="1px"
+                 padding="0 0 16px" css-class="pv-heading">Current Holdings</mj-text>
+        <mj-text padding="0 0 28px">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background-color:#0ea5e9;">
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Ticker</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Shares</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Value</td>
+                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Weight</td>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Holdings}}
+              <tr style="border-top:1px solid #e2e8f0;">
+                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:{{if eq .Ticker "$CASH"}}#94a3b8{{else}}#0f172a{{end}};">{{.Ticker}}</td>
+                <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
+                <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
+                <td style="padding:13px 14px;font-size:14px;color:#64748b;text-align:right;">{{.WeightPct}}%</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA BUTTON -->
+    <mj-raw>{{if .PortfolioURL}}</mj-raw>
+    <mj-section background-color="#ffffff" padding="4px 24px 28px"
+                border-top="1px solid #e2e8f0" css-class="card pv-divider">
+      <mj-column>
+        <mj-button background-color="#0ea5e9" color="#ffffff"
+                   font-size="14px" font-weight="700"
+                   padding="14px 36px" border-radius="8px"
+                   href="{{.PortfolioURL}}" letter-spacing="0.2px"
+                   inner-padding="0">
+          View Portfolio &rarr;
+        </mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-raw>{{end}}</mj-raw>
+
+    <!-- FOOTER -->
+    <mj-section background-color="#f8fafc" padding="20px 24px"
+                border-top="1px solid #e2e8f0"
+                border-radius="0 0 12px 12px" css-class="card pv-divider">
+      <mj-column>
+        <mj-text font-size="12px" color="#94a3b8" align="center"
+                 padding="0 0 8px" css-class="pv-muted">
+          Penny Vault &middot; Portfolio Alerts
+        </mj-text>
+        <mj-text font-size="11px" color="#cbd5e1" align="center"
+                 padding="0" css-class="pv-muted">
+          {{if .UnsubscribeURL}}<a href="{{.UnsubscribeURL}}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>{{end}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Bottom spacer -->
+    <mj-section padding="16px 0" background-color="#f1f5f9">
+      <mj-column><mj-text> </mj-text></mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>
