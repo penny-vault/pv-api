@@ -161,6 +161,9 @@ func FormatReturnPct(v float64) (pct, color string) {
 	return
 }
 
+// LogoDataURL returns the embedded logo as a data URL string.
+func LogoDataURL() string { return logoDataURL }
+
 func buildPlaintext(p Payload) string {
 	var b strings.Builder
 	b.WriteString(p.PortfolioName + " — " + p.RunDate + "\n\n")
@@ -169,6 +172,17 @@ func buildPlaintext(p Payload) string {
 		return b.String()
 	}
 	b.WriteString("Portfolio Value: " + p.CurrentValue + "\n")
+	if p.HasDelta {
+		fmt.Fprintf(&b, "Change: %s (%s) since %s\n", p.DeltaPct, p.DeltaAbs, p.SinceLabel)
+	}
+	if p.Benchmark != "" && p.BenchmarkDeltaPct != "" {
+		fmt.Fprintf(&b, "%s: %s", p.Benchmark, p.BenchmarkDeltaPct)
+		if p.RelativeDelta != "" {
+			fmt.Fprintf(&b, "  Relative: %s", p.RelativeDelta)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
 	if p.DayChangePct != "" {
 		fmt.Fprintf(&b, "Day: %s  WTD: %s  MTD: %s  YTD: %s  1Y: %s\n\n",
 			p.DayChangePct, p.WtdPct, p.MtdPct, p.YtdPct, p.OneYearPct)

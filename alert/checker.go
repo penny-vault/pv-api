@@ -154,6 +154,7 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 		StrategyCode:  port.StrategyCode,
 		RunDate:       now.Format("Monday, January 2, 2006"),
 		Success:       success,
+		LogoDataURL:   email.LogoDataURL(),
 	}
 
 	if !success {
@@ -284,8 +285,15 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, a
 		if total > 0 {
 			weight = h.MarketValue / total * 100
 		}
+		var shares string
+		if h.Ticker == "$CASH" {
+			shares = "—"
+		} else {
+			shares = email.FormatMoneyVal(h.Quantity)
+		}
 		p.Holdings = append(p.Holdings, email.HoldingRow{
 			Ticker:    h.Ticker,
+			Shares:    shares,
 			WeightPct: fmt.Sprintf("%.1f", weight),
 			Value:     "$" + email.FormatMoneyVal(h.MarketValue),
 		})
