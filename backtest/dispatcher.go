@@ -51,6 +51,7 @@ type PortfolioStore interface {
 		currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
 		inceptionDate time.Time, durationMs int32) error
 	MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID, errMsg string, durationMs int32) error
+	PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error)
 }
 
 // PortfolioRow carries the fields the orchestrator reads from a portfolio.

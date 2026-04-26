@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -144,6 +145,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		kp.InceptionDate, durationMs(time.Since(started))); err != nil {
 		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark ready: %w", err))
 	}
+	o.prune(ctx, portfolioID)
 	if o.hub != nil {
 		o.hub.Complete(runID, "success", "")
 	}
@@ -202,6 +204,25 @@ func durationMs(d time.Duration) int32 {
 	return int32(ms) //nolint:gosec // G115: bounded by the check above
 }
 
+// prune calls PruneRuns to delete excess backtest_runs rows and removes any
+// snapshot files those rows owned. Errors are logged but not propagated — the
+// run has already reached a terminal state, and the next run will retry.
+func (o *orchestrator) prune(ctx context.Context, portfolioID uuid.UUID) {
+	paths, err := o.ps.PruneRuns(ctx, portfolioID)
+	if err != nil {
+		log.Warn().Err(err).Stringer("portfolio_id", portfolioID).Msg("prune runs failed; will retry on next completion")
+		return
+	}
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if rmErr := os.Remove(p); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			log.Warn().Err(rmErr).Str("path", p).Msg("snapshot delete failed")
+		}
+	}
+}
+
 // fail records the failure on both the portfolio and run rows, then returns
 // an appropriate wrapped error. Context cancellation is re-wrapped as
 // ErrTimedOut to give callers a consistent sentinel.
@@ -211,6 +232,7 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 		msg = msg[:2048]
 	}
 	_ = o.ps.MarkFailedTx(ctx, portfolioID, runID, msg, durationMs(time.Since(started)))
+	o.prune(ctx, portfolioID)
 	if o.hub != nil {
 		o.hub.Complete(runID, "failed", msg)
 	}
