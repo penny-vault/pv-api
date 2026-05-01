@@ -15,7 +15,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.1.0
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/penny-vault/pvbt v0.8.0
+	github.com/penny-vault/pvbt v0.8.1
 	golang.org/x/mod v0.35.0
 	modernc.org/sqlite v1.50.0
 )
@@ -107,5 +107,5 @@ require (
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 )
