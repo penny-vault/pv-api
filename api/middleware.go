@@ -16,6 +16,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -65,15 +66,43 @@ func loggerMiddleware() fiber.Handler {
 		elapsed := time.Since(start)
 
 		rid, _ := c.Locals(types.RequestIDKey{}).(string)
+		sub, _ := c.Locals(types.AuthSubjectKey{}).(string)
+		// Fiber writes the response status after the middleware chain unwinds
+		// (via app.ErrorHandler), so c.Response().StatusCode() still reads
+		// the default 200 on unmatched routes / handler errors. Derive from
+		// the returned err when present so the log matches the wire.
 		status := c.Response().StatusCode()
+		if err != nil {
+			var fe *fiber.Error
+			if errors.As(err, &fe) {
+				status = fe.Code
+			} else {
+				status = fiber.StatusInternalServerError
+			}
+		}
 
-		entry := log.With().
+		ctx := log.With().
 			Str("request_id", rid).
 			Int("status", status).
 			Str("method", c.Method()).
 			Str("path", c.Path()).
 			Dur("duration", elapsed).
-			Logger()
+			Str("ip", c.IP()).
+			Str("ua", c.Get(fiber.HeaderUserAgent)).
+			Int("bytes", len(c.Response().Body()))
+		if sub != "" {
+			ctx = ctx.Str("user", sub)
+		}
+		if xff := c.Get(fiber.HeaderXForwardedFor); xff != "" {
+			ctx = ctx.Str("xff", xff)
+		}
+		if q := string(c.Request().URI().QueryString()); q != "" {
+			ctx = ctx.Str("query", q)
+		}
+		if ref := c.Get(fiber.HeaderReferer); ref != "" {
+			ctx = ctx.Str("referer", ref)
+		}
+		entry := ctx.Logger()
 
 		switch {
 		case status >= fiber.StatusInternalServerError:

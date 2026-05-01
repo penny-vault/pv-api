@@ -89,4 +89,20 @@ var _ = Describe("Middleware", func() {
 		Expect(buf.String()).To(ContainSubstring(`"status":200`))
 		Expect(buf.String()).To(ContainSubstring(`"path":"/healthz"`))
 	})
+
+	It("logs the actual status (404) on unmatched routes", func() {
+		var buf bytes.Buffer
+		prev := log.Logger
+		log.Logger = zerolog.New(&buf)
+		defer func() { log.Logger = prev }()
+
+		req := httptest.NewRequest("GET", "/v3/strategies", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+		Expect(buf.String()).To(ContainSubstring(`"status":404`))
+		Expect(buf.String()).To(ContainSubstring(`"path":"/v3/strategies"`))
+	})
 })
