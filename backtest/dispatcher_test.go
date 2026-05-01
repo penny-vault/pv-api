@@ -88,11 +88,19 @@ var _ = Describe("Dispatcher", func() {
 		d.Start(context.Background())
 		DeferCleanup(func() { d.Shutdown(5 * time.Second) })
 
-		for i := 0; i < 10; i++ {
+		// Prime both workers and wait until they've taken their tasks, so the
+		// buffer (MaxConcurrency*4 = 8) has the headroom to absorb the rest
+		// without racing the workers' first reads.
+		for range 2 {
 			_, err := d.Submit(context.Background(), uuid.New())
 			Expect(err).NotTo(HaveOccurred())
 		}
-		Eventually(func() int64 { return atomic.LoadInt64(&runner.peak) }).Should(Equal(int64(2)))
+		Eventually(func() int64 { return atomic.LoadInt64(&runner.active) }).Should(Equal(int64(2)))
+		for range 8 {
+			_, err := d.Submit(context.Background(), uuid.New())
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Consistently(func() int64 { return atomic.LoadInt64(&runner.peak) }).Should(Equal(int64(2)))
 		close(runner.block)
 	})
 
@@ -107,7 +115,7 @@ var _ = Describe("Dispatcher", func() {
 		DeferCleanup(func() { d.Shutdown(5 * time.Second) })
 
 		// Fill the queue: 1 in-flight + 4 buffered == 5; 6th should fail.
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			_, _ = d.Submit(context.Background(), uuid.New())
 		}
 		_, err := d.Submit(context.Background(), uuid.New())
