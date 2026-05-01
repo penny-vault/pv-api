@@ -6,7 +6,7 @@ RUN make build
 
 FROM alpine
 
-RUN apk add tzdata && adduser -D pv
+RUN apk add tzdata git && adduser -D pv
 USER pv
 WORKDIR /home/pv
 
