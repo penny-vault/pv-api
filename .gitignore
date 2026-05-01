@@ -32,6 +32,9 @@ pvapi.toml
 !alert/email/templates/src/package.json
 !alert/email/templates/src/package-lock.json
 
+# node_modules (email template build deps)
+node_modules/
+
 # worktrees
 .worktrees/
 
