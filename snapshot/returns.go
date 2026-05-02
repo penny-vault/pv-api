@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/penny-vault/pv-api/openapi"
@@ -33,70 +34,234 @@ const (
 	benchmarkValueClause = `metric IN ('benchmark_value','PortfolioBenchmark')`
 )
 
-// TrailingReturns emits two rows — one portfolio, one benchmark — using
-// the portfolio and benchmark equity series in perf_data.
+// TrailingReturns emits two rows — one portfolio, one benchmark.
+//
+// Portfolio cells come straight from the metrics table: pvbt writes TWRR
+// per window for the cumulative cells (ytd, 1yr) and CAGR per window for
+// the annualized cells (3yr, 5yr, 10yr, since_inception). When the
+// portfolio does not span a window pvbt does not write the row, so the
+// cell is null.
+//
+// Benchmark cells are derived from the perf_data benchmark equity curve
+// because pvbt does not write window-scoped benchmark metrics. The math
+// mirrors pvbt: cumulative for sub-annual windows, CAGR for multi-year
+// windows. No fallback to the earliest row — when the snapshot does not
+// span the requested window, the cell is null.
 func (r *Reader) TrailingReturns(ctx context.Context) ([]openapi.TrailingReturnRow, error) {
-	portfolioRow, err := r.trailingRow(ctx, portfolioValueClause, "Portfolio", openapi.ReturnRowKindPortfolio)
+	portfolioRow, err := r.portfolioTrailingRow(ctx)
 	if err != nil {
 		return nil, err
 	}
-	benchRow, err := r.trailingRow(ctx, benchmarkValueClause, "Benchmark", openapi.ReturnRowKindBenchmark)
+	benchRow, err := r.benchmarkTrailingRow(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return []openapi.TrailingReturnRow{portfolioRow, benchRow}, nil
 }
 
-func (r *Reader) trailingRow(ctx context.Context, metricClause, title string, kind openapi.ReturnRowKind) (openapi.TrailingReturnRow, error) {
-	latestVal, err := r.latestPerf(ctx, metricClause)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
+func (r *Reader) portfolioTrailingRow(ctx context.Context) (openapi.TrailingReturnRow, error) {
+	type cell struct {
+		dest   **float64
+		metric string
+		window string
 	}
-
-	ytdStart := time.Date(time.Now().Year(), 1, 1, 0, 0, 0, 0, time.UTC)
-
-	ytdV, err := r.perfAsOf(ctx, metricClause, ytdStart, true)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
+	row := openapi.TrailingReturnRow{
+		Title: "Portfolio",
+		Kind:  openapi.ReturnRowKindPortfolio,
 	}
-	oneYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-1, 0, 0), false)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
+	cells := []cell{
+		{&row.Ytd, "TWRR", "ytd"},
+		{&row.OneYear, "TWRR", "1yr"},
+		{&row.ThreeYear, "CAGR", "3yr"},
+		{&row.FiveYear, "CAGR", "5yr"},
+		{&row.TenYear, "CAGR", "10yr"},
+		{&row.SinceInception, "CAGR", "since_inception"},
 	}
-	threeYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-3, 0, 0), false)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
-	}
-	fiveYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-5, 0, 0), false)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
-	}
-	tenYV, err := r.perfAsOf(ctx, metricClause, time.Now().AddDate(-10, 0, 0), false)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
-	}
-	earliestV, err := r.earliestPerf(ctx, metricClause)
-	if err != nil {
-		return openapi.TrailingReturnRow{}, err
-	}
-
-	pct := func(baseline float64) float64 {
-		if baseline <= 0 {
-			return 0
+	for _, c := range cells {
+		v, err := r.readWindowedMetric(ctx, c.metric, c.window)
+		if err != nil {
+			return openapi.TrailingReturnRow{}, err
 		}
-		return (latestVal - baseline) / baseline
+		*c.dest = v
+	}
+	return row, nil
+}
+
+func (r *Reader) benchmarkTrailingRow(ctx context.Context) (openapi.TrailingReturnRow, error) {
+	row := openapi.TrailingReturnRow{
+		Title: "Benchmark",
+		Kind:  openapi.ReturnRowKindBenchmark,
+	}
+	latestVal, latestDate, err := r.latestBenchmarkValueAndDate(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return row, nil
+	}
+	if err != nil {
+		return openapi.TrailingReturnRow{}, err
 	}
 
-	return openapi.TrailingReturnRow{
-		Title:          title,
-		Kind:           kind,
-		Ytd:            pct(ytdV),
-		OneYear:        pct(oneYV),
-		ThreeYear:      pct(threeYV),
-		FiveYear:       pct(fiveYV),
-		TenYear:        pct(tenYV),
-		SinceInception: pct(earliestV),
-	}, nil
+	ytdStart := time.Date(latestDate.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	if v, err := r.benchmarkValueOnOrAfter(ctx, ytdStart); err != nil {
+		return openapi.TrailingReturnRow{}, err
+	} else if v != nil {
+		row.Ytd = cumulativeReturn(latestVal, *v)
+	}
+
+	if v, err := r.benchmarkValueOnOrBefore(ctx, latestDate.AddDate(-1, 0, 0)); err != nil {
+		return openapi.TrailingReturnRow{}, err
+	} else if v != nil {
+		row.OneYear = cumulativeReturn(latestVal, *v)
+	}
+
+	for _, n := range []int{3, 5, 10} {
+		val, baseDate, err := r.benchmarkValueAndDateOnOrBefore(ctx, latestDate.AddDate(-n, 0, 0))
+		if err != nil {
+			return openapi.TrailingReturnRow{}, err
+		}
+		if val == nil {
+			continue
+		}
+		years := latestDate.Sub(baseDate).Hours() / 24 / 365.25
+		ann := annualizedReturn(latestVal, *val, years)
+		switch n {
+		case 3:
+			row.ThreeYear = ann
+		case 5:
+			row.FiveYear = ann
+		case 10:
+			row.TenYear = ann
+		}
+	}
+
+	earliestVal, earliestDate, err := r.earliestBenchmarkValueAndDate(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return openapi.TrailingReturnRow{}, err
+	}
+	if err == nil {
+		years := latestDate.Sub(earliestDate).Hours() / 24 / 365.25
+		row.SinceInception = annualizedReturn(latestVal, earliestVal, years)
+	}
+
+	return row, nil
+}
+
+// cumulativeReturn returns (latest - baseline) / baseline as *float64, or nil
+// when baseline is non-positive (a degenerate snapshot).
+func cumulativeReturn(latest, baseline float64) *float64 {
+	if baseline <= 0 {
+		return nil
+	}
+	v := (latest - baseline) / baseline
+	return &v
+}
+
+// annualizedReturn returns the CAGR ((latest/baseline)^(1/years) - 1) as
+// *float64, or nil for non-positive inputs.
+func annualizedReturn(latest, baseline, years float64) *float64 {
+	if baseline <= 0 || latest <= 0 || years <= 0 {
+		return nil
+	}
+	v := math.Pow(latest/baseline, 1.0/years) - 1
+	return &v
+}
+
+// readWindowedMetric returns the latest value of a (name, window) pair from
+// the metrics table, or nil if no row exists or the value is NULL.
+func (r *Reader) readWindowedMetric(ctx context.Context, name, window string) (*float64, error) {
+	var v sql.NullFloat64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM metrics WHERE name = ? AND window = ? ORDER BY date DESC LIMIT 1`,
+		name, window).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read metric %s/%s: %w", name, window, err)
+	}
+	if !v.Valid {
+		return nil, nil
+	}
+	out := v.Float64
+	return &out, nil
+}
+
+func (r *Reader) latestBenchmarkValueAndDate(ctx context.Context) (float64, time.Time, error) {
+	var dateStr string
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT date, value FROM perf_data WHERE `+benchmarkValueClause+` ORDER BY date DESC LIMIT 1`,
+	).Scan(&dateStr, &v)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	t, err := time.Parse(dateLayout, dateStr)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("parse latest benchmark date: %w", err)
+	}
+	return v, t, nil
+}
+
+func (r *Reader) earliestBenchmarkValueAndDate(ctx context.Context) (float64, time.Time, error) {
+	var dateStr string
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT date, value FROM perf_data WHERE `+benchmarkValueClause+` ORDER BY date ASC LIMIT 1`,
+	).Scan(&dateStr, &v)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	t, err := time.Parse(dateLayout, dateStr)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("parse earliest benchmark date: %w", err)
+	}
+	return v, t, nil
+}
+
+func (r *Reader) benchmarkValueOnOrAfter(ctx context.Context, t time.Time) (*float64, error) {
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE `+benchmarkValueClause+` AND date >= ? ORDER BY date ASC LIMIT 1`,
+		t.Format(dateLayout)).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("benchmark on/after %s: %w", t.Format(dateLayout), err)
+	}
+	return &v, nil
+}
+
+func (r *Reader) benchmarkValueOnOrBefore(ctx context.Context, t time.Time) (*float64, error) {
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT value FROM perf_data WHERE `+benchmarkValueClause+` AND date <= ? ORDER BY date DESC LIMIT 1`,
+		t.Format(dateLayout)).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("benchmark on/before %s: %w", t.Format(dateLayout), err)
+	}
+	return &v, nil
+}
+
+func (r *Reader) benchmarkValueAndDateOnOrBefore(ctx context.Context, t time.Time) (*float64, time.Time, error) {
+	var dateStr string
+	var v float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT date, value FROM perf_data WHERE `+benchmarkValueClause+` AND date <= ? ORDER BY date DESC LIMIT 1`,
+		t.Format(dateLayout)).Scan(&dateStr, &v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, time.Time{}, nil
+	}
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("benchmark on/before %s: %w", t.Format(dateLayout), err)
+	}
+	parsed, perr := time.Parse(dateLayout, dateStr)
+	if perr != nil {
+		return nil, time.Time{}, fmt.Errorf("parse benchmark date: %w", perr)
+	}
+	return &v, parsed, nil
 }
 
 func (r *Reader) latestPerf(ctx context.Context, metricClause string) (float64, error) {

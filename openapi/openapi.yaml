@@ -1306,7 +1306,12 @@ components:
 
     TrailingReturnRow:
       type: object
-      required: [title, kind, ytd, oneYear, threeYear, fiveYear, tenYear, sinceInception]
+      description: |
+        Trailing returns for a portfolio or its benchmark. Sub-annual cells
+        (ytd, oneYear) are cumulative period returns. Multi-year cells
+        (threeYear, fiveYear, tenYear, sinceInception) are annualized (CAGR).
+        Any cell is null when the snapshot does not span the requested window.
+      required: [title, kind]
       properties:
         title:
           type: string
@@ -1315,21 +1320,27 @@ components:
         ytd:
           type: number
           format: double
+          nullable: true
         oneYear:
           type: number
           format: double
+          nullable: true
         threeYear:
           type: number
           format: double
+          nullable: true
         fiveYear:
           type: number
           format: double
+          nullable: true
         tenYear:
           type: number
           format: double
+          nullable: true
         sinceInception:
           type: number
           format: double
+          nullable: true
 
     Holding:
       type: object

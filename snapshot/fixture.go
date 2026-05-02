@@ -121,6 +121,14 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO metrics VALUES ('2024-01-08', 'Beta', '1yr', 0.88)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'WinRate', 'since_inception', 0.62)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxCostRatio', 'since_inception', 0.015)`,
+
+		// TWRR (cumulative) and CAGR (annualized) per window — pvbt writes
+		// these for every window the portfolio spans. The fixture is 5 trading
+		// days, so only ytd/since_inception have rows; 1yr/3yr/5yr/10yr are
+		// absent and trailing-return cells for those windows must surface as null.
+		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'since_inception', 0.03)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'ytd', 0.03)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'CAGR', 'since_inception', 6.7)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

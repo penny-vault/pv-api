@@ -48,7 +48,7 @@ var _ = Describe("ShortTermReturns", func() {
 })
 
 var _ = Describe("TrailingReturns", func() {
-	It("emits portfolio and benchmark rows with since-inception populated", func() {
+	It("reads portfolio cells from the metrics table and derives benchmark cells from perf_data without fallback", func() {
 		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
 		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
 		r, err := snapshot.Open(path)
@@ -59,13 +59,40 @@ var _ = Describe("TrailingReturns", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rows).To(HaveLen(2))
 
-		var portfolioRow openapi.TrailingReturnRow
+		var portfolioRow, benchRow openapi.TrailingReturnRow
 		for _, row := range rows {
-			if row.Kind == openapi.ReturnRowKindPortfolio {
+			switch row.Kind {
+			case openapi.ReturnRowKindPortfolio:
 				portfolioRow = row
+			case openapi.ReturnRowKindBenchmark:
+				benchRow = row
 			}
 		}
-		Expect(portfolioRow.Title).NotTo(BeEmpty())
-		Expect(portfolioRow.SinceInception).To(BeNumerically(">", 0))
+
+		// Portfolio cells come straight from the fixture's metrics rows:
+		// TWRR/ytd=0.03, TWRR/since_inception=0.03, CAGR/since_inception=6.7.
+		Expect(portfolioRow.Title).To(Equal("Portfolio"))
+		Expect(portfolioRow.Ytd).NotTo(BeNil())
+		Expect(*portfolioRow.Ytd).To(BeNumerically("~", 0.03, 1e-9))
+		Expect(portfolioRow.SinceInception).NotTo(BeNil())
+		Expect(*portfolioRow.SinceInception).To(BeNumerically("~", 6.7, 1e-9))
+		// Windows pvbt did not write must surface as null — no fallback.
+		Expect(portfolioRow.OneYear).To(BeNil())
+		Expect(portfolioRow.ThreeYear).To(BeNil())
+		Expect(portfolioRow.FiveYear).To(BeNil())
+		Expect(portfolioRow.TenYear).To(BeNil())
+
+		// Benchmark cells: cumulative return from latest=102000 against the
+		// earliest on/after Jan 1 2024 (=100000) is 0.02 for both ytd and
+		// since_inception. The 5-day fixture cannot satisfy multi-year
+		// windows, so those cells must be null (no fallback to earliest).
+		Expect(benchRow.Title).To(Equal("Benchmark"))
+		Expect(benchRow.Ytd).NotTo(BeNil())
+		Expect(*benchRow.Ytd).To(BeNumerically("~", 0.02, 1e-9))
+		Expect(benchRow.SinceInception).NotTo(BeNil())
+		Expect(benchRow.OneYear).To(BeNil())
+		Expect(benchRow.ThreeYear).To(BeNil())
+		Expect(benchRow.FiveYear).To(BeNil())
+		Expect(benchRow.TenYear).To(BeNil())
 	})
 })

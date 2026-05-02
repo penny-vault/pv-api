@@ -992,18 +992,21 @@ type StrategyPreset struct {
 	Parameters map[string]interface{} `json:"parameters"`
 }
 
-// TrailingReturnRow defines model for TrailingReturnRow.
+// TrailingReturnRow Trailing returns for a portfolio or its benchmark. Sub-annual cells
+// (ytd, oneYear) are cumulative period returns. Multi-year cells
+// (threeYear, fiveYear, tenYear, sinceInception) are annualized (CAGR).
+// Any cell is null when the snapshot does not span the requested window.
 type TrailingReturnRow struct {
-	FiveYear float64 `json:"fiveYear"`
+	FiveYear *float64 `json:"fiveYear,omitempty"`
 
 	// Kind Which line in the trailing returns table.
 	Kind           ReturnRowKind `json:"kind"`
-	OneYear        float64       `json:"oneYear"`
-	SinceInception float64       `json:"sinceInception"`
-	TenYear        float64       `json:"tenYear"`
-	ThreeYear      float64       `json:"threeYear"`
+	OneYear        *float64      `json:"oneYear,omitempty"`
+	SinceInception *float64      `json:"sinceInception,omitempty"`
+	TenYear        *float64      `json:"tenYear,omitempty"`
+	ThreeYear      *float64      `json:"threeYear,omitempty"`
 	Title          string        `json:"title"`
-	Ytd            float64       `json:"ytd"`
+	Ytd            *float64      `json:"ytd,omitempty"`
 }
 
 // Transaction defines model for Transaction.
