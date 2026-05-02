@@ -506,6 +506,79 @@ var _ = Describe("portfolio.Handler", func() {
 		Expect(out["status"]).To(Equal("ready"))
 	})
 
+	It("returns KPI fields in GET /portfolios for a ready portfolio and null for a pending one", func() {
+		curVal := 12345.67
+		ytd := 0.0823
+		mdd := -0.1542
+		sharpe := 1.21
+		cagr := 0.0975
+		inception := time.Date(2010, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		store.rows = []portfolio.Portfolio{
+			{
+				ID:                 uuid.Must(uuid.NewV7()),
+				OwnerSub:           sub1,
+				Slug:               "adm-ready-kpi1",
+				Name:               "ADM ready",
+				StrategyCode:       "adm",
+				Parameters:         map[string]any{"riskOn": "SPY"},
+				Benchmark:          "SPY",
+				Status:             portfolio.StatusReady,
+				CurrentValue:       &curVal,
+				YtdReturn:          &ytd,
+				MaxDrawdown:        &mdd,
+				Sharpe:             &sharpe,
+				CagrSinceInception: &cagr,
+				InceptionDate:      &inception,
+				CreatedAt:          time.Now().UTC(),
+				UpdatedAt:          time.Now().UTC(),
+			},
+			{
+				ID:           uuid.Must(uuid.NewV7()),
+				OwnerSub:     sub1,
+				Slug:         "adm-pending-kpi2",
+				Name:         "ADM pending",
+				StrategyCode: "adm",
+				Parameters:   map[string]any{"riskOn": "SPY"},
+				Benchmark:    "SPY",
+				Status:       portfolio.StatusPending,
+				CreatedAt:    time.Now().UTC(),
+				UpdatedAt:    time.Now().UTC(),
+			},
+		}
+
+		status, body, _ := request("GET", "/portfolios", sub1, nil)
+		Expect(status).To(Equal(200))
+
+		var list []map[string]any
+		Expect(sonic.Unmarshal(body, &list)).To(Succeed())
+		Expect(list).To(HaveLen(2))
+
+		bySlug := map[string]map[string]any{}
+		for _, item := range list {
+			bySlug[item["slug"].(string)] = item
+		}
+
+		ready := bySlug["adm-ready-kpi1"]
+		Expect(ready).NotTo(BeNil())
+		Expect(ready["currentValue"]).To(BeNumerically("~", 12345.67, 1e-9))
+		Expect(ready["ytdReturn"]).To(BeNumerically("~", 0.0823, 1e-9))
+		Expect(ready["maxDrawDown"]).To(BeNumerically("~", -0.1542, 1e-9))
+		Expect(ready["sharpe"]).To(BeNumerically("~", 1.21, 1e-9))
+		Expect(ready["cagrSinceInception"]).To(BeNumerically("~", 0.0975, 1e-9))
+		Expect(ready["inceptionDate"]).To(Equal("2010-01-01"))
+
+		pending := bySlug["adm-pending-kpi2"]
+		Expect(pending).NotTo(BeNil())
+		Expect(pending).To(HaveKey("currentValue"))
+		Expect(pending["currentValue"]).To(BeNil())
+		Expect(pending["ytdReturn"]).To(BeNil())
+		Expect(pending["maxDrawDown"]).To(BeNil())
+		Expect(pending["sharpe"]).To(BeNil())
+		Expect(pending["cagrSinceInception"]).To(BeNil())
+		Expect(pending["inceptionDate"]).To(BeNil())
+	})
+
 	It("accepts run_retention=5 and persists it", func() {
 		status, body, _ := request("POST", "/portfolios", sub1, map[string]any{
 			"name":         "foo",

@@ -39,7 +39,9 @@ const portfolioColumns = `
 	id, owner_sub, slug, name, strategy_code, strategy_ver, strategy_clone_url,
 	strategy_describe_json, parameters,
 	preset_name, benchmark, start_date, end_date, status, last_run_at,
-	last_error, snapshot_path, created_at, updated_at, run_retention
+	last_error, snapshot_path,
+	current_value, ytd_return, max_drawdown, sharpe, cagr_since_inception, inception_date,
+	created_at, updated_at, run_retention
 `
 
 // List returns every portfolio owned by ownerSub, sorted newest-first.
@@ -454,6 +456,8 @@ func scan(r scanner) (Portfolio, error) {
 		&p.StrategyCloneURL, &p.StrategyDescribeJSON, &paramsJSON,
 		&p.PresetName, &p.Benchmark, &p.StartDate, &p.EndDate,
 		&statusStr, &p.LastRunAt, &p.LastError, &p.SnapshotPath,
+		&p.CurrentValue, &p.YtdReturn, &p.MaxDrawdown, &p.Sharpe,
+		&p.CagrSinceInception, &p.InceptionDate,
 		&p.CreatedAt, &p.UpdatedAt, &p.RunRetention,
 	)
 	if err != nil {

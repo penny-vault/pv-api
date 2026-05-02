@@ -700,22 +700,37 @@ type PerformancePoint struct {
 
 // Portfolio Portfolio configuration. Derived backtest output lives on separate endpoints.
 type Portfolio struct {
-	Benchmark string    `json:"benchmark"`
-	CreatedAt time.Time `json:"createdAt"`
+	Benchmark string `json:"benchmark"`
+
+	// CagrSinceInception Compound annual growth rate from inception to the latest equity row, as a decimal fraction. Null until a run has succeeded.
+	CagrSinceInception *float64  `json:"cagrSinceInception,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+
+	// CurrentValue Latest portfolio equity from the most recent successful run. Null until a run has succeeded.
+	CurrentValue *float64 `json:"currentValue,omitempty"`
 
 	// EndDate Backtest end date (YYYY-MM-DD). Absent or null means today.
-	EndDate    *openapi_types.Date    `json:"endDate,omitempty"`
-	LastError  *string                `json:"lastError,omitempty"`
-	LastRunAt  *time.Time             `json:"lastRunAt,omitempty"`
-	Name       string                 `json:"name"`
-	Parameters map[string]interface{} `json:"parameters"`
+	EndDate *openapi_types.Date `json:"endDate,omitempty"`
+
+	// InceptionDate First date of the equity series; pinned on the first successful run.
+	InceptionDate *openapi_types.Date `json:"inceptionDate,omitempty"`
+	LastError     *string             `json:"lastError,omitempty"`
+	LastRunAt     *time.Time          `json:"lastRunAt,omitempty"`
+
+	// MaxDrawDown Worst peak-to-trough drawdown over the inception window, as a negative decimal fraction. Null until a run has succeeded.
+	MaxDrawDown *float64               `json:"maxDrawDown,omitempty"`
+	Name        string                 `json:"name"`
+	Parameters  map[string]interface{} `json:"parameters"`
 
 	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
 	PresetName *string `json:"presetName,omitempty"`
 
 	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
-	RunRetention *int   `json:"runRetention,omitempty"`
-	Slug         string `json:"slug"`
+	RunRetention *int `json:"runRetention,omitempty"`
+
+	// Sharpe Annualized Sharpe ratio over the inception window. Null until a run has succeeded.
+	Sharpe *float64 `json:"sharpe,omitempty"`
+	Slug   string   `json:"slug"`
 
 	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
@@ -730,6 +745,9 @@ type Portfolio struct {
 	// StrategyVer Pinned strategy version (null for unofficial portfolios).
 	StrategyVer *string   `json:"strategyVer,omitempty"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+
+	// YtdReturn Year-to-date return as a decimal fraction. Null until a run has succeeded.
+	YtdReturn *float64 `json:"ytdReturn,omitempty"`
 }
 
 // PortfolioCreateRequest Exactly one of `strategyCode` or `strategyCloneUrl` must be provided;
@@ -765,15 +783,27 @@ type PortfolioCreateRequest struct {
 
 // PortfolioCreated defines model for PortfolioCreated.
 type PortfolioCreated struct {
-	Benchmark string    `json:"benchmark"`
-	CreatedAt time.Time `json:"createdAt"`
+	Benchmark string `json:"benchmark"`
+
+	// CagrSinceInception Compound annual growth rate from inception to the latest equity row, as a decimal fraction. Null until a run has succeeded.
+	CagrSinceInception *float64  `json:"cagrSinceInception,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+
+	// CurrentValue Latest portfolio equity from the most recent successful run. Null until a run has succeeded.
+	CurrentValue *float64 `json:"currentValue,omitempty"`
 
 	// EndDate Backtest end date (YYYY-MM-DD). Absent or null means today.
-	EndDate    *openapi_types.Date    `json:"endDate,omitempty"`
-	LastError  *string                `json:"lastError,omitempty"`
-	LastRunAt  *time.Time             `json:"lastRunAt,omitempty"`
-	Name       string                 `json:"name"`
-	Parameters map[string]interface{} `json:"parameters"`
+	EndDate *openapi_types.Date `json:"endDate,omitempty"`
+
+	// InceptionDate First date of the equity series; pinned on the first successful run.
+	InceptionDate *openapi_types.Date `json:"inceptionDate,omitempty"`
+	LastError     *string             `json:"lastError,omitempty"`
+	LastRunAt     *time.Time          `json:"lastRunAt,omitempty"`
+
+	// MaxDrawDown Worst peak-to-trough drawdown over the inception window, as a negative decimal fraction. Null until a run has succeeded.
+	MaxDrawDown *float64               `json:"maxDrawDown,omitempty"`
+	Name        string                 `json:"name"`
+	Parameters  map[string]interface{} `json:"parameters"`
 
 	// PresetName Name of the matched strategy preset, or null when parameters did not match a preset.
 	PresetName *string `json:"presetName,omitempty"`
@@ -782,8 +812,11 @@ type PortfolioCreated struct {
 	RunId *openapi_types.UUID `json:"runId,omitempty"`
 
 	// RunRetention Number of recent backtest runs to retain. Defaults to 2; minimum 1.
-	RunRetention *int   `json:"runRetention,omitempty"`
-	Slug         string `json:"slug"`
+	RunRetention *int `json:"runRetention,omitempty"`
+
+	// Sharpe Annualized Sharpe ratio over the inception window. Null until a run has succeeded.
+	Sharpe *float64 `json:"sharpe,omitempty"`
+	Slug   string   `json:"slug"`
 
 	// StartDate Backtest start date (YYYY-MM-DD). Absent or null means strategy default.
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
@@ -798,6 +831,9 @@ type PortfolioCreated struct {
 	// StrategyVer Pinned strategy version (null for unofficial portfolios).
 	StrategyVer *string   `json:"strategyVer,omitempty"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+
+	// YtdReturn Year-to-date return as a decimal fraction. Null until a run has succeeded.
+	YtdReturn *float64 `json:"ytdReturn,omitempty"`
 }
 
 // PortfolioMetrics All pvbt metrics grouped by category, column-oriented against a shared windows list.

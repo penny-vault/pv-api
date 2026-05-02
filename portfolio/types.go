@@ -50,6 +50,12 @@ type Portfolio struct {
 	LastRunAt            *time.Time
 	LastError            *string
 	SnapshotPath         *string
+	CurrentValue         *float64
+	YtdReturn            *float64
+	MaxDrawdown          *float64
+	Sharpe               *float64
+	CagrSinceInception   *float64
+	InceptionDate        *time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	RunRetention         int `json:"run_retention"`

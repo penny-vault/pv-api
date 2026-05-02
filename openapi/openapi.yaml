@@ -1136,6 +1136,36 @@ components:
         lastError:
           type: string
           nullable: true
+        currentValue:
+          type: number
+          format: double
+          nullable: true
+          description: Latest portfolio equity from the most recent successful run. Null until a run has succeeded.
+        ytdReturn:
+          type: number
+          format: double
+          nullable: true
+          description: Year-to-date return as a decimal fraction. Null until a run has succeeded.
+        maxDrawDown:
+          type: number
+          format: double
+          nullable: true
+          description: Worst peak-to-trough drawdown over the inception window, as a negative decimal fraction. Null until a run has succeeded.
+        sharpe:
+          type: number
+          format: double
+          nullable: true
+          description: Annualized Sharpe ratio over the inception window. Null until a run has succeeded.
+        cagrSinceInception:
+          type: number
+          format: double
+          nullable: true
+          description: Compound annual growth rate from inception to the latest equity row, as a decimal fraction. Null until a run has succeeded.
+        inceptionDate:
+          type: string
+          format: date
+          nullable: true
+          description: First date of the equity series; pinned on the first successful run.
 
     PortfolioCreated:
       allOf:

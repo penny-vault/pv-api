@@ -465,40 +465,53 @@ func parseDate(s string) (*time.Time, error) {
 	return &t, nil
 }
 
-// portfolioView mirrors the OpenAPI Portfolio schema (config only).
+// portfolioView mirrors the OpenAPI Portfolio schema. KPI fields are
+// populated from the portfolios row's denormalized columns and remain nil
+// until the first successful run.
 type portfolioView struct {
-	Slug             string         `json:"slug"`
-	Name             string         `json:"name"`
-	Status           string         `json:"status"`
-	RunID            *string        `json:"runId,omitempty"`
-	StrategyCode     string         `json:"strategyCode"`
-	StrategyVer      *string        `json:"strategyVer"`
-	StrategyCloneURL string         `json:"strategyCloneUrl"`
-	Parameters       map[string]any `json:"parameters"`
-	PresetName       *string        `json:"presetName"`
-	Benchmark        string         `json:"benchmark"`
-	StartDate        *string        `json:"startDate,omitempty"`
-	EndDate          *string        `json:"endDate,omitempty"`
-	CreatedAt        string         `json:"createdAt"`
-	UpdatedAt        string         `json:"updatedAt"`
-	LastRunAt        *string        `json:"lastRunAt"`
-	LastError        *string        `json:"lastError"`
+	Slug               string         `json:"slug"`
+	Name               string         `json:"name"`
+	Status             string         `json:"status"`
+	RunID              *string        `json:"runId,omitempty"`
+	StrategyCode       string         `json:"strategyCode"`
+	StrategyVer        *string        `json:"strategyVer"`
+	StrategyCloneURL   string         `json:"strategyCloneUrl"`
+	Parameters         map[string]any `json:"parameters"`
+	PresetName         *string        `json:"presetName"`
+	Benchmark          string         `json:"benchmark"`
+	StartDate          *string        `json:"startDate,omitempty"`
+	EndDate            *string        `json:"endDate,omitempty"`
+	CreatedAt          string         `json:"createdAt"`
+	UpdatedAt          string         `json:"updatedAt"`
+	LastRunAt          *string        `json:"lastRunAt"`
+	LastError          *string        `json:"lastError"`
+	CurrentValue       *float64       `json:"currentValue"`
+	YtdReturn          *float64       `json:"ytdReturn"`
+	MaxDrawDown        *float64       `json:"maxDrawDown"`
+	Sharpe             *float64       `json:"sharpe"`
+	CagrSinceInception *float64       `json:"cagrSinceInception"`
+	InceptionDate      *string        `json:"inceptionDate"`
 }
 
 func toView(p Portfolio) portfolioView {
 	v := portfolioView{
-		Slug:             p.Slug,
-		Name:             p.Name,
-		Status:           string(p.Status),
-		StrategyCode:     p.StrategyCode,
-		StrategyVer:      p.StrategyVer,
-		StrategyCloneURL: p.StrategyCloneURL,
-		Parameters:       p.Parameters,
-		PresetName:       p.PresetName,
-		Benchmark:        p.Benchmark,
-		CreatedAt:        p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:        p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		LastError:        p.LastError,
+		Slug:               p.Slug,
+		Name:               p.Name,
+		Status:             string(p.Status),
+		StrategyCode:       p.StrategyCode,
+		StrategyVer:        p.StrategyVer,
+		StrategyCloneURL:   p.StrategyCloneURL,
+		Parameters:         p.Parameters,
+		PresetName:         p.PresetName,
+		Benchmark:          p.Benchmark,
+		CreatedAt:          p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:          p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		LastError:          p.LastError,
+		CurrentValue:       p.CurrentValue,
+		YtdReturn:          p.YtdReturn,
+		MaxDrawDown:        p.MaxDrawdown,
+		Sharpe:             p.Sharpe,
+		CagrSinceInception: p.CagrSinceInception,
 	}
 	if p.StartDate != nil {
 		d := p.StartDate.Format("2006-01-02")
@@ -511,6 +524,10 @@ func toView(p Portfolio) portfolioView {
 	if p.LastRunAt != nil {
 		t := p.LastRunAt.UTC().Format("2006-01-02T15:04:05Z")
 		v.LastRunAt = &t
+	}
+	if p.InceptionDate != nil {
+		d := p.InceptionDate.Format("2006-01-02")
+		v.InceptionDate = &d
 	}
 	return v
 }
