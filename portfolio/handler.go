@@ -485,6 +485,7 @@ type portfolioView struct {
 	UpdatedAt          string         `json:"updatedAt"`
 	LastRunAt          *string        `json:"lastRunAt"`
 	LastError          *string        `json:"lastError"`
+	RunRetention       int            `json:"runRetention"`
 	CurrentValue       *float64       `json:"currentValue"`
 	YtdReturn          *float64       `json:"ytdReturn"`
 	MaxDrawDown        *float64       `json:"maxDrawDown"`
@@ -507,6 +508,7 @@ func toView(p Portfolio) portfolioView {
 		CreatedAt:          p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:          p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		LastError:          p.LastError,
+		RunRetention:       p.RunRetention,
 		CurrentValue:       p.CurrentValue,
 		YtdReturn:          p.YtdReturn,
 		MaxDrawDown:        p.MaxDrawdown,
