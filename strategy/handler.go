@@ -100,6 +100,7 @@ type strategyView struct {
 	CAGR             *float64  `json:"cagr,omitempty"`
 	MaxDrawdown      *float64  `json:"maxDrawDown,omitempty"`
 	Sharpe           *float64  `json:"sharpe,omitempty"`
+	Sortino          *float64  `json:"sortino,omitempty"`
 }
 
 func toView(s Strategy) strategyView {
@@ -120,6 +121,7 @@ func toView(s Strategy) strategyView {
 		CAGR:             s.CAGR,
 		MaxDrawdown:      s.MaxDrawdown,
 		Sharpe:           s.Sharpe,
+		Sortino:          s.Sortino,
 	}
 	if s.InstalledAt != nil {
 		t := s.InstalledAt.UTC().Format("2006-01-02T15:04:05Z")

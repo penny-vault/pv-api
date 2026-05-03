@@ -150,6 +150,7 @@ func (f *fakeStore) UpdateStats(_ context.Context, shortCode string, r strategy.
 	row.CAGR = &r.CAGR
 	row.MaxDrawdown = &r.MaxDrawdown
 	row.Sharpe = &r.Sharpe
+	row.Sortino = &r.Sortino
 	now := r.AsOf
 	row.StatsAsOf = &now
 	f.rows[shortCode] = row

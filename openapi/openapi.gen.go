@@ -960,6 +960,7 @@ type Strategy struct {
 	RepoOwner string   `json:"repoOwner"`
 	Sharpe    *float64 `json:"sharpe,omitempty"`
 	ShortCode string   `json:"shortCode"`
+	Sortino   *float64 `json:"sortino,omitempty"`
 	Stars     *int     `json:"stars,omitempty"`
 }
 

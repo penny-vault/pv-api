@@ -70,6 +70,7 @@ func snapshotKpis(ctx context.Context, path string) (strategy.StatKpis, error) {
 		CAGR:        kpis.Cagr,
 		MaxDrawdown: kpis.MaxDrawdown,
 		Sharpe:      kpis.Sharpe,
+		Sortino:     kpis.Sortino,
 	}, nil
 }
 

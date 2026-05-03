@@ -49,11 +49,12 @@ type StatRunRequest struct {
 // cycle between strategy and snapshot/portfolio.
 type SnapshotKpisFunc func(ctx context.Context, path string) (StatKpis, error)
 
-// StatKpis holds the three scalar metrics the StatsRefresher persists.
+// StatKpis holds the scalar metrics the StatsRefresher persists.
 type StatKpis struct {
 	CAGR        float64
 	MaxDrawdown float64
 	Sharpe      float64
+	Sortino     float64
 }
 
 // StatsRefresherConfig configures the StatsRefresher.
@@ -69,7 +70,7 @@ type StatsRefresherConfig struct {
 }
 
 // StatsRefresher runs a default-parameter backtest for every installed strategy
-// and writes cagr/max_drawdown/sharpe/stats_as_of back to the strategies table.
+// and writes cagr/max_drawdown/sharpe/sortino/stats_as_of back to the strategies table.
 type StatsRefresher struct {
 	store       StatsStore
 	runner      StatRunner
@@ -207,6 +208,7 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 		CAGR:        kpis.CAGR,
 		MaxDrawdown: kpis.MaxDrawdown,
 		Sharpe:      kpis.Sharpe,
+		Sortino:     kpis.Sortino,
 		AsOf:        time.Now().UTC(),
 	}
 	if err := r.store.UpdateStats(ctx, shortCode, result); err != nil {
@@ -216,6 +218,7 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 		Float64("cagr", result.CAGR).
 		Float64("max_drawdown", result.MaxDrawdown).
 		Float64("sharpe", result.Sharpe).
+		Float64("sortino", result.Sortino).
 		Msg("strategy stats updated")
 	return nil
 }

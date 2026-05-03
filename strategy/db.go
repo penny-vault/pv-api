@@ -32,7 +32,7 @@ const strategyColumns = `
 	description, categories, stars,
 	installed_ver, installed_at, last_attempted_ver, install_error,
 	artifact_kind, artifact_ref, describe_json,
-	cagr, max_drawdown, sharpe, stats_as_of,
+	cagr, max_drawdown, sharpe, sortino, stats_as_of,
 	discovered_at, updated_at
 `
 
@@ -191,10 +191,10 @@ func ListInstalled(ctx context.Context, pool *pgxpool.Pool) ([]Strategy, error) 
 func UpdateStats(ctx context.Context, pool *pgxpool.Pool, shortCode string, r StatsResult) error {
 	_, err := pool.Exec(ctx,
 		`UPDATE strategies
-		    SET cagr=$2, max_drawdown=$3, sharpe=$4, stats_as_of=$5,
+		    SET cagr=$2, max_drawdown=$3, sharpe=$4, sortino=$5, stats_as_of=$6,
 		        stats_error=NULL, updated_at=NOW()
 		  WHERE short_code=$1`,
-		shortCode, r.CAGR, r.MaxDrawdown, r.Sharpe, r.AsOf)
+		shortCode, r.CAGR, r.MaxDrawdown, r.Sharpe, r.Sortino, r.AsOf)
 	if err != nil {
 		return fmt.Errorf("update stats %s: %w", shortCode, err)
 	}
@@ -244,7 +244,7 @@ func scan(r scanner) (Strategy, error) {
 		&s.Description, &s.Categories, &s.Stars,
 		&s.InstalledVer, &s.InstalledAt, &s.LastAttemptedVer, &s.InstallError,
 		&s.ArtifactKind, &s.ArtifactRef, &s.DescribeJSON,
-		&s.CAGR, &s.MaxDrawdown, &s.Sharpe, &s.StatsAsOf,
+		&s.CAGR, &s.MaxDrawdown, &s.Sharpe, &s.Sortino, &s.StatsAsOf,
 		&s.DiscoveredAt, &s.UpdatedAt,
 	)
 	if err != nil {

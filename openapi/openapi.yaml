@@ -1829,6 +1829,10 @@ components:
           type: number
           format: double
           nullable: true
+        sortino:
+          type: number
+          format: double
+          nullable: true
 
     StrategyDescribe:
       type: object
