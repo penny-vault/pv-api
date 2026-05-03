@@ -941,27 +941,35 @@ type RunStatus string
 
 // Strategy defines model for Strategy.
 type Strategy struct {
-	Cagr             *float64             `json:"cagr,omitempty"`
-	Categories       *[]string            `json:"categories,omitempty"`
-	CloneUrl         *string              `json:"cloneUrl,omitempty"`
-	Describe         *StrategyDescribe    `json:"describe,omitempty"`
-	Description      *string              `json:"description,omitempty"`
-	InstallError     *string              `json:"installError,omitempty"`
-	InstallState     StrategyInstallState `json:"installState"`
-	InstalledAt      *time.Time           `json:"installedAt,omitempty"`
-	InstalledVer     *string              `json:"installedVer,omitempty"`
-	IsOfficial       bool                 `json:"isOfficial"`
-	LastAttemptedVer *string              `json:"lastAttemptedVer,omitempty"`
-	MaxDrawDown      *float64             `json:"maxDrawDown,omitempty"`
+	Alpha              *float64             `json:"alpha,omitempty"`
+	BenchmarkYtdReturn *float64             `json:"benchmarkYtdReturn,omitempty"`
+	Beta               *float64             `json:"beta,omitempty"`
+	Cagr               *float64             `json:"cagr,omitempty"`
+	Categories         *[]string            `json:"categories,omitempty"`
+	CloneUrl           *string              `json:"cloneUrl,omitempty"`
+	Describe           *StrategyDescribe    `json:"describe,omitempty"`
+	Description        *string              `json:"description,omitempty"`
+	InstallError       *string              `json:"installError,omitempty"`
+	InstallState       StrategyInstallState `json:"installState"`
+	InstalledAt        *time.Time           `json:"installedAt,omitempty"`
+	InstalledVer       *string              `json:"installedVer,omitempty"`
+	IsOfficial         bool                 `json:"isOfficial"`
+	LastAttemptedVer   *string              `json:"lastAttemptedVer,omitempty"`
+	MaxDrawDown        *float64             `json:"maxDrawDown,omitempty"`
+	OneYearReturn      *float64             `json:"oneYearReturn,omitempty"`
 
 	// OwnerSub Auth0 sub of the registering user; NULL for official strategies.
-	OwnerSub  *string  `json:"ownerSub,omitempty"`
-	RepoName  string   `json:"repoName"`
-	RepoOwner string   `json:"repoOwner"`
-	Sharpe    *float64 `json:"sharpe,omitempty"`
-	ShortCode string   `json:"shortCode"`
-	Sortino   *float64 `json:"sortino,omitempty"`
-	Stars     *int     `json:"stars,omitempty"`
+	OwnerSub     *string  `json:"ownerSub,omitempty"`
+	RepoName     string   `json:"repoName"`
+	RepoOwner    string   `json:"repoOwner"`
+	Sharpe       *float64 `json:"sharpe,omitempty"`
+	ShortCode    string   `json:"shortCode"`
+	Sortino      *float64 `json:"sortino,omitempty"`
+	Stars        *int     `json:"stars,omitempty"`
+	StdDev       *float64 `json:"stdDev,omitempty"`
+	TaxCostRatio *float64 `json:"taxCostRatio,omitempty"`
+	UlcerIndex   *float64 `json:"ulcerIndex,omitempty"`
+	YtdReturn    *float64 `json:"ytdReturn,omitempty"`
 }
 
 // StrategyDescribe defines model for StrategyDescribe.

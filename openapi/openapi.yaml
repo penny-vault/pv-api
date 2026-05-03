@@ -1833,6 +1833,38 @@ components:
           type: number
           format: double
           nullable: true
+        ulcerIndex:
+          type: number
+          format: double
+          nullable: true
+        beta:
+          type: number
+          format: double
+          nullable: true
+        alpha:
+          type: number
+          format: double
+          nullable: true
+        stdDev:
+          type: number
+          format: double
+          nullable: true
+        taxCostRatio:
+          type: number
+          format: double
+          nullable: true
+        oneYearReturn:
+          type: number
+          format: double
+          nullable: true
+        ytdReturn:
+          type: number
+          format: double
+          nullable: true
+        benchmarkYtdReturn:
+          type: number
+          format: double
+          nullable: true
 
     StrategyDescribe:
       type: object

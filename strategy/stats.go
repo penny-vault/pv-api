@@ -51,10 +51,18 @@ type SnapshotKpisFunc func(ctx context.Context, path string) (StatKpis, error)
 
 // StatKpis holds the scalar metrics the StatsRefresher persists.
 type StatKpis struct {
-	CAGR        float64
-	MaxDrawdown float64
-	Sharpe      float64
-	Sortino     float64
+	CAGR               float64
+	MaxDrawdown        float64
+	Sharpe             float64
+	Sortino            float64
+	UlcerIndex         float64
+	Beta               float64
+	Alpha              float64
+	StdDev             float64
+	TaxCostRatio       float64
+	OneYearReturn      float64
+	YtdReturn          float64
+	BenchmarkYtdReturn float64
 }
 
 // StatsRefresherConfig configures the StatsRefresher.
@@ -205,11 +213,19 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 	}
 
 	result := StatsResult{
-		CAGR:        kpis.CAGR,
-		MaxDrawdown: kpis.MaxDrawdown,
-		Sharpe:      kpis.Sharpe,
-		Sortino:     kpis.Sortino,
-		AsOf:        time.Now().UTC(),
+		CAGR:               kpis.CAGR,
+		MaxDrawdown:        kpis.MaxDrawdown,
+		Sharpe:             kpis.Sharpe,
+		Sortino:            kpis.Sortino,
+		UlcerIndex:         kpis.UlcerIndex,
+		Beta:               kpis.Beta,
+		Alpha:              kpis.Alpha,
+		StdDev:             kpis.StdDev,
+		TaxCostRatio:       kpis.TaxCostRatio,
+		OneYearReturn:      kpis.OneYearReturn,
+		YtdReturn:          kpis.YtdReturn,
+		BenchmarkYtdReturn: kpis.BenchmarkYtdReturn,
+		AsOf:               time.Now().UTC(),
 	}
 	if err := r.store.UpdateStats(ctx, shortCode, result); err != nil {
 		return fmt.Errorf("writing stats for %s: %w", shortCode, err)
@@ -219,6 +235,14 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 		Float64("max_drawdown", result.MaxDrawdown).
 		Float64("sharpe", result.Sharpe).
 		Float64("sortino", result.Sortino).
+		Float64("ulcer_index", result.UlcerIndex).
+		Float64("beta", result.Beta).
+		Float64("alpha", result.Alpha).
+		Float64("std_dev", result.StdDev).
+		Float64("tax_cost_ratio", result.TaxCostRatio).
+		Float64("one_year_return", result.OneYearReturn).
+		Float64("ytd_return", result.YtdReturn).
+		Float64("benchmark_ytd_return", result.BenchmarkYtdReturn).
 		Msg("strategy stats updated")
 	return nil
 }

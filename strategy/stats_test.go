@@ -67,10 +67,18 @@ func snapshotKpis(ctx context.Context, path string) (strategy.StatKpis, error) {
 		return strategy.StatKpis{}, err
 	}
 	return strategy.StatKpis{
-		CAGR:        kpis.Cagr,
-		MaxDrawdown: kpis.MaxDrawdown,
-		Sharpe:      kpis.Sharpe,
-		Sortino:     kpis.Sortino,
+		CAGR:               kpis.Cagr,
+		MaxDrawdown:        kpis.MaxDrawdown,
+		Sharpe:             kpis.Sharpe,
+		Sortino:            kpis.Sortino,
+		UlcerIndex:         kpis.UlcerIndex,
+		Beta:               kpis.Beta,
+		Alpha:              kpis.Alpha,
+		StdDev:             kpis.StdDev,
+		TaxCostRatio:       kpis.TaxCostRatio,
+		OneYearReturn:      kpis.OneYearReturn,
+		YtdReturn:          kpis.YtdReturn,
+		BenchmarkYtdReturn: kpis.BenchmarkYtdReturn,
 	}, nil
 }
 

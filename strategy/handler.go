@@ -82,46 +82,62 @@ func (h *Handler) Get(c fiber.Ctx) error {
 // OpenAPI Strategy schema. Kept in this package to avoid pulling in the
 // openapi package.
 type strategyView struct {
-	ShortCode        string    `json:"shortCode"`
-	RepoOwner        string    `json:"repoOwner"`
-	RepoName         string    `json:"repoName"`
-	CloneURL         string    `json:"cloneUrl,omitempty"`
-	IsOfficial       bool      `json:"isOfficial"`
-	OwnerSub         *string   `json:"ownerSub,omitempty"`
-	Description      *string   `json:"description,omitempty"`
-	Categories       []string  `json:"categories,omitempty"`
-	Stars            *int      `json:"stars,omitempty"`
-	InstallState     string    `json:"installState"`
-	InstalledVer     *string   `json:"installedVer,omitempty"`
-	LastAttemptedVer *string   `json:"lastAttemptedVer,omitempty"`
-	InstallError     *string   `json:"installError,omitempty"`
-	InstalledAt      *string   `json:"installedAt,omitempty"`
-	Describe         *Describe `json:"describe,omitempty"`
-	CAGR             *float64  `json:"cagr,omitempty"`
-	MaxDrawdown      *float64  `json:"maxDrawDown,omitempty"`
-	Sharpe           *float64  `json:"sharpe,omitempty"`
-	Sortino          *float64  `json:"sortino,omitempty"`
+	ShortCode          string    `json:"shortCode"`
+	RepoOwner          string    `json:"repoOwner"`
+	RepoName           string    `json:"repoName"`
+	CloneURL           string    `json:"cloneUrl,omitempty"`
+	IsOfficial         bool      `json:"isOfficial"`
+	OwnerSub           *string   `json:"ownerSub,omitempty"`
+	Description        *string   `json:"description,omitempty"`
+	Categories         []string  `json:"categories,omitempty"`
+	Stars              *int      `json:"stars,omitempty"`
+	InstallState       string    `json:"installState"`
+	InstalledVer       *string   `json:"installedVer,omitempty"`
+	LastAttemptedVer   *string   `json:"lastAttemptedVer,omitempty"`
+	InstallError       *string   `json:"installError,omitempty"`
+	InstalledAt        *string   `json:"installedAt,omitempty"`
+	Describe           *Describe `json:"describe,omitempty"`
+	CAGR               *float64  `json:"cagr,omitempty"`
+	MaxDrawdown        *float64  `json:"maxDrawDown,omitempty"`
+	Sharpe             *float64  `json:"sharpe,omitempty"`
+	Sortino            *float64  `json:"sortino,omitempty"`
+	UlcerIndex         *float64  `json:"ulcerIndex,omitempty"`
+	Beta               *float64  `json:"beta,omitempty"`
+	Alpha              *float64  `json:"alpha,omitempty"`
+	StdDev             *float64  `json:"stdDev,omitempty"`
+	TaxCostRatio       *float64  `json:"taxCostRatio,omitempty"`
+	OneYearReturn      *float64  `json:"oneYearReturn,omitempty"`
+	YtdReturn          *float64  `json:"ytdReturn,omitempty"`
+	BenchmarkYtdReturn *float64  `json:"benchmarkYtdReturn,omitempty"`
 }
 
 func toView(s Strategy) strategyView {
 	v := strategyView{
-		ShortCode:        s.ShortCode,
-		RepoOwner:        s.RepoOwner,
-		RepoName:         s.RepoName,
-		CloneURL:         s.CloneURL,
-		IsOfficial:       s.IsOfficial,
-		OwnerSub:         s.OwnerSub,
-		Description:      s.Description,
-		Categories:       s.Categories,
-		Stars:            s.Stars,
-		InstallState:     string(s.DeriveInstallState()),
-		InstalledVer:     s.InstalledVer,
-		LastAttemptedVer: s.LastAttemptedVer,
-		InstallError:     s.InstallError,
-		CAGR:             s.CAGR,
-		MaxDrawdown:      s.MaxDrawdown,
-		Sharpe:           s.Sharpe,
-		Sortino:          s.Sortino,
+		ShortCode:          s.ShortCode,
+		RepoOwner:          s.RepoOwner,
+		RepoName:           s.RepoName,
+		CloneURL:           s.CloneURL,
+		IsOfficial:         s.IsOfficial,
+		OwnerSub:           s.OwnerSub,
+		Description:        s.Description,
+		Categories:         s.Categories,
+		Stars:              s.Stars,
+		InstallState:       string(s.DeriveInstallState()),
+		InstalledVer:       s.InstalledVer,
+		LastAttemptedVer:   s.LastAttemptedVer,
+		InstallError:       s.InstallError,
+		CAGR:               s.CAGR,
+		MaxDrawdown:        s.MaxDrawdown,
+		Sharpe:             s.Sharpe,
+		Sortino:            s.Sortino,
+		UlcerIndex:         s.UlcerIndex,
+		Beta:               s.Beta,
+		Alpha:              s.Alpha,
+		StdDev:             s.StdDev,
+		TaxCostRatio:       s.TaxCostRatio,
+		OneYearReturn:      s.OneYearReturn,
+		YtdReturn:          s.YtdReturn,
+		BenchmarkYtdReturn: s.BenchmarkYtdReturn,
 	}
 	if s.InstalledAt != nil {
 		t := s.InstalledAt.UTC().Format("2006-01-02T15:04:05Z")

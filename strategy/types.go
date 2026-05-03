@@ -31,27 +31,35 @@ const (
 
 // Strategy is pvapi's internal representation of a `strategies` row.
 type Strategy struct {
-	ShortCode        string
-	RepoOwner        string
-	RepoName         string
-	CloneURL         string
-	IsOfficial       bool
-	OwnerSub         *string
-	Description      *string
-	Categories       []string
-	Stars            *int
-	InstalledVer     *string
-	InstalledAt      *time.Time
-	LastAttemptedVer *string
-	InstallError     *string
-	ArtifactKind     *string // "binary" | "image"
-	ArtifactRef      *string
-	DescribeJSON     []byte // raw describe output; parsed on demand
-	CAGR             *float64
-	MaxDrawdown      *float64
-	Sharpe           *float64
-	Sortino          *float64
-	StatsAsOf        *time.Time
+	ShortCode          string
+	RepoOwner          string
+	RepoName           string
+	CloneURL           string
+	IsOfficial         bool
+	OwnerSub           *string
+	Description        *string
+	Categories         []string
+	Stars              *int
+	InstalledVer       *string
+	InstalledAt        *time.Time
+	LastAttemptedVer   *string
+	InstallError       *string
+	ArtifactKind       *string // "binary" | "image"
+	ArtifactRef        *string
+	DescribeJSON       []byte // raw describe output; parsed on demand
+	CAGR               *float64
+	MaxDrawdown        *float64
+	Sharpe             *float64
+	Sortino            *float64
+	UlcerIndex         *float64
+	Beta               *float64
+	Alpha              *float64
+	StdDev             *float64
+	TaxCostRatio       *float64
+	OneYearReturn      *float64
+	YtdReturn          *float64
+	BenchmarkYtdReturn *float64
+	StatsAsOf          *time.Time
 	// StatsError is write-only at the DB layer; not included in strategyColumns/scan.
 	StatsError   *string
 	DiscoveredAt time.Time
@@ -60,11 +68,19 @@ type Strategy struct {
 
 // StatsResult holds the performance metrics written back to the strategies table.
 type StatsResult struct {
-	CAGR        float64
-	MaxDrawdown float64
-	Sharpe      float64
-	Sortino     float64
-	AsOf        time.Time
+	CAGR               float64
+	MaxDrawdown        float64
+	Sharpe             float64
+	Sortino            float64
+	UlcerIndex         float64
+	Beta               float64
+	Alpha              float64
+	StdDev             float64
+	TaxCostRatio       float64
+	OneYearReturn      float64
+	YtdReturn          float64
+	BenchmarkYtdReturn float64
+	AsOf               time.Time
 }
 
 // DeriveInstallState reports the lifecycle state implied by the row's

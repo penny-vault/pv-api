@@ -1,0 +1,9 @@
+ALTER TABLE strategies
+    DROP COLUMN ulcer_index,
+    DROP COLUMN beta,
+    DROP COLUMN alpha,
+    DROP COLUMN std_dev,
+    DROP COLUMN tax_cost_ratio,
+    DROP COLUMN one_year_return,
+    DROP COLUMN ytd_return,
+    DROP COLUMN benchmark_ytd_return;
