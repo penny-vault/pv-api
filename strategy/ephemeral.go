@@ -92,7 +92,7 @@ func EphemeralBuild(ctx context.Context, opts EphemeralOptions) (string, func(),
 		cloneArgs = append(cloneArgs, "--branch", opts.Ver)
 	}
 	cloneArgs = append(cloneArgs, opts.CloneURL, buildDir)
-	cloneCmd := exec.CommandContext(tctx, "git", cloneArgs...) //nolint:gosec // URL is validated or explicitly skipped; buildDir is internal
+	cloneCmd := exec.CommandContext(tctx, "git", cloneArgs...)
 	var cloneOut bytes.Buffer
 	cloneCmd.Stdout = &cloneOut
 	cloneCmd.Stderr = &cloneOut
@@ -103,7 +103,7 @@ func EphemeralBuild(ctx context.Context, opts EphemeralOptions) (string, func(),
 
 	// Build.
 	binPath := filepath.Join(buildDir, "strategy.bin")
-	buildCmd := exec.CommandContext(tctx, "go", "build", "-o", binPath, ".") //nolint:gosec // binPath and buildDir are internal paths
+	buildCmd := exec.CommandContext(tctx, "go", "build", "-o", binPath, ".")
 	buildCmd.Dir = buildDir
 	var buildOut bytes.Buffer
 	buildCmd.Stdout = &buildOut

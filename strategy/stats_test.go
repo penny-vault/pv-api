@@ -43,7 +43,7 @@ func (s *stubStatRunner) Run(_ context.Context, req strategy.StatRunRequest) err
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(fixturePath) //nolint:gosec
+	data, err := os.ReadFile(fixturePath)
 	if err != nil {
 		return err
 	}

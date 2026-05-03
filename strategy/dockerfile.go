@@ -32,7 +32,7 @@ const DefaultGoVersion = "1.24"
 // ParseGoVersion never returns a non-nil error — parsing failures degrade
 // to the empty-string result so callers can fall back to DefaultGoVersion.
 func ParseGoVersion(dir string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "go.mod")) //nolint:gosec // dir is an internal path
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil {
 		return "", nil
 	}

@@ -100,12 +100,27 @@ func (r *Reader) Transactions(ctx context.Context, f TransactionFilter) (*openap
 		}
 	}
 
-	q := `SELECT batch_id, date, type, ticker, figi, quantity, price, amount, qualified, justification
+	// Assemble the query from constant fragments and the where clauses
+	// (which contain only "?" placeholders). User-supplied dates and
+	// transaction types flow through args as bound parameters.
+	const (
+		qHead = `SELECT batch_id, date, type, ticker, figi, quantity, price, amount, qualified, justification
 	        FROM transactions`
+		qTail = " ORDER BY batch_id, rowid"
+	)
+	var qb strings.Builder
+	qb.WriteString(qHead)
 	if len(where) > 0 {
-		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // G202: where clauses use only parameterized placeholders, no user input
+		qb.WriteString(" WHERE ")
+		for i, clause := range where {
+			if i > 0 {
+				qb.WriteString(" AND ")
+			}
+			qb.WriteString(clause)
+		}
 	}
-	q += " ORDER BY batch_id, rowid"
+	qb.WriteString(qTail)
+	q := qb.String()
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

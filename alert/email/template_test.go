@@ -1,3 +1,18 @@
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package email_test
 
 import (
@@ -10,20 +25,20 @@ import (
 
 func successPayload() email.Payload {
 	return email.Payload{
-		PortfolioName: "My Portfolio",
-		StrategyCode:  "rsi-mean-reversion",
-		RunDate:       "Monday, April 21, 2026",
-		Success:       true,
-		CurrentValue:  "$103,240",
-		HasDelta:      true,
-		DeltaPct:      "+12.0%",
-		DeltaAbs:      "+$1,240",
-		SinceLabel:    "Tuesday",
-		DeltaColor:    "#22c55e",
-		Benchmark:     "SPY",
+		PortfolioName:     "My Portfolio",
+		StrategyCode:      "rsi-mean-reversion",
+		RunDate:           "Monday, April 21, 2026",
+		Success:           true,
+		CurrentValue:      "$103,240",
+		HasDelta:          true,
+		DeltaPct:          "+12.0%",
+		DeltaAbs:          "+$1,240",
+		SinceLabel:        "Tuesday",
+		DeltaColor:        "#22c55e",
+		Benchmark:         "SPY",
 		BenchmarkDeltaPct: "+10.8%",
-		RelativeDelta: "+1.2%",
-		RelativeColor: "#22c55e",
+		RelativeDelta:     "+1.2%",
+		RelativeColor:     "#22c55e",
 		Trades: []email.TradeRow{
 			{Ticker: "VTI", Action: "Buy", ActionColor: "#22c55e", Shares: "12", Value: "$2,400"},
 			{Ticker: "BND", Action: "Sell", ActionColor: "#ef4444", Shares: "5", Value: "$450"},

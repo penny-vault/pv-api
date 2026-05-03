@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS backtest_runs_one_inflight_per_portfolio;

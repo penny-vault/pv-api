@@ -40,34 +40,10 @@ import (
 //
 // See docs/superpowers/specs/2026-04-25-portfolio-strategy-upgrade-design.md.
 func (h *Handler) Upgrade(c fiber.Ctx) error {
-	ownerSub, err := subject(c)
-	if err != nil {
-		return writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	p, s, ok, err := h.loadUpgradeTargets(c)
+	if !ok {
+		return err
 	}
-	slug := c.Params("slug")
-
-	p, err := h.store.Get(c.Context(), ownerSub, slug)
-	if errors.Is(err, ErrNotFound) {
-		return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
-	}
-	if err != nil {
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
-	}
-
-	if p.Status == StatusRunning {
-		return writeJSON(c, fiber.StatusConflict, fiber.Map{"error": "run_in_progress"})
-	}
-
-	s, err := h.strategies.Get(c.Context(), p.StrategyCode)
-	if err != nil {
-		// Unofficial portfolios won't have a registry row; they fall through here as
-		// strategy_not_installable. That's intentional — official-only upgrade for now.
-		return writeJSON(c, fiber.StatusUnprocessableEntity, fiber.Map{"error": "strategy_not_installable"})
-	}
-	if s.InstalledVer == nil || s.InstallError != nil {
-		return writeJSON(c, fiber.StatusUnprocessableEntity, fiber.Map{"error": "strategy_not_installable"})
-	}
-
 	if p.StrategyVer != nil && *p.StrategyVer == *s.InstalledVer {
 		return writeJSON(c, fiber.StatusOK, fiber.Map{
 			"status":  "already_at_latest",
@@ -75,71 +51,20 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 		})
 	}
 
-	// Body is optional. Parse only if present.
-	type upgradeRequestBody struct {
-		Parameters map[string]any `json:"parameters"`
-	}
-	var body upgradeRequestBody
-	if raw := c.Body(); len(raw) > 0 {
-		if err := sonic.Unmarshal(raw, &body); err != nil {
-			return writeProblem(c, fiber.StatusBadRequest, "Bad Request", "body is not valid JSON")
-		}
+	bodyParams, ok, err := parseUpgradeBody(c)
+	if !ok {
+		return err
 	}
 
-	// Old describe is on the portfolio row.
-	var oldDescribe strategy.Describe
-	if len(p.StrategyDescribeJSON) > 0 {
-		if err := json.Unmarshal(p.StrategyDescribeJSON, &oldDescribe); err != nil {
-			return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
-				"stored describe is invalid: "+err.Error())
-		}
-	}
-
-	// New describe comes from the registry.
-	var newDescribe strategy.Describe
-	if err := json.Unmarshal(s.DescribeJSON, &newDescribe); err != nil {
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
-			"registry describe is invalid: "+err.Error())
+	oldDescribe, newDescribe, ok, err := decodeUpgradeDescribes(c, p, s)
+	if !ok {
+		return err
 	}
 
 	diff := DiffParameters(oldDescribe, newDescribe)
-
-	var nextParams map[string]any
-	switch {
-	case body.Parameters != nil:
-		// Resubmit branch: caller supplies explicit parameters for the new describe.
-		if err := validateParameters(body.Parameters, newDescribe); err != nil {
-			return writeProblem(c, fiber.StatusBadRequest, "Bad Request", err.Error())
-		}
-		nextParams = body.Parameters
-	case diff.Compatible():
-		nextParams = mergeKeptAndDefaults(p.Parameters, newDescribe, diff)
-	default:
-		// Parameters changed in a breaking way; caller must resubmit with parameters.
-		removed := diff.Removed
-		if removed == nil {
-			removed = []string{}
-		}
-		addedNoDefault := diff.AddedWithoutDefault
-		if addedNoDefault == nil {
-			addedNoDefault = []string{}
-		}
-		retyped := diff.Retyped
-		if retyped == nil {
-			retyped = []ParameterRetype{}
-		}
-		return writeJSON(c, fiber.StatusConflict, fiber.Map{
-			"error":        "parameters_incompatible",
-			"from_version": deref(p.StrategyVer),
-			"to_version":   *s.InstalledVer,
-			"incompatibilities": fiber.Map{
-				"removed":               removed,
-				"added_without_default": addedNoDefault,
-				"retyped":               retyped,
-			},
-			"current_parameters": p.Parameters,
-			"new_describe":       json.RawMessage(s.DescribeJSON),
-		})
+	nextParams, ok, err := h.resolveUpgradeParams(c, p, s, bodyParams, diff, newDescribe)
+	if !ok {
+		return err
 	}
 
 	paramsJSON, err := json.Marshal(nextParams)
@@ -148,16 +73,136 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 	}
 	presetName := MatchPresetName(nextParams, newDescribe)
 
-	// Atomic portfolio update; run insert happens via Dispatcher.Submit below.
 	if err := h.store.ApplyUpgrade(c.Context(), p.ID, *s.InstalledVer,
 		json.RawMessage(s.DescribeJSON), paramsJSON, presetName); err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 
-	// Enqueue the run via the same path Create uses.
+	return h.finalizeUpgrade(c, p, s)
+}
+
+// loadUpgradeTargets loads the portfolio and the registry strategy row.
+// Returns ok=false (with the response already written via the fiber ctx) on
+// any precondition failure; the caller should propagate the returned error
+// — which is whatever the response writer returned, typically nil — and
+// stop processing.
+func (h *Handler) loadUpgradeTargets(c fiber.Ctx) (Portfolio, strategy.Strategy, bool, error) {
+	ownerSub, err := subject(c)
+	if err != nil {
+		return Portfolio{}, strategy.Strategy{}, false, writeProblem(c, fiber.StatusUnauthorized, "Unauthorized", err.Error())
+	}
+	slug := c.Params("slug")
+	p, err := h.store.Get(c.Context(), ownerSub, slug)
+	if errors.Is(err, ErrNotFound) {
+		return Portfolio{}, strategy.Strategy{}, false, writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
+	}
+	if err != nil {
+		return Portfolio{}, strategy.Strategy{}, false, writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if p.Status == StatusRunning {
+		return Portfolio{}, strategy.Strategy{}, false, writeJSON(c, fiber.StatusConflict, fiber.Map{"error": "run_in_progress"})
+	}
+	s, err := h.strategies.Get(c.Context(), p.StrategyCode)
+	if err != nil {
+		return Portfolio{}, strategy.Strategy{}, false, writeJSON(c, fiber.StatusUnprocessableEntity, fiber.Map{"error": "strategy_not_installable"})
+	}
+	if s.InstalledVer == nil || s.InstallError != nil {
+		return Portfolio{}, strategy.Strategy{}, false, writeJSON(c, fiber.StatusUnprocessableEntity, fiber.Map{"error": "strategy_not_installable"})
+	}
+	return p, s, true, nil
+}
+
+// parseUpgradeBody returns the optional parameters map sent in the request
+// body. ok=false means a malformed-body response was written and the caller
+// must stop. An empty body returns (nil, true, nil).
+func parseUpgradeBody(c fiber.Ctx) (map[string]any, bool, error) {
+	raw := c.Body()
+	if len(raw) == 0 {
+		return nil, true, nil
+	}
+	var body struct {
+		Parameters map[string]any `json:"parameters"`
+	}
+	if err := sonic.Unmarshal(raw, &body); err != nil {
+		return nil, false, writeProblem(c, fiber.StatusBadRequest, "Bad Request", "body is not valid JSON")
+	}
+	return body.Parameters, true, nil
+}
+
+// decodeUpgradeDescribes loads the old describe (frozen on the portfolio
+// row) and the new describe (from the registry strategy row). ok=false
+// means a 500 response was written and the caller must stop.
+func decodeUpgradeDescribes(c fiber.Ctx, p Portfolio, s strategy.Strategy) (strategy.Describe, strategy.Describe, bool, error) {
+	var oldDescribe strategy.Describe
+	if len(p.StrategyDescribeJSON) > 0 {
+		if err := json.Unmarshal(p.StrategyDescribeJSON, &oldDescribe); err != nil {
+			return strategy.Describe{}, strategy.Describe{}, false, writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
+				"stored describe is invalid: "+err.Error())
+		}
+	}
+	var newDescribe strategy.Describe
+	if err := json.Unmarshal(s.DescribeJSON, &newDescribe); err != nil {
+		return strategy.Describe{}, strategy.Describe{}, false, writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
+			"registry describe is invalid: "+err.Error())
+	}
+	return oldDescribe, newDescribe, true, nil
+}
+
+// resolveUpgradeParams picks the parameters that the upgraded portfolio
+// should use. ok=false means a response was written and the caller must
+// stop; the returned error is whatever the response writer returned.
+func (h *Handler) resolveUpgradeParams(
+	c fiber.Ctx, p Portfolio, s strategy.Strategy, bodyParams map[string]any,
+	diff ParameterDiff, newDescribe strategy.Describe,
+) (map[string]any, bool, error) {
+	switch {
+	case bodyParams != nil:
+		if err := validateParameters(bodyParams, newDescribe); err != nil {
+			return nil, false, writeProblem(c, fiber.StatusBadRequest, "Bad Request", err.Error())
+		}
+		return bodyParams, true, nil
+	case diff.Compatible():
+		return mergeKeptAndDefaults(p.Parameters, newDescribe, diff), true, nil
+	default:
+		return nil, false, writeIncompatibleParametersResponse(c, p, s, diff)
+	}
+}
+
+// writeIncompatibleParametersResponse emits the 409 body that asks the
+// caller to resubmit with explicit parameters when a parameter rename or
+// retype is detected.
+func writeIncompatibleParametersResponse(c fiber.Ctx, p Portfolio, s strategy.Strategy, diff ParameterDiff) error {
+	removed := diff.Removed
+	if removed == nil {
+		removed = []string{}
+	}
+	addedNoDefault := diff.AddedWithoutDefault
+	if addedNoDefault == nil {
+		addedNoDefault = []string{}
+	}
+	retyped := diff.Retyped
+	if retyped == nil {
+		retyped = []ParameterRetype{}
+	}
+	return writeJSON(c, fiber.StatusConflict, fiber.Map{
+		"error":        "parameters_incompatible",
+		"from_version": deref(p.StrategyVer),
+		"to_version":   *s.InstalledVer,
+		"incompatibilities": fiber.Map{
+			"removed":               removed,
+			"added_without_default": addedNoDefault,
+			"retyped":               retyped,
+		},
+		"current_parameters": p.Parameters,
+		"new_describe":       json.RawMessage(s.DescribeJSON),
+	})
+}
+
+// finalizeUpgrade dispatches the post-upgrade backtest run and writes the
+// success response. Handles the various dispatcher error modes (queue full,
+// run in flight, no dispatcher configured) gracefully.
+func (h *Handler) finalizeUpgrade(c fiber.Ctx, p Portfolio, s strategy.Strategy) error {
 	if h.dispatcher == nil {
-		// Without a dispatcher the upgrade is committed but no run is queued. The
-		// user can call POST /portfolios/:slug/run later.
 		return writeJSON(c, fiber.StatusOK, fiber.Map{
 			"status":       "upgraded",
 			"from_version": deref(p.StrategyVer),
@@ -165,14 +210,20 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 		})
 	}
 	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
-	if err != nil {
-		if errors.Is(err, ErrQueueFull) {
-			return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
-				"backtest queue is full; the upgrade was committed but no run was queued. Retry by calling POST /portfolios/{slug}/runs")
-		}
+	switch {
+	case errors.Is(err, ErrRunInFlight):
+		return writeJSON(c, fiber.StatusOK, fiber.Map{
+			"status":       "upgraded",
+			"from_version": deref(p.StrategyVer),
+			"to_version":   *s.InstalledVer,
+			"note":         "a backtest run was already in flight; the upgrade is committed and the existing run will continue",
+		})
+	case errors.Is(err, ErrQueueFull):
+		return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
+			"backtest queue is full; the upgrade was committed but no run was queued. Retry by calling POST /portfolios/{slug}/runs")
+	case err != nil:
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
-
 	return writeJSON(c, fiber.StatusOK, fiber.Map{
 		"status":       "upgraded",
 		"from_version": deref(p.StrategyVer),

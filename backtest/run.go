@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -158,9 +159,19 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	return nil
 }
 
+// ErrNonCanonicalSnapshotPath is returned by fsyncAndRename when the snapshot
+// path is not in canonical form, indicating a possible path-traversal attempt.
+var ErrNonCanonicalSnapshotPath = errors.New("fsync: refusing non-canonical tmp path")
+
 // fsyncAndRename fsyncs tmp to ensure durability then atomically renames it to final.
+// tmp is built from a validated snapshots directory + portfolio UUID; we
+// re-clean and reject any path traversal as defense in depth.
 func fsyncAndRename(tmp, final string) error {
-	f, err := os.Open(tmp) //nolint:gosec // G304: tmp is constructed from validated SnapshotsDir + portfolio UUID
+	cleaned := filepath.Clean(tmp)
+	if cleaned != tmp {
+		return fmt.Errorf("%w: %q", ErrNonCanonicalSnapshotPath, tmp)
+	}
+	f, err := os.OpenFile(cleaned, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("open tmp: %w", err)
 	}
@@ -194,14 +205,18 @@ func readKpisFromSnapshot(ctx context.Context, path string) (snapshot.Kpis, erro
 }
 
 // durationMs converts a time.Duration to int32 milliseconds, clamping to
-// math.MaxInt32 for durations exceeding ~24 days (which should never occur in
-// practice but protects against G115 integer overflow).
+// math.MaxInt32 for durations exceeding ~24 days (which should never occur
+// in practice but protects against integer overflow).
 func durationMs(d time.Duration) int32 {
 	ms := d.Milliseconds()
-	if ms > 2147483647 {
-		return 2147483647
+	if ms < 0 {
+		return 0
 	}
-	return int32(ms) //nolint:gosec // G115: bounded by the check above
+	if ms > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	// ms is in [0, math.MaxInt32]; the conversion cannot overflow.
+	return int32(ms)
 }
 
 // prune calls PruneRuns to delete excess backtest_runs rows and removes any

@@ -22,7 +22,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -33,7 +33,7 @@ import (
 // a real *client.Client built with client.NewClientWithOpts; tests pass a
 // fake.
 type Client interface {
-	ImageBuild(ctx context.Context, buildContext io.Reader, opts types.ImageBuildOptions) (types.ImageBuildResponse, error)
+	ImageBuild(ctx context.Context, buildContext io.Reader, opts build.ImageBuildOptions) (build.ImageBuildResponse, error)
 	ImageRemove(ctx context.Context, imageID string, opts image.RemoveOptions) ([]image.DeleteResponse, error)
 	ContainerCreate(ctx context.Context, cfg *container.Config, hostCfg *container.HostConfig, netCfg *network.NetworkingConfig, platform *ocispec.Platform, name string) (container.CreateResponse, error)
 	ContainerStart(ctx context.Context, id string, opts container.StartOptions) error

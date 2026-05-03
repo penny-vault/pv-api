@@ -28,6 +28,12 @@ import (
 // has reached its bounded capacity. Handlers should surface this as 503.
 var ErrQueueFull = errors.New("dispatcher queue full")
 
+// ErrRunInFlight is returned by RunStore.CreateRun when the partial unique
+// index `backtest_runs_one_inflight_per_portfolio` rejects a second queued or
+// running row for the same portfolio. Callers should look up the existing
+// in-flight run via ListRuns and use its id.
+var ErrRunInFlight = errors.New("a backtest run is already queued or running for this portfolio")
+
 // Run represents one row in the backtest_runs table.
 type Run struct {
 	ID           uuid.UUID
@@ -65,7 +71,11 @@ func (s *PoolRunStore) CreateRun(ctx context.Context, portfolioID uuid.UUID, sta
 		VALUES (uuidv7(), $1, $2)
 		RETURNING id, portfolio_id, status, started_at, finished_at, duration_ms, error, snapshot_path
 	`
-	return scanRun(s.pool.QueryRow(ctx, q, portfolioID, status))
+	r, err := scanRun(s.pool.QueryRow(ctx, q, portfolioID, status))
+	if err != nil && uniqueViolation(err) {
+		return Run{}, ErrRunInFlight
+	}
+	return r, err
 }
 
 func (s *PoolRunStore) UpdateRunRunning(ctx context.Context, runID uuid.UUID) error {

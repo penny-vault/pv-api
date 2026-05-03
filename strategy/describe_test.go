@@ -109,7 +109,7 @@ func buildFakeStrategy() string {
 	Expect(err).NotTo(HaveOccurred())
 	bin := filepath.Join(dir, "strategy.bin")
 	var buf bytes.Buffer
-	cmd := exec.Command("go", "build", "-o", bin, ".") //nolint:gosec // test helper; path is internal
+	cmd := exec.Command("go", "build", "-o", bin, ".")
 	cmd.Dir = src
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

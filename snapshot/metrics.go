@@ -190,15 +190,23 @@ func (r *Reader) queryMetricRows(ctx context.Context, names, windows []string) (
 		args = append(args, w)
 	}
 
-	query := fmt.Sprintf(`
+	// The query is assembled from constant fragments and `?` placeholder
+	// strings only; user-supplied names and windows are bound through args.
+	const queryHead = `
 		SELECT name, window, value FROM (
 			SELECT name, window, value,
 				   ROW_NUMBER() OVER (PARTITION BY name, window ORDER BY date DESC) AS rn
-			FROM metrics WHERE name IN (%s) AND window IN (%s)
-		) WHERE rn = 1`,
-		strings.Join(namePH, ","),
-		strings.Join(windowPH, ","),
-	)
+			FROM metrics WHERE name IN (`
+	const queryMid = `) AND window IN (`
+	const queryTail = `)) WHERE rn = 1`
+	var qb strings.Builder
+	qb.Grow(len(queryHead) + len(queryMid) + len(queryTail) + 2*len(names) + 2*len(windows))
+	qb.WriteString(queryHead)
+	qb.WriteString(strings.Join(namePH, ","))
+	qb.WriteString(queryMid)
+	qb.WriteString(strings.Join(windowPH, ","))
+	qb.WriteString(queryTail)
+	query := qb.String()
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

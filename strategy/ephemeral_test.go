@@ -49,17 +49,17 @@ func copyTree(src, dst string) error {
 }
 
 func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src) //nolint:gosec // test helper; path is internal
+	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close() //nolint:errcheck // test helper
+	defer in.Close()
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
-	defer out.Close() //nolint:errcheck // test helper
+	defer out.Close()
 
 	_, err = io.Copy(out, in)
 	return err
@@ -68,7 +68,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // gitInit creates an initial commit in dir containing all current files.
 func gitInit(dir string) error {
 	run := func(args ...string) error {
-		cmd := exec.Command(args[0], args[1:]...) //nolint:gosec // test helper
+		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=test",
@@ -101,7 +101,7 @@ var _ = Describe("EphemeralBuild", func() {
 	})
 
 	AfterEach(func() {
-		os.RemoveAll(tmpRoot) //nolint:errcheck // test cleanup
+		os.RemoveAll(tmpRoot)
 	})
 
 	Describe("happy path", func() {
@@ -127,7 +127,7 @@ var _ = Describe("EphemeralBuild", func() {
 			Expect(statErr).NotTo(HaveOccurred())
 
 			// Run the built binary and check its output.
-			out, runErr := exec.CommandContext(ctx, binPath, "describe", "--json").Output() //nolint:gosec // binPath from EphemeralBuild
+			out, runErr := exec.CommandContext(ctx, binPath, "describe", "--json").Output()
 			Expect(runErr).NotTo(HaveOccurred())
 			Expect(string(out)).To(ContainSubstring(`"shortcode": "fake"`))
 

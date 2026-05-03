@@ -29,6 +29,12 @@ const (
 	InstallStateFailed     InstallState = "failed"
 )
 
+// Values for Strategy.ArtifactKind.
+const (
+	artifactKindBinary = "binary"
+	artifactKindImage  = "image"
+)
+
 // Strategy is pvapi's internal representation of a `strategies` row.
 type Strategy struct {
 	ShortCode          string

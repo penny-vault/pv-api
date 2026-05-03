@@ -26,6 +26,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/openapi"
@@ -605,11 +606,13 @@ func (h *Handler) readSnapshot(c fiber.Ctx, fn func(SnapshotReader) (any, error)
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 	if p.Status != StatusReady || p.SnapshotPath == nil || *p.SnapshotPath == "" {
-		return writeProblem(c, fiber.StatusNotFound, "Not Found", "no successful run")
+		return h.respondRecalculating(c, p, slug)
 	}
 	reader, err := h.opener.Open(*p.SnapshotPath)
 	if err != nil {
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+		// Snapshot file is missing or unreadable (evicted by retention sweep,
+		// manual cleanup, corruption). Queue a recompute rather than 500.
+		return h.respondRecalculating(c, p, slug)
 	}
 	defer func() { _ = reader.Close() }()
 	out, err := fn(reader)
@@ -620,6 +623,74 @@ func (h *Handler) readSnapshot(c fiber.Ctx, fn func(SnapshotReader) (any, error)
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
 	return c.JSON(out)
+}
+
+// respondRecalculating returns 202 Accepted with the id of an in-flight or
+// freshly queued backtest run. Callers reach this branch when the portfolio's
+// snapshot is missing; the body tells the client to poll the run resource and
+// retry the original read once the run reaches a terminal state.
+func (h *Handler) respondRecalculating(c fiber.Ctx, p Portfolio, slug string) error {
+	if h.dispatcher == nil {
+		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "backtest dispatcher not configured")
+	}
+
+	runID, runStatus, perr := h.findOrSubmitInFlightRun(c, p.ID)
+	if perr != nil {
+		return perr
+	}
+
+	msg := "snapshot is being recomputed; poll the run status to determine when it has completed"
+	body := openapi.RecalculatingResponse{
+		Status:        openapi.RecalculatingResponseStatusRecalculating,
+		RunId:         openapi_types.UUID(runID),
+		PortfolioSlug: slug,
+		RunStatus:     openapi.RunStatus(runStatus),
+		PollUrl:       fmt.Sprintf("/portfolios/%s/runs/%s", slug, runID),
+		Message:       &msg,
+	}
+	return writeJSON(c, fiber.StatusAccepted, body)
+}
+
+// findOrSubmitInFlightRun returns the id and status of a queued/running run
+// for the portfolio, submitting a fresh one if none exists. The partial unique
+// index on backtest_runs guarantees at most one in-flight row; if a concurrent
+// caller wins the Submit race we observe ErrRunInFlight and re-query.
+func (h *Handler) findOrSubmitInFlightRun(c fiber.Ctx, portfolioID uuid.UUID) (uuid.UUID, string, error) {
+	runs, err := h.store.ListRuns(c.Context(), portfolioID)
+	if err != nil {
+		return uuid.Nil, "", writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if id, status, ok := pickInflight(runs); ok {
+		return id, status, nil
+	}
+
+	id, err := h.dispatcher.Submit(c.Context(), portfolioID)
+	switch {
+	case errors.Is(err, ErrRunInFlight):
+		runs, rerr := h.store.ListRuns(c.Context(), portfolioID)
+		if rerr != nil {
+			return uuid.Nil, "", writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", rerr.Error())
+		}
+		if id, status, ok := pickInflight(runs); ok {
+			return id, status, nil
+		}
+		return uuid.Nil, "", writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", "in-flight run vanished after duplicate-submit rejection")
+	case errors.Is(err, ErrQueueFull):
+		return uuid.Nil, "", writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable", "backtest queue is full, try again later")
+	case err != nil:
+		return uuid.Nil, "", writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	return id, "queued", nil
+}
+
+// pickInflight returns the first run that is queued or running, if any.
+func pickInflight(runs []Run) (uuid.UUID, string, bool) {
+	for _, r := range runs {
+		if r.Status == "queued" || r.Status == "running" {
+			return r.ID, r.Status, true
+		}
+	}
+	return uuid.Nil, "", false
 }
 
 // GET /portfolios/{slug}/drawdowns
@@ -846,6 +917,9 @@ func (h *Handler) CreateRun(c fiber.Ctx) error {
 		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "backtest dispatcher not configured")
 	}
 	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
+	if errors.Is(err, ErrRunInFlight) {
+		return writeProblem(c, fiber.StatusConflict, "Conflict", "a backtest run is already queued or running for this portfolio")
+	}
 	if errors.Is(err, ErrQueueFull) {
 		return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable", "backtest queue is full, try again later")
 	}

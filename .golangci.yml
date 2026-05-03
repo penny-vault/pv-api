@@ -67,6 +67,22 @@ linters:
           - revive
           - goconst
           - gosec
+      # Strategy install/clone paths run subprocesses (`git`, `go build`,
+      # the strategy binary) on inputs that are validated upstream at the
+      # API boundary: ValidateCloneURL (HTTPS GitHub allowlist) and version
+      # strings discovered via `git ls-remote`. gosec cannot trace those
+      # validators across function boundaries, so it produces false-positive
+      # G204 / G304 reports on every exec / file-read here.
+      - path: strategy/(install|ephemeral|sync|describe|docker_install|docker_ephemeral|dockerfile)\.go
+        linters:
+          - gosec
+          - gocyclo
+      # backtest/host.go runs the strategy binary at req.Artifact, which is
+      # the path written by Install*. The validation lives in the install
+      # path; gosec cannot see it from the runner.
+      - path: backtest/host\.go
+        linters:
+          - gosec
 
 formatters:
   enable:

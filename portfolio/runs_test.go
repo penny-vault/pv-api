@@ -86,6 +86,20 @@ var _ = Describe("PoolRunStore", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(runs)).To(BeNumerically(">=", 1))
 	})
+
+	It("rejects a second queued run with ErrRunInFlight", func() {
+		// Create one queued run, then try to create another. The partial unique
+		// index should reject the second insert and PoolRunStore translates the
+		// 23505 violation to portfolio.ErrRunInFlight.
+		first, err := store.CreateRun(context.Background(), portfolioID, "queued")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() {
+			_, _ = pool.Exec(context.Background(), `DELETE FROM backtest_runs WHERE id=$1`, first.ID)
+		})
+
+		_, err = store.CreateRun(context.Background(), portfolioID, "queued")
+		Expect(err).To(MatchError(portfolio.ErrRunInFlight))
+	})
 })
 
 var _ = Describe("PoolStore run_retention", Ordered, func() {

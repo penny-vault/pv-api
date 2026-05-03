@@ -17,6 +17,7 @@ package strategy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,14 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/rs/zerolog/log"
 )
+
+// ErrInvalidRefreshTime is returned by NewStatsRefresher when cfg.RefreshTime
+// is not in HH:MM (24-hour) form or carries out-of-range hour/minute values.
+var ErrInvalidRefreshTime = errors.New("invalid RefreshTime: expected HH:MM")
+
+// ErrNoInstalledArtifact is returned by RunOne when the strategy row has not
+// recorded a successful install (artifact_ref or artifact_kind is null).
+var ErrNoInstalledArtifact = errors.New("strategy has no installed artifact")
 
 // StatRunner executes a strategy artifact and writes a SQLite snapshot to OutPath.
 // It is a narrow interface over backtest.Runner that avoids importing the backtest
@@ -106,7 +115,7 @@ func NewStatsRefresher(store StatsStore, runner StatRunner, readKpis SnapshotKpi
 	}
 	var h, m int
 	if n, err := fmt.Sscanf(cfg.RefreshTime, "%d:%d", &h, &m); err != nil || n != 2 || h < 0 || h > 23 || m < 0 || m > 59 {
-		return nil, fmt.Errorf("invalid RefreshTime %q: expected HH:MM", cfg.RefreshTime)
+		return nil, fmt.Errorf("%w: %q", ErrInvalidRefreshTime, cfg.RefreshTime)
 	}
 	return &StatsRefresher{
 		store:       store,
@@ -172,9 +181,9 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 		return fmt.Errorf("loading strategy %s: %w", shortCode, err)
 	}
 	if s.ArtifactRef == nil || s.ArtifactKind == nil {
-		return fmt.Errorf("strategy %s has no installed artifact", shortCode)
+		return fmt.Errorf("%w: %s", ErrNoInstalledArtifact, shortCode)
 	}
-	if *s.ArtifactKind == "image" {
+	if *s.ArtifactKind == artifactKindImage {
 		log.Warn().Str("short_code", shortCode).
 			Msg("stats skipped: docker runner mode not yet supported for stats")
 		return nil

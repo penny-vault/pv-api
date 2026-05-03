@@ -90,6 +90,5 @@ func setupLogging(conf logConf) {
 	}
 
 	// setup stack marshaler
-	//nolint:reassign
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 }

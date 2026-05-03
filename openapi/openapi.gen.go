@@ -127,6 +127,21 @@ func (e PortfolioStatus) Valid() bool {
 	}
 }
 
+// Defines values for RecalculatingResponseStatus.
+const (
+	RecalculatingResponseStatusRecalculating RecalculatingResponseStatus = "recalculating"
+)
+
+// Valid indicates whether the value is a known member of the RecalculatingResponseStatus enum.
+func (e RecalculatingResponseStatus) Valid() bool {
+	switch e {
+	case RecalculatingResponseStatusRecalculating:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReturnRowKind.
 const (
 	ReturnRowKindBenchmark    ReturnRowKind = "benchmark"
@@ -933,6 +948,30 @@ type Problem struct {
 	Type *string `json:"type,omitempty"`
 }
 
+// RecalculatingResponse Returned with a `202 Accepted` status from the snapshot-reading
+// endpoints when the portfolio's run database is missing and a
+// recompute has been queued. Clients should poll `pollUrl` until the
+// underlying run reaches a terminal status, then retry the original
+// request.
+type RecalculatingResponse struct {
+	// Message Human-readable explanation suitable for surfacing in a UI.
+	Message *string `json:"message,omitempty"`
+
+	// PollUrl URL to GET for run status (`/portfolios/{slug}/runs/{runId}`).
+	PollUrl       string `json:"pollUrl"`
+	PortfolioSlug string `json:"portfolioSlug"`
+
+	// RunId ID of the queued or in-flight backtest run.
+	RunId     openapi_types.UUID `json:"runId"`
+	RunStatus RunStatus          `json:"runStatus"`
+
+	// Status Always the literal `recalculating`.
+	Status RecalculatingResponseStatus `json:"status"`
+}
+
+// RecalculatingResponseStatus Always the literal `recalculating`.
+type RecalculatingResponseStatus string
+
 // ReturnRowKind Which line in the trailing returns table.
 type ReturnRowKind string
 
@@ -1053,6 +1092,13 @@ type Conflict = Problem
 
 // NotFound RFC 7807 Problem Details.
 type NotFound = Problem
+
+// Recalculating Returned with a `202 Accepted` status from the snapshot-reading
+// endpoints when the portfolio's run database is missing and a
+// recompute has been queued. Clients should poll `pollUrl` until the
+// underlying run reaches a terminal status, then retry the original
+// request.
+type Recalculating = RecalculatingResponse
 
 // ServerError RFC 7807 Problem Details.
 type ServerError = Problem

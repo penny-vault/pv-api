@@ -47,12 +47,16 @@ type countingDispatcher struct {
 	calls       atomic.Int64
 	runID       uuid.UUID
 	err         error
+	onSubmit    func(portfolioID uuid.UUID) // hook fired before returning; lets tests simulate concurrent inserts
 	SubmitCalls []uuid.UUID
 }
 
 func (d *countingDispatcher) Submit(_ context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
 	d.calls.Add(1)
 	d.SubmitCalls = append(d.SubmitCalls, portfolioID)
+	if d.onSubmit != nil {
+		d.onSubmit(portfolioID)
+	}
 	return d.runID, d.err
 }
 
@@ -68,6 +72,7 @@ type applyUpgradeCall struct {
 // fakeStore is a trivial in-memory implementation of portfolio.Store.
 type fakeStore struct {
 	rows []portfolio.Portfolio
+	runs map[uuid.UUID][]portfolio.Run
 
 	// ApplyUpgrade call recording.
 	ApplyUpgradeCalls []applyUpgradeCall
@@ -143,8 +148,8 @@ func (f *fakeStore) UpdateRunFailed(_ context.Context, _ uuid.UUID, _ string, _ 
 	return nil
 }
 
-func (f *fakeStore) ListRuns(_ context.Context, _ uuid.UUID) ([]portfolio.Run, error) {
-	return nil, nil
+func (f *fakeStore) ListRuns(_ context.Context, portfolioID uuid.UUID) ([]portfolio.Run, error) {
+	return f.runs[portfolioID], nil
 }
 
 func (f *fakeStore) GetRun(_ context.Context, _, _ uuid.UUID) (portfolio.Run, error) {
@@ -690,22 +695,24 @@ var _ = Describe("Handler.Summary", func() {
 		app    *fiber.App
 		store  *fakeStore
 		opener *fakeSnapshotOpener
+		disp   *countingDispatcher
 		sub    = "auth0|owner"
 	)
 
 	BeforeEach(func() {
 		store = &fakeStore{}
 		opener = &fakeSnapshotOpener{readers: map[string]portfolio.SnapshotReader{}}
+		disp = &countingDispatcher{runID: uuid.Must(uuid.NewV7())}
 		app = fiber.New(fiber.Config{JSONEncoder: sonic.Marshal, JSONDecoder: sonic.Unmarshal})
 		app.Use(func(c fiber.Ctx) error {
 			c.Locals(types.AuthSubjectKey{}, sub)
 			return c.Next()
 		})
-		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, nil, nil, nil, strategy.EphemeralOptions{})
+		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, disp, nil, nil, strategy.EphemeralOptions{})
 		app.Get("/portfolios/:slug/summary", h.Summary)
 	})
 
-	It("returns 404 with 'no successful run' when status=pending", func() {
+	It("returns 202 recalculating when status=pending and queues a fresh run", func() {
 		store.rows = []portfolio.Portfolio{{
 			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
 			Status: portfolio.StatusPending, SnapshotPath: nil,
@@ -714,10 +721,83 @@ var _ = Describe("Handler.Summary", func() {
 		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
 		resp, err := app.Test(req)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
 
 		body, _ := io.ReadAll(resp.Body)
-		Expect(string(body)).To(ContainSubstring("no successful run"))
+		var got openapi.RecalculatingResponse
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.Status).To(Equal(openapi.RecalculatingResponseStatusRecalculating))
+		Expect(got.PortfolioSlug).To(Equal("s1"))
+		Expect(got.RunStatus).To(Equal(openapi.RunStatus("queued")))
+		Expect(got.PollUrl).To(ContainSubstring("/portfolios/s1/runs/"))
+	})
+
+	It("returns 202 and reuses an in-flight run instead of submitting again", func() {
+		pid := uuid.Must(uuid.NewV7())
+		inflightRun := uuid.Must(uuid.NewV7())
+		store.rows = []portfolio.Portfolio{{
+			ID: pid, OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusRunning, SnapshotPath: nil,
+		}}
+		store.runs = map[uuid.UUID][]portfolio.Run{
+			pid: {{ID: inflightRun, PortfolioID: pid, Status: "running"}},
+		}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(0)))
+
+		body, _ := io.ReadAll(resp.Body)
+		var got openapi.RecalculatingResponse
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.RunId.String()).To(Equal(inflightRun.String()))
+		Expect(got.RunStatus).To(Equal(openapi.RunStatus("running")))
+	})
+
+	It("returns 202 when snapshot path is set but the file cannot be opened", func() {
+		path := "/missing/snap.sqlite"
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusReady, SnapshotPath: &path,
+		}}
+		// opener.readers does not contain the path → Open returns error.
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
+	})
+
+	It("returns 202 with the race-winner's run id when Submit races against the unique index", func() {
+		pid := uuid.Must(uuid.NewV7())
+		raceWinner := uuid.Must(uuid.NewV7())
+		store.rows = []portfolio.Portfolio{{
+			ID: pid, OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusPending, SnapshotPath: nil,
+		}}
+		// Simulate the race: ListRuns initially returns nothing, then a concurrent
+		// caller inserts the run row and our Submit fails with ErrRunInFlight.
+		disp.err = portfolio.ErrRunInFlight
+		disp.onSubmit = func(p uuid.UUID) {
+			store.runs = map[uuid.UUID][]portfolio.Run{
+				p: {{ID: raceWinner, PortfolioID: p, Status: "queued"}},
+			}
+		}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
+
+		body, _ := io.ReadAll(resp.Body)
+		var got openapi.RecalculatingResponse
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.RunId.String()).To(Equal(raceWinner.String()))
 	})
 
 	It("returns 200 with the summary payload when the snapshot opens", func() {
@@ -764,7 +844,7 @@ var _ = Describe("Handler.Metrics", func() {
 		app.Get("/portfolios/:slug/metrics", h.Metrics)
 	})
 
-	It("returns 404 when portfolio has no snapshot", func() {
+	It("returns 501 when no dispatcher is configured and snapshot is missing", func() {
 		store.rows = []portfolio.Portfolio{{
 			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
 			Status: portfolio.StatusPending, SnapshotPath: nil,
@@ -772,7 +852,7 @@ var _ = Describe("Handler.Metrics", func() {
 		req := httptest.NewRequest("GET", "/portfolios/s1/metrics", nil)
 		resp, err := app.Test(req)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotImplemented))
 	})
 
 	It("returns 200 with metrics payload", func() {
@@ -938,7 +1018,7 @@ func buildFakeStrategyBin() string {
 	dir, err := os.MkdirTemp("", "fakebin-*")
 	Expect(err).NotTo(HaveOccurred())
 	bin := filepath.Join(dir, "strategy.bin")
-	cmd := exec.Command("go", "build", "-o", bin, ".") //nolint:gosec // test helper; path is internal
+	cmd := exec.Command("go", "build", "-o", bin, ".")
 	cmd.Dir = src
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
@@ -966,7 +1046,7 @@ var _ = Describe("POST /portfolios with strategyCloneUrl", func() {
 	It("returns 201 and persists the portfolio on the happy path", func() {
 		fakeBuilder := func(_ context.Context, _ strategy.EphemeralOptions) (string, func(), error) {
 			bin := buildFakeStrategyBin()
-			return bin, func() { os.RemoveAll(filepath.Dir(bin)) }, nil //nolint:errcheck
+			return bin, func() { os.RemoveAll(filepath.Dir(bin)) }, nil
 		}
 		urlValidator := func(string) error { return nil }
 

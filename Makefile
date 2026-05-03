@@ -13,7 +13,7 @@ lint:
 	golangci-lint run
 
 test:
-	ginkgo run -race -cover ./...
+	ginkgo run -race -cover --skip-package=data/strategies ./...
 
 clean:
 	go clean

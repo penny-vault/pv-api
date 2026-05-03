@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 // ErrNotFound is returned when a portfolio lookup does not match any row
@@ -233,7 +234,11 @@ func MarkRunningTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID u
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	defer func() {
+		if rerr := tx.Rollback(ctx); rerr != nil && !errors.Is(rerr, pgx.ErrTxClosed) {
+			log.Warn().Err(rerr).Msg("portfolio: tx rollback failed")
+		}
+	}()
 	if _, err := tx.Exec(ctx,
 		`UPDATE portfolios SET status='running', updated_at=NOW() WHERE id=$1`, portfolioID); err != nil {
 		return err
@@ -254,7 +259,11 @@ func MarkReadyTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uui
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	defer func() {
+		if rerr := tx.Rollback(ctx); rerr != nil && !errors.Is(rerr, pgx.ErrTxClosed) {
+			log.Warn().Err(rerr).Msg("portfolio: tx rollback failed")
+		}
+	}()
 	const portfolioQ = `
 		UPDATE portfolios SET
 			status='ready',
@@ -290,7 +299,11 @@ func MarkFailedTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uu
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // rollback on failure is best-effort
+	defer func() {
+		if rerr := tx.Rollback(ctx); rerr != nil && !errors.Is(rerr, pgx.ErrTxClosed) {
+			log.Warn().Err(rerr).Msg("portfolio: tx rollback failed")
+		}
+	}()
 	if _, err := tx.Exec(ctx,
 		`UPDATE portfolios SET status='failed', last_error=$2, updated_at=NOW() WHERE id=$1`,
 		portfolioID, errMsg); err != nil {

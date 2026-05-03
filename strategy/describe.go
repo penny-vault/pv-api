@@ -30,7 +30,7 @@ import (
 // Errors include the captured stderr.
 func RunDescribe(ctx context.Context, binPath string) ([]byte, error) {
 	var out, errOut bytes.Buffer
-	cmd := exec.CommandContext(ctx, binPath, "describe", "--json") //nolint:gosec // binPath from EphemeralBuild; internal path
+	cmd := exec.CommandContext(ctx, binPath, "describe", "--json")
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
 	if err := cmd.Run(); err != nil {

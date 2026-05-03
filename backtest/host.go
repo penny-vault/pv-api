@@ -48,7 +48,7 @@ func (r *HostRunner) Run(ctx context.Context, req RunRequest) error {
 		args = append(args, "--json")
 	}
 	args = append(args, req.Args...)
-	cmd := exec.CommandContext(timeoutCtx, req.Artifact, args...) //nolint:gosec // G204: artifact path comes from admin-controlled strategy registry
+	cmd := exec.CommandContext(timeoutCtx, req.Artifact, args...)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

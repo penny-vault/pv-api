@@ -143,7 +143,11 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 // zerolog log-writer sinks and keeps a bounded tail of stderr for error
 // messages.
 func streamContainerLogs(r io.ReadCloser, tail *tailWriter, progressWriter io.Writer) {
-	defer r.Close() //nolint:errcheck // log stream close is best-effort
+	defer func() {
+		if err := r.Close(); err != nil {
+			log.Warn().Err(err).Msg("backtest: docker log stream close failed")
+		}
+	}()
 	logW := newLogWriter("strategy-stdout")
 	var stdoutW io.Writer = logW
 	if progressWriter != nil {

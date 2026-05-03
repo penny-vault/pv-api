@@ -83,9 +83,9 @@ type SyncerOptions struct {
 // mode produces. Unknown modes treat as "binary" (host default).
 func expectedArtifactKind(mode string) string {
 	if mode == "docker" {
-		return "image"
+		return artifactKindImage
 	}
-	return "binary"
+	return artifactKindBinary
 }
 
 // Syncer orchestrates periodic registry reconciliation.
@@ -201,10 +201,10 @@ func (s *Syncer) Tick(ctx context.Context) error {
 
 func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string) {
 	installer := s.opts.Installer
-	kind := "binary"
+	kind := artifactKindBinary
 	if s.opts.RunnerMode == "docker" {
 		installer = s.opts.DockerInstaller
-		kind = "image"
+		kind = artifactKindImage
 	}
 
 	// failureKey is a best-effort key used only for failure rows where we could
@@ -288,8 +288,12 @@ func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string
 	}
 	if s.opts.Stats != nil {
 		sc := shortCode
+		// Detach from the install request's lifetime so a finished request
+		// doesn't cancel the post-install stats refresh. Values (logger,
+		// trace ids) on ctx are preserved.
+		statsCtx := context.WithoutCancel(ctx)
 		go func() {
-			if err := s.opts.Stats.RunOne(context.Background(), sc); err != nil {
+			if err := s.opts.Stats.RunOne(statsCtx, sc); err != nil {
 				log.Warn().Err(err).Str("short_code", sc).Msg("post-install stats failed")
 			}
 		}()
@@ -302,7 +306,7 @@ func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string
 // implementation of ResolveVerFunc. cloneURL comes from GitHub Search
 // results, not direct user input.
 func ResolveVerWithGit(ctx context.Context, cloneURL string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--sort=-v:refname", cloneURL) //nolint:gosec // cloneURL sourced from GitHub Search
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--sort=-v:refname", cloneURL)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out

@@ -1,3 +1,18 @@
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package alert
 
 import (
@@ -205,7 +220,11 @@ func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snap
 	if err != nil {
 		return
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			log.Warn().Err(err).Msg("alert: snapshot close")
+		}
+	}()
 
 	curBench, err := r.BenchmarkCurrentValue(ctx)
 	if err != nil || curBench <= 0 {
@@ -232,7 +251,9 @@ func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snap
 
 	if p.HasDelta && p.DeltaPct != "" {
 		portPctVal := 0.0
-		fmt.Sscanf(p.DeltaPct, "%f%%", &portPctVal)
+		if _, err := fmt.Sscanf(p.DeltaPct, "%f%%", &portPctVal); err != nil {
+			log.Warn().Err(err).Str("delta_pct", p.DeltaPct).Msg("alert: parse portfolio delta percent")
+		}
 		rel := portPctVal - benchPct
 		relSign := "+"
 		relColor := "#22c55e"
@@ -251,7 +272,11 @@ func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPat
 	if err != nil {
 		return
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			log.Warn().Err(err).Msg("alert: snapshot close")
+		}
+	}()
 
 	short, err := r.ShortTermReturns(ctx)
 	if err != nil {
@@ -274,7 +299,11 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, p
 	if err != nil {
 		return
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			log.Warn().Err(err).Msg("alert: snapshot close")
+		}
+	}()
 
 	cur, err := r.CurrentHoldings(ctx)
 	if err != nil || cur == nil {

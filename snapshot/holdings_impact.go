@@ -17,6 +17,7 @@ package snapshot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -33,6 +34,14 @@ const (
 	minTopN           = 1
 	maxTopN           = 50
 )
+
+// ErrZeroV0 is returned when a holdings-impact period's opening equity is zero,
+// which would otherwise produce a division-by-zero when computing contributions.
+var ErrZeroV0 = errors.New("holdings-impact: opening equity is zero")
+
+// ErrResidualCheck is returned when the residual of the P&L vs equity-change
+// identity exceeds residualTolerance, indicating an internal accounting bug.
+var ErrResidualCheck = errors.New("holdings-impact: residual check failed")
 
 // HoldingsImpact returns per-ticker contribution to portfolio return across
 // canonical periods (inception, 5y, 3y, 1y, ytd). Items per period are capped
@@ -106,26 +115,50 @@ type periodWindow struct {
 // in three passes, returning one timelineDay per perf_data row keyed by date.
 // Accepts both legacy (portfolio_value) and pvbt (PortfolioEquity) metric names.
 func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay, error) {
-	byDate := map[string]*timelineDay{}
+	byDate, order, err := r.loadHoldingsImpactPerfDays(ctx)
+	if err != nil {
+		return nil, err
+	}
+	positionRowCount, err := r.mergeHoldingsImpactPositions(ctx, byDate)
+	if err != nil {
+		return nil, err
+	}
+	if positionRowCount == 0 {
+		// Pre-v5 snapshots may have perf_data without positions_daily;
+		// surface as a 404 rather than emitting a 500 from the residual check.
+		return nil, ErrNotFound
+	}
+	if err := r.mergeHoldingsImpactTransactions(ctx, byDate); err != nil {
+		return nil, err
+	}
+	out := make([]timelineDay, 0, len(order))
+	for _, ds := range order {
+		out = append(out, *byDate[ds])
+	}
+	return out, nil
+}
 
-	// Pass 1: portfolio equity — defines the set of dates.
-	pfRows, err := r.db.QueryContext(ctx,
+// loadHoldingsImpactPerfDays runs the perf_data pass, building one
+// timelineDay per portfolio-equity row keyed by date.
+func (r *Reader) loadHoldingsImpactPerfDays(ctx context.Context) (map[string]*timelineDay, []string, error) {
+	rows, err := r.db.QueryContext(ctx,
 		`SELECT date, value FROM perf_data
 		  WHERE `+portfolioValueClause+` ORDER BY date ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("holdings-impact perf query: %w", err)
+		return nil, nil, fmt.Errorf("holdings-impact perf query: %w", err)
 	}
-	defer func() { _ = pfRows.Close() }()
+	defer func() { _ = rows.Close() }()
+	byDate := map[string]*timelineDay{}
 	var order []string
-	for pfRows.Next() {
+	for rows.Next() {
 		var ds string
 		var v float64
-		if err := pfRows.Scan(&ds, &v); err != nil {
-			return nil, fmt.Errorf("holdings-impact perf scan: %w", err)
+		if err := rows.Scan(&ds, &v); err != nil {
+			return nil, nil, fmt.Errorf("holdings-impact perf scan: %w", err)
 		}
 		t, perr := time.Parse(dateLayout, ds)
 		if perr != nil {
-			return nil, fmt.Errorf("holdings-impact perf date %q: %w", ds, perr)
+			return nil, nil, fmt.Errorf("holdings-impact perf date %q: %w", ds, perr)
 		}
 		byDate[ds] = &timelineDay{
 			date:      t,
@@ -135,24 +168,28 @@ func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay,
 		}
 		order = append(order, ds)
 	}
-	if err := pfRows.Err(); err != nil {
-		return nil, fmt.Errorf("holdings-impact perf iterate: %w", err)
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("holdings-impact perf iterate: %w", err)
 	}
+	return byDate, order, nil
+}
 
-	// Pass 2: positions_daily — merge into existing days; skip dates with no
-	// perf_data row.
-	posRows, err := r.db.QueryContext(ctx,
+// mergeHoldingsImpactPositions merges positions_daily rows into byDate,
+// returning the total number of position rows seen across all dates (not
+// only those with a matching perf_data day).
+func (r *Reader) mergeHoldingsImpactPositions(ctx context.Context, byDate map[string]*timelineDay) (int, error) {
+	rows, err := r.db.QueryContext(ctx,
 		`SELECT date, ticker, figi, market_value, quantity FROM positions_daily ORDER BY date ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("holdings-impact positions query: %w", err)
+		return 0, fmt.Errorf("holdings-impact positions query: %w", err)
 	}
-	defer func() { _ = posRows.Close() }()
+	defer func() { _ = rows.Close() }()
 	var positionRowCount int
-	for posRows.Next() {
+	for rows.Next() {
 		var ds, ticker, figi string
 		var mv, qty float64
-		if err := posRows.Scan(&ds, &ticker, &figi, &mv, &qty); err != nil {
-			return nil, fmt.Errorf("holdings-impact positions scan: %w", err)
+		if err := rows.Scan(&ds, &ticker, &figi, &mv, &qty); err != nil {
+			return 0, fmt.Errorf("holdings-impact positions scan: %w", err)
 		}
 		positionRowCount++
 		day, ok := byDate[ds]
@@ -161,27 +198,26 @@ func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay,
 		}
 		day.positions[tickerKey{ticker: ticker, figi: figi}] = posDay{mv: mv, qty: qty}
 	}
-	if err := posRows.Err(); err != nil {
-		return nil, fmt.Errorf("holdings-impact positions iterate: %w", err)
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("holdings-impact positions iterate: %w", err)
 	}
-	// Pre-v5 snapshots may have perf_data without positions_daily; surface as
-	// a 404 (ErrNotFound) rather than letting the residual check emit a 500.
-	if positionRowCount == 0 {
-		return nil, ErrNotFound
-	}
+	return positionRowCount, nil
+}
 
-	// Pass 3: transactions — attribute cash-flow effects to ticker and $CASH.
-	txRows, err := r.db.QueryContext(ctx,
+// mergeHoldingsImpactTransactions attributes each transaction's cash-flow
+// effects to the appropriate ticker and the $CASH bucket on its date.
+func (r *Reader) mergeHoldingsImpactTransactions(ctx context.Context, byDate map[string]*timelineDay) error {
+	rows, err := r.db.QueryContext(ctx,
 		`SELECT date, type, ticker, figi, amount FROM transactions ORDER BY date ASC, rowid ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("holdings-impact transactions query: %w", err)
+		return fmt.Errorf("holdings-impact transactions query: %w", err)
 	}
-	defer func() { _ = txRows.Close() }()
-	for txRows.Next() {
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
 		var ds, typeStr, ticker, figi string
 		var amount float64
-		if err := txRows.Scan(&ds, &typeStr, &ticker, &figi, &amount); err != nil {
-			return nil, fmt.Errorf("holdings-impact transactions scan: %w", err)
+		if err := rows.Scan(&ds, &typeStr, &ticker, &figi, &amount); err != nil {
+			return fmt.Errorf("holdings-impact transactions scan: %w", err)
 		}
 		day, ok := byDate[ds]
 		if !ok {
@@ -189,15 +225,10 @@ func (r *Reader) loadHoldingsImpactTimeline(ctx context.Context) ([]timelineDay,
 		}
 		applyTxFlow(day, typeStr, ticker, figi, amount)
 	}
-	if err := txRows.Err(); err != nil {
-		return nil, fmt.Errorf("holdings-impact transactions iterate: %w", err)
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("holdings-impact transactions iterate: %w", err)
 	}
-
-	out := make([]timelineDay, 0, len(order))
-	for _, ds := range order {
-		out = append(out, *byDate[ds])
-	}
-	return out, nil
+	return nil
 }
 
 // applyTxFlow attributes a transaction's amount to the relevant flow buckets.
@@ -304,68 +335,14 @@ func computePeriod(timeline []timelineDay, w periodWindow, topN int) (*openapi.H
 	v1 := timeline[w.endIdx].v
 
 	if v0 == 0 {
-		return nil, fmt.Errorf("holdings-impact period %s: V0 is zero", w.id)
+		return nil, fmt.Errorf("%w: period %s", ErrZeroV0, w.id)
 	}
 
-	// Collect every ticker that appears on any day in the window.
-	keys := map[tickerKey]struct{}{}
-	for i := w.startIdx; i <= w.endIdx; i++ {
-		for k := range timeline[i].positions {
-			keys[k] = struct{}{}
-		}
-	}
-
-	items := make([]openapi.HoldingsImpactItem, 0, len(keys))
-	var totalPNL float64
-
-	for k := range keys {
-		mv0 := timeline[w.startIdx].positions[k].mv
-		mv1 := timeline[w.endIdx].positions[k].mv
-
-		// flowSum is summed on (t0, t1] — transactions on t0 itself are
-		// excluded, because mv0 already reflects the post-t0-transaction
-		// balance.
-		var flowSum float64
-		for i := w.startIdx + 1; i <= w.endIdx; i++ {
-			flowSum += timeline[i].flows[k]
-		}
-		pnl := (mv1 - mv0) - flowSum
-		totalPNL += pnl
-
-		var weightSum float64
-		var weightCount int
-		var holdingDays int64
-		for i := w.startIdx; i <= w.endIdx; i++ {
-			p := timeline[i].positions[k]
-			if timeline[i].v > 0 {
-				weightSum += p.mv / timeline[i].v
-				weightCount++
-			}
-			if p.mv != 0 || p.qty != 0 {
-				holdingDays++
-			}
-		}
-		avgWeight := 0.0
-		if weightCount > 0 {
-			avgWeight = weightSum / float64(weightCount)
-		}
-
-		item := openapi.HoldingsImpactItem{
-			Ticker:       k.ticker,
-			Contribution: pnl / v0, // full precision; rounded after split below
-			AvgWeight:    round6(avgWeight),
-			HoldingDays:  holdingDays,
-		}
-		if k.figi != "" {
-			figi := k.figi
-			item.Figi = &figi
-		}
-		items = append(items, item)
-	}
+	items, totalPNL := computePeriodItems(timeline, w, v0)
 
 	residual := (v1 - v0) - totalPNL
 	if math.Abs(residual) > residualTolerance {
-		return nil, fmt.Errorf("holdings-impact residual check failed for period %s: residual=%g", w.id, residual)
+		return nil, fmt.Errorf("%w: period %s residual=%g", ErrResidualCheck, w.id, residual)
 	}
 
 	sort.SliceStable(items, func(i, j int) bool {
@@ -419,4 +396,69 @@ func computePeriod(timeline []timelineDay, w periodWindow, topN int) (*openapi.H
 // round6 rounds x to 6 decimal places.
 func round6(x float64) float64 {
 	return math.Round(x*1e6) / 1e6
+}
+
+// computePeriodItems builds the per-ticker contribution items and the total
+// P&L for a period window. Returns the unsorted items along with their
+// summed pnl so the caller can verify the residual identity.
+func computePeriodItems(timeline []timelineDay, w periodWindow, v0 float64) ([]openapi.HoldingsImpactItem, float64) {
+	keys := map[tickerKey]struct{}{}
+	for i := w.startIdx; i <= w.endIdx; i++ {
+		for k := range timeline[i].positions {
+			keys[k] = struct{}{}
+		}
+	}
+	items := make([]openapi.HoldingsImpactItem, 0, len(keys))
+	var totalPNL float64
+	for k := range keys {
+		item, pnl := computePeriodItem(timeline, w, k, v0)
+		totalPNL += pnl
+		items = append(items, item)
+	}
+	return items, totalPNL
+}
+
+// computePeriodItem returns the per-ticker holdings-impact item plus the
+// raw P&L contribution (used to verify the residual identity).
+func computePeriodItem(timeline []timelineDay, w periodWindow, k tickerKey, v0 float64) (openapi.HoldingsImpactItem, float64) {
+	mv0 := timeline[w.startIdx].positions[k].mv
+	mv1 := timeline[w.endIdx].positions[k].mv
+
+	// flowSum is summed on (t0, t1] — transactions on t0 itself are excluded,
+	// since mv0 already reflects the post-t0-transaction balance.
+	var flowSum float64
+	for i := w.startIdx + 1; i <= w.endIdx; i++ {
+		flowSum += timeline[i].flows[k]
+	}
+	pnl := (mv1 - mv0) - flowSum
+
+	var weightSum float64
+	var weightCount int
+	var holdingDays int64
+	for i := w.startIdx; i <= w.endIdx; i++ {
+		p := timeline[i].positions[k]
+		if timeline[i].v > 0 {
+			weightSum += p.mv / timeline[i].v
+			weightCount++
+		}
+		if p.mv != 0 || p.qty != 0 {
+			holdingDays++
+		}
+	}
+	avgWeight := 0.0
+	if weightCount > 0 {
+		avgWeight = weightSum / float64(weightCount)
+	}
+
+	item := openapi.HoldingsImpactItem{
+		Ticker:       k.ticker,
+		Contribution: pnl / v0, // full precision; rounded after split below
+		AvgWeight:    round6(avgWeight),
+		HoldingDays:  holdingDays,
+	}
+	if k.figi != "" {
+		figi := k.figi
+		item.Figi = &figi
+	}
+	return item, pnl
 }

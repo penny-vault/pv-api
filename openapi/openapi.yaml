@@ -177,6 +177,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PortfolioPerformance'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -218,6 +220,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransactionsResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -456,6 +460,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PortfolioSummary'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -479,6 +485,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Drawdown'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -502,6 +510,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PortfolioStatistic'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -621,6 +631,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PortfolioMetrics'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -644,6 +656,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TrailingReturnRow'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -665,6 +679,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -692,6 +708,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsAsOfResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -727,6 +745,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsHistoryResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -757,6 +777,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HoldingsImpactResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1028,6 +1050,16 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    Recalculating:
+      description: |
+        The snapshot for this portfolio is missing or has been evicted, and a
+        backtest run has been queued (or is already in flight) to rebuild it.
+        The body carries the run id and a poll URL the client can GET to
+        observe progress to completion.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RecalculatingResponse'
 
   schemas:
     # ============ Error ============
@@ -1701,6 +1733,36 @@ components:
           minimum: 1
           default: 2
           description: Number of recent backtest runs to retain. Defaults to 2; minimum 1.
+
+    RecalculatingResponse:
+      type: object
+      description: |
+        Returned with a `202 Accepted` status from the snapshot-reading
+        endpoints when the portfolio's run database is missing and a
+        recompute has been queued. Clients should poll `pollUrl` until the
+        underlying run reaches a terminal status, then retry the original
+        request.
+      required: [status, runId, portfolioSlug, runStatus, pollUrl]
+      properties:
+        status:
+          type: string
+          enum: [recalculating]
+          description: Always the literal `recalculating`.
+        runId:
+          type: string
+          format: uuid
+          description: ID of the queued or in-flight backtest run.
+        portfolioSlug:
+          type: string
+        runStatus:
+          $ref: '#/components/schemas/RunStatus'
+          description: Lifecycle status of the run at the time of the response.
+        pollUrl:
+          type: string
+          description: URL to GET for run status (`/portfolios/{slug}/runs/{runId}`).
+        message:
+          type: string
+          description: Human-readable explanation suitable for surfacing in a UI.
 
     BacktestRun:
       type: object

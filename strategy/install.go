@@ -66,7 +66,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	// Clone at the specific tag/SHA. Inputs come from GitHub Search results
 	// (CloneURL) + `git ls-remote` (Version) + internal config (DestDir) —
 	// not direct user input.
-	cloneCmd := exec.CommandContext(ctx, "git", "clone", "--depth=1", //nolint:gosec // args sourced from trusted sync state
+	cloneCmd := exec.CommandContext(ctx, "git", "clone", "--depth=1",
 		"--branch", req.Version, req.CloneURL, req.DestDir)
 	var cloneOut bytes.Buffer
 	cloneCmd.Stdout = &cloneOut
@@ -78,7 +78,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 
 	// Build to a temp name; we rename once describe tells us the real short code.
 	tmpBinPath := filepath.Join(req.DestDir, "strategy.bin")
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", tmpBinPath, ".") //nolint:gosec // tmpBinPath/DestDir are internal paths
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", tmpBinPath, ".")
 	buildCmd.Dir = req.DestDir
 	var buildOut bytes.Buffer
 	buildCmd.Stdout = &buildOut
@@ -89,7 +89,7 @@ func Install(ctx context.Context, req InstallRequest) (*InstallResult, error) {
 	log.Info().Str("clone_url", req.CloneURL).Msg("build complete; running describe")
 
 	// Describe. tmpBinPath is an internal path we just wrote above.
-	describeCmd := exec.CommandContext(ctx, tmpBinPath, "describe", "--json") //nolint:gosec // tmpBinPath is internal
+	describeCmd := exec.CommandContext(ctx, tmpBinPath, "describe", "--json")
 	var describeOut bytes.Buffer
 	describeCmd.Stdout = &describeOut
 	describeCmd.Stderr = os.Stderr

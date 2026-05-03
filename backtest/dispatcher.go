@@ -116,7 +116,13 @@ func (d *Dispatcher) Start(parent context.Context) {
 	if !d.started.CompareAndSwap(false, true) {
 		return
 	}
-	d.ctx, d.cancel = context.WithCancel(parent) //nolint:gosec // G118: cancel stored in d.cancel and called by Shutdown
+	ctx, cancel := context.WithCancel(parent)
+	d.ctx = ctx
+	d.cancel = cancel
+	// Tie cancel to parent's lifetime so it always fires even if Shutdown
+	// is never called (process exit). Shutdown also calls d.cancel; that
+	// invocation is idempotent.
+	context.AfterFunc(parent, cancel)
 	for i := 0; i < d.cfg.MaxConcurrency; i++ {
 		d.wg.Add(1)
 		go d.worker()

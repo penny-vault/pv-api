@@ -22,7 +22,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -57,14 +57,14 @@ func newFakeDocker() *fakeDocker {
 	}
 }
 
-func (f *fakeDocker) ImageBuild(_ context.Context, _ io.Reader, opts types.ImageBuildOptions) (types.ImageBuildResponse, error) {
+func (f *fakeDocker) ImageBuild(_ context.Context, _ io.Reader, opts build.ImageBuildOptions) (build.ImageBuildResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.ImageBuildErr != nil {
-		return types.ImageBuildResponse{}, f.ImageBuildErr
+		return build.ImageBuildResponse{}, f.ImageBuildErr
 	}
 	f.CreatedImages = append(f.CreatedImages, opts.Tags...)
-	return types.ImageBuildResponse{
+	return build.ImageBuildResponse{
 		Body: io.NopCloser(bytes.NewBufferString(f.ImageBuildResp)),
 	}, nil
 }

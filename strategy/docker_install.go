@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/rs/zerolog/log"
@@ -83,76 +83,35 @@ func ImageTag(prefix, cloneURL, ver string) string {
 //  2. write generated Dockerfile into <DestDir>/Dockerfile
 //  3. ImageBuild, tag = ImageTag(prefix, CloneURL, Version)
 //  4. docker run --rm <image> describe --json  (short code is authoritative from the image)
-func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDeps) (*InstallResult, error) { //nolint:gocyclo // control flow is sequential; refactoring would obscure error handling
-	if req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
-		return nil, ErrInstallMissingFields
-	}
-	if deps.Client == nil {
-		return nil, ErrDockerClientNil
-	}
-	if deps.ImagePrefix == "" {
-		deps.ImagePrefix = "pvapi-strategy"
-	}
-	timeout := deps.BuildTimeout
-	if timeout <= 0 {
-		timeout = 10 * time.Minute
+func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDeps) (*InstallResult, error) {
+	if err := validateDockerInstallInputs(req, &deps); err != nil {
+		return nil, err
 	}
 
-	bctx, cancel := context.WithTimeout(ctx, timeout)
+	bctx, cancel := context.WithTimeout(ctx, deps.BuildTimeout)
 	defer cancel()
 
 	log.Info().Str("clone_url", req.CloneURL).Str("version", req.Version).Msg("cloning strategy repository")
 
-	// 1. clone.
-	cloneCmd := exec.CommandContext(bctx, "git", "clone", "--depth=1", //nolint:gosec // sourced from trusted sync state
-		"--branch", req.Version, req.CloneURL, req.DestDir)
-	var cloneOut bytes.Buffer
-	cloneCmd.Stdout = &cloneOut
-	cloneCmd.Stderr = &cloneOut
-	if err := cloneCmd.Run(); err != nil {
-		return nil, fmt.Errorf("git clone %s@%s: %w\n%s", req.CloneURL, req.Version, err, cloneOut.String())
+	if err := dockerInstallClone(bctx, req); err != nil {
+		return nil, err
 	}
 	log.Info().Str("clone_url", req.CloneURL).Msg("clone complete; writing Dockerfile")
 
-	// 2. write generated Dockerfile.
-	goVer, _ := ParseGoVersion(req.DestDir)
-	dfPath := filepath.Join(req.DestDir, "Dockerfile")
-	if err := os.WriteFile(dfPath, RenderDockerfile(goVer), 0o600); err != nil {
-		return nil, fmt.Errorf("write Dockerfile: %w", err)
+	if err := writeDockerfileIntoDir(req.DestDir); err != nil {
+		return nil, err
 	}
 
-	// 3. build.
 	tag := ImageTag(deps.ImagePrefix, req.CloneURL, req.Version)
 	log.Info().Str("clone_url", req.CloneURL).Str("image_tag", tag).Msg("building Docker image")
-	buildCtx, err := tarDir(req.DestDir)
-	if err != nil {
-		return nil, fmt.Errorf("tar build context: %w", err)
-	}
-	resp, err := deps.Client.ImageBuild(bctx, buildCtx, types.ImageBuildOptions{
-		Dockerfile: "Dockerfile",
-		Tags:       []string{tag},
-		Remove:     true,
-		PullParent: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDockerBuildFailed, err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // response body close is best-effort after read
-	buildOut, bErr := drainBuildStream(resp.Body)
-	if bErr != nil {
-		return nil, fmt.Errorf("%w: %w\n%s", ErrDockerBuildFailed, bErr, buildOut)
+	if err := buildDockerImage(bctx, deps.Client, req.DestDir, tag); err != nil {
+		return nil, err
 	}
 	log.Info().Str("image_tag", tag).Msg("Docker image built; running describe")
 
-	// 4. describe.
-	describeJSON, err := runDescribeInContainer(bctx, deps.Client, tag)
+	describeJSON, parsed, err := describeDockerImage(bctx, deps.Client, tag)
 	if err != nil {
-		return nil, fmt.Errorf("describe after build: %w", err)
-	}
-
-	var parsed Describe
-	if err := json.Unmarshal(describeJSON, &parsed); err != nil {
-		return nil, fmt.Errorf("parsing describe output: %w", err)
+		return nil, err
 	}
 
 	log.Info().
@@ -166,6 +125,91 @@ func InstallDocker(ctx context.Context, req InstallRequest, deps DockerInstallDe
 		DescribeJSON: describeJSON,
 		ShortCode:    parsed.ShortCode,
 	}, nil
+}
+
+// validateDockerInstallInputs checks the request fields and applies defaults
+// to deps. Returns one of the package's sentinel errors or nil.
+func validateDockerInstallInputs(req InstallRequest, deps *DockerInstallDeps) error {
+	if req.CloneURL == "" || req.Version == "" || req.DestDir == "" {
+		return ErrInstallMissingFields
+	}
+	if deps.Client == nil {
+		return ErrDockerClientNil
+	}
+	if deps.ImagePrefix == "" {
+		deps.ImagePrefix = "pvapi-strategy"
+	}
+	if deps.BuildTimeout <= 0 {
+		deps.BuildTimeout = 10 * time.Minute
+	}
+	return nil
+}
+
+// dockerInstallClone runs `git clone --depth=1 --branch <Version> <CloneURL> <DestDir>`,
+// surfacing combined stdout/stderr in the wrapped error on failure.
+func dockerInstallClone(ctx context.Context, req InstallRequest) error {
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth=1",
+		"--branch", req.Version, req.CloneURL, req.DestDir)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git clone %s@%s: %w\n%s", req.CloneURL, req.Version, err, out.String())
+	}
+	return nil
+}
+
+// writeDockerfileIntoDir resolves the strategy's Go version (or the default)
+// and renders the matching Dockerfile into <dir>/Dockerfile.
+func writeDockerfileIntoDir(dir string) error {
+	goVer, _ := ParseGoVersion(dir)
+	dfPath := filepath.Join(dir, "Dockerfile")
+	if err := os.WriteFile(dfPath, RenderDockerfile(goVer), 0o600); err != nil {
+		return fmt.Errorf("write Dockerfile: %w", err)
+	}
+	return nil
+}
+
+// buildDockerImage tars the build context directory and submits an ImageBuild
+// request, draining the streamed build output and surfacing failure messages.
+func buildDockerImage(ctx context.Context, c dockercli.Client, dir, tag string) error {
+	buildCtx, err := tarDir(dir)
+	if err != nil {
+		return fmt.Errorf("tar build context: %w", err)
+	}
+	resp, err := c.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
+		Dockerfile: "Dockerfile",
+		Tags:       []string{tag},
+		Remove:     true,
+		PullParent: true,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrDockerBuildFailed, err)
+	}
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Warn().Err(cerr).Str("image_tag", tag).Msg("docker install: build response close failed")
+		}
+	}()
+	buildOut, bErr := drainBuildStream(resp.Body)
+	if bErr != nil {
+		return fmt.Errorf("%w: %w\n%s", ErrDockerBuildFailed, bErr, buildOut)
+	}
+	return nil
+}
+
+// describeDockerImage runs `<image> describe --json` in a disposable
+// container and returns the raw JSON plus the parsed Describe struct.
+func describeDockerImage(ctx context.Context, c dockercli.Client, tag string) ([]byte, Describe, error) {
+	describeJSON, err := runDescribeInContainer(ctx, c, tag)
+	if err != nil {
+		return nil, Describe{}, fmt.Errorf("describe after build: %w", err)
+	}
+	var parsed Describe
+	if err := json.Unmarshal(describeJSON, &parsed); err != nil {
+		return nil, Describe{}, fmt.Errorf("parsing describe output: %w", err)
+	}
+	return describeJSON, parsed, nil
 }
 
 // tarDir packs dir (recursively) into an in-memory tar suitable as an
@@ -193,12 +237,15 @@ func tarDir(dir string) (io.Reader, error) {
 			return werr
 		}
 		if info.Mode().IsRegular() {
-			f, oerr := os.Open(path) //nolint:gosec // path is internal
+			f, oerr := os.Open(path)
 			if oerr != nil {
 				return oerr
 			}
-			defer f.Close() //nolint:errcheck // read-only file; close error is not actionable
-			if _, cerr := io.Copy(tw, f); cerr != nil {
+			_, cerr := io.Copy(tw, f)
+			if closeErr := f.Close(); closeErr != nil {
+				log.Warn().Err(closeErr).Str("path", path).Msg("docker install: tar source file close failed")
+			}
+			if cerr != nil {
 				return cerr
 			}
 		}
@@ -268,7 +315,11 @@ func runDescribeInContainer(ctx context.Context, c dockercli.Client, image strin
 	if err != nil {
 		return nil, fmt.Errorf("container logs: %w", err)
 	}
-	defer logs.Close() //nolint:errcheck // best-effort close on read-only log stream
+	defer func() {
+		if cerr := logs.Close(); cerr != nil {
+			log.Warn().Err(cerr).Str("container_id", resp.ID).Msg("docker install: log stream close failed")
+		}
+	}()
 
 	var stdout, stderr bytes.Buffer
 	if _, err := stdcopy.StdCopy(&stdout, &stderr, logs); err != nil && !errors.Is(err, io.EOF) {

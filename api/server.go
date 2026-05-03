@@ -61,7 +61,7 @@ type Config struct {
 	SnapshotOpener    portfolio.SnapshotOpener
 	ProgressHub       *progress.Hub
 	AlertChecker      alert.EmailSummarizer // optional: if nil, email-summary returns 503
-	UnsubscribeSecret string               // optional: HMAC secret for unsubscribe tokens
+	UnsubscribeSecret string                // optional: HMAC secret for unsubscribe tokens
 	Ephemeral         EphemeralConfig
 }
 

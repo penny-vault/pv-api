@@ -99,24 +99,42 @@ func (r *Reader) benchmarkTrailingRow(ctx context.Context) (openapi.TrailingRetu
 	if err != nil {
 		return openapi.TrailingReturnRow{}, err
 	}
+	if err := r.fillBenchmarkShortWindowReturns(ctx, &row, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, err
+	}
+	if err := r.fillBenchmarkAnnualizedReturns(ctx, &row, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, err
+	}
+	if err := r.fillBenchmarkSinceInception(ctx, &row, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, err
+	}
+	return row, nil
+}
 
+// fillBenchmarkShortWindowReturns populates Ytd and OneYear on the trailing
+// row using the corresponding benchmark anchor values.
+func (r *Reader) fillBenchmarkShortWindowReturns(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	ytdStart := time.Date(latestDate.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 	if v, err := r.benchmarkValueOnOrAfter(ctx, ytdStart); err != nil {
-		return openapi.TrailingReturnRow{}, err
+		return err
 	} else if v != nil {
 		row.Ytd = cumulativeReturn(latestVal, *v)
 	}
-
 	if v, err := r.benchmarkValueOnOrBefore(ctx, latestDate.AddDate(-1, 0, 0)); err != nil {
-		return openapi.TrailingReturnRow{}, err
+		return err
 	} else if v != nil {
 		row.OneYear = cumulativeReturn(latestVal, *v)
 	}
+	return nil
+}
 
+// fillBenchmarkAnnualizedReturns populates ThreeYear, FiveYear, and TenYear
+// on the trailing row using benchmark anchor values N years prior.
+func (r *Reader) fillBenchmarkAnnualizedReturns(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	for _, n := range []int{3, 5, 10} {
 		val, baseDate, err := r.benchmarkValueAndDateOnOrBefore(ctx, latestDate.AddDate(-n, 0, 0))
 		if err != nil {
-			return openapi.TrailingReturnRow{}, err
+			return err
 		}
 		if val == nil {
 			continue
@@ -132,17 +150,22 @@ func (r *Reader) benchmarkTrailingRow(ctx context.Context) (openapi.TrailingRetu
 			row.TenYear = ann
 		}
 	}
+	return nil
+}
 
+// fillBenchmarkSinceInception populates SinceInception with the annualized
+// return from the earliest benchmark observation through latestDate.
+func (r *Reader) fillBenchmarkSinceInception(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	earliestVal, earliestDate, err := r.earliestBenchmarkValueAndDate(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return openapi.TrailingReturnRow{}, err
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
 	}
-	if err == nil {
-		years := latestDate.Sub(earliestDate).Hours() / 24 / 365.25
-		row.SinceInception = annualizedReturn(latestVal, earliestVal, years)
+	if err != nil {
+		return err
 	}
-
-	return row, nil
+	years := latestDate.Sub(earliestDate).Hours() / 24 / 365.25
+	row.SinceInception = annualizedReturn(latestVal, earliestVal, years)
+	return nil
 }
 
 // cumulativeReturn returns (latest - baseline) / baseline as *float64, or nil
