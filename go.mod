@@ -15,7 +15,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.1.0
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/penny-vault/pvbt v0.8.1
+	github.com/penny-vault/pvbt v0.9.0
 	golang.org/x/mod v0.35.0
 	modernc.org/sqlite v1.50.0
 )
@@ -95,7 +95,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
-	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
+	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/rs/zerolog v1.35.1
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
