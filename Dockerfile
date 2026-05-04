@@ -4,9 +4,9 @@ RUN apk add git make
 COPY ./ .
 RUN make build
 
-FROM alpine
+FROM golang:alpine
 
-RUN apk add tzdata git go && adduser -D pv
+RUN apk add tzdata git && adduser -D pv
 USER pv
 WORKDIR /home/pv
 
