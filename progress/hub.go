@@ -128,6 +128,30 @@ func (b *runBroadcaster) publish(msg ProgressMessage) {
 	b.subs = alive
 }
 
+// Latest returns the most recent progress message for runID, if the hub has
+// any. The second return value is false when no broadcaster exists for the
+// run (never seen, or already cleaned up after termination) or when the
+// broadcaster has not yet received a progress message.
+func (h *Hub) Latest(runID uuid.UUID) (ProgressMessage, bool) {
+	h.mu.RLock()
+	b, ok := h.runs[runID]
+	h.mu.RUnlock()
+	if !ok {
+		return ProgressMessage{}, false
+	}
+	return b.latest()
+}
+
+func (b *runBroadcaster) latest() (ProgressMessage, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.count == 0 {
+		return ProgressMessage{}, false
+	}
+	idx := (b.head + b.count - 1) % bufSize
+	return b.buf[idx], true
+}
+
 // Subscribe returns a channel that receives buffered + live events.
 // If the run is already terminal the channel is pre-loaded with the terminal event and closed.
 // The returned func unsubscribes and releases the channel.

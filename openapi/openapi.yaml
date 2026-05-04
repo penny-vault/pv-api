@@ -1789,10 +1789,17 @@ components:
         error:
           type: string
           nullable: true
+        progress:
+          $ref: '#/components/schemas/RunProgress'
 
-    RunProgressEvent:
+    RunProgress:
       type: object
-      description: SSE data payload for a `progress` event during an active backtest run.
+      description: |
+        Latest progress snapshot from the in-memory progress hub. Returned
+        on `BacktestRun` for active runs that have emitted at least one
+        progress message; also serves as the SSE `progress` event payload.
+        Absent on queued runs, terminal runs, and active runs that have
+        not yet reported (e.g., immediately after API restart).
       required: [step, totalSteps, pct]
       properties:
         step:

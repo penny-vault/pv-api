@@ -18,6 +18,8 @@ package portfolio_test
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"strings"
 	"time"
@@ -27,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/penny-vault/pv-api/openapi"
 	"github.com/penny-vault/pv-api/portfolio"
 	"github.com/penny-vault/pv-api/progress"
 	"github.com/penny-vault/pv-api/strategy"
@@ -63,6 +66,24 @@ func newSSEApp(store portfolio.Store, hub *progress.Hub) *fiber.App {
 		h.WithHub(hub)
 	}
 	app.Get("/portfolios/:slug/runs/:runId/progress", h.StreamRunProgress)
+	return app
+}
+
+// newRunGetApp wires GET /portfolios/:slug/runs/:runId for handler tests.
+func newRunGetApp(store portfolio.Store, hub *progress.Hub) *fiber.App {
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		sub := c.Get("X-Test-Sub")
+		if sub != "" {
+			c.Locals(types.AuthSubjectKey{}, sub)
+		}
+		return c.Next()
+	})
+	h := portfolio.NewHandler(store, nil, nil, nil, nil, nil, strategy.EphemeralOptions{})
+	if hub != nil {
+		h.WithHub(hub)
+	}
+	app.Get("/portfolios/:slug/runs/:runId", h.GetRun)
 	return app
 }
 
@@ -148,5 +169,76 @@ var _ = Describe("StreamRunProgress", func() {
 		}
 		Expect(sb.String()).To(ContainSubstring("event: progress"))
 		Expect(sb.String()).To(ContainSubstring("event: done"))
+	})
+})
+
+var _ = Describe("GetRun progress", func() {
+	var (
+		hub    *progress.Hub
+		runID  uuid.UUID
+		portID uuid.UUID
+	)
+
+	BeforeEach(func() {
+		hub = progress.NewHub()
+		runID = uuid.New()
+		portID = uuid.New()
+	})
+
+	It("includes the latest progress snapshot when the hub has data", func() {
+		hub.Publish(runID, progress.ProgressMessage{
+			Type:        "progress",
+			Step:        4,
+			TotalSteps:  10,
+			Pct:         42.5,
+			CurrentDate: "2024-06-15",
+			TargetDate:  "2025-01-01",
+			ElapsedMS:   1234,
+			EtaMS:       5678,
+		})
+
+		store := &runStore{run: portfolio.Run{ID: runID, PortfolioID: portID, Status: "running"}}
+		store.rows = []portfolio.Portfolio{{ID: portID, Slug: "test-slug", OwnerSub: "user1"}}
+		app := newRunGetApp(store, hub)
+
+		req := httptest.NewRequest("GET", "/portfolios/test-slug/runs/"+runID.String(), nil)
+		req.Header.Set("X-Test-Sub", "user1")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+
+		body, err := io.ReadAll(resp.Body)
+		Expect(err).NotTo(HaveOccurred())
+		var got openapi.BacktestRun
+		Expect(json.Unmarshal(body, &got)).To(Succeed())
+
+		Expect(got.Progress).NotTo(BeNil())
+		Expect(got.Progress.Pct).To(Equal(42.5))
+		Expect(got.Progress.Step).To(Equal(int64(4)))
+		Expect(got.Progress.TotalSteps).To(Equal(int64(10)))
+		Expect(got.Progress.CurrentDate).NotTo(BeNil())
+		Expect(got.Progress.CurrentDate.Format("2006-01-02")).To(Equal("2024-06-15"))
+		Expect(got.Progress.TargetDate).NotTo(BeNil())
+		Expect(got.Progress.TargetDate.Format("2006-01-02")).To(Equal("2025-01-01"))
+		Expect(got.Progress.ElapsedMs).NotTo(BeNil())
+		Expect(*got.Progress.ElapsedMs).To(Equal(int64(1234)))
+		Expect(got.Progress.EtaMs).NotTo(BeNil())
+		Expect(*got.Progress.EtaMs).To(Equal(int64(5678)))
+	})
+
+	It("omits the progress field when the hub has no data for the run", func() {
+		store := &runStore{run: portfolio.Run{ID: runID, PortfolioID: portID, Status: "queued"}}
+		store.rows = []portfolio.Portfolio{{ID: portID, Slug: "test-slug", OwnerSub: "user1"}}
+		app := newRunGetApp(store, hub)
+
+		req := httptest.NewRequest("GET", "/portfolios/test-slug/runs/"+runID.String(), nil)
+		req.Header.Set("X-Test-Sub", "user1")
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+
+		body, err := io.ReadAll(resp.Body)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(body)).NotTo(ContainSubstring(`"progress"`))
 	})
 })

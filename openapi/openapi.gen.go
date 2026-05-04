@@ -570,8 +570,15 @@ type BacktestRun struct {
 	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
 	Id            openapi_types.UUID `json:"id"`
 	PortfolioSlug string             `json:"portfolioSlug"`
-	StartedAt     *time.Time         `json:"startedAt,omitempty"`
-	Status        RunStatus          `json:"status"`
+
+	// Progress Latest progress snapshot from the in-memory progress hub. Returned
+	// on `BacktestRun` for active runs that have emitted at least one
+	// progress message; also serves as the SSE `progress` event payload.
+	// Absent on queued runs, terminal runs, and active runs that have
+	// not yet reported (e.g., immediately after API restart).
+	Progress  *RunProgress `json:"progress,omitempty"`
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    RunStatus    `json:"status"`
 }
 
 // Drawdown defines model for Drawdown.
@@ -974,6 +981,22 @@ type RecalculatingResponseStatus string
 
 // ReturnRowKind Which line in the trailing returns table.
 type ReturnRowKind string
+
+// RunProgress Latest progress snapshot from the in-memory progress hub. Returned
+// on `BacktestRun` for active runs that have emitted at least one
+// progress message; also serves as the SSE `progress` event payload.
+// Absent on queued runs, terminal runs, and active runs that have
+// not yet reported (e.g., immediately after API restart).
+type RunProgress struct {
+	CurrentDate  *openapi_types.Date `json:"currentDate,omitempty"`
+	ElapsedMs    *int64              `json:"elapsedMs,omitempty"`
+	EtaMs        *int64              `json:"etaMs,omitempty"`
+	Measurements *int64              `json:"measurements,omitempty"`
+	Pct          float64             `json:"pct"`
+	Step         int64               `json:"step"`
+	TargetDate   *openapi_types.Date `json:"targetDate,omitempty"`
+	TotalSteps   int64               `json:"totalSteps"`
+}
 
 // RunStatus defines model for RunStatus.
 type RunStatus string

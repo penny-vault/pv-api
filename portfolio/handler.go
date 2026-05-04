@@ -838,7 +838,7 @@ func (h *Handler) ListRuns(c fiber.Ctx) error {
 	}
 	out := make([]openapi.BacktestRun, 0, len(runs))
 	for _, r := range runs {
-		out = append(out, toAPIRun(r, slug))
+		out = append(out, toAPIRun(r, slug, h.hub))
 	}
 	return c.JSON(out)
 }
@@ -869,11 +869,12 @@ func (h *Handler) GetRun(c fiber.Ctx) error {
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
-	return c.JSON(toAPIRun(r, slug))
+	return c.JSON(toAPIRun(r, slug, h.hub))
 }
 
-// toAPIRun converts a domain Run to the OpenAPI shape.
-func toAPIRun(r Run, slug string) openapi.BacktestRun {
+// toAPIRun converts a domain Run to the OpenAPI shape. If hub is non-nil and
+// has a recent progress message for the run, it is included as r.Progress.
+func toAPIRun(r Run, slug string, hub *progress.Hub) openapi.BacktestRun {
 	out := openapi.BacktestRun{
 		Id:            r.ID,
 		PortfolioSlug: slug,
@@ -891,6 +892,45 @@ func toAPIRun(r Run, slug string) openapi.BacktestRun {
 	}
 	if r.Error != nil {
 		out.Error = r.Error
+	}
+	if hub != nil {
+		if msg, ok := hub.Latest(r.ID); ok {
+			out.Progress = toAPIProgress(msg)
+		}
+	}
+	return out
+}
+
+// toAPIProgress converts a progress.ProgressMessage to the OpenAPI shape.
+// CurrentDate and TargetDate are best-effort: malformed dates are dropped
+// rather than failing the response.
+func toAPIProgress(msg progress.ProgressMessage) *openapi.RunProgress {
+	out := &openapi.RunProgress{
+		Step:       msg.Step,
+		TotalSteps: msg.TotalSteps,
+		Pct:        msg.Pct,
+	}
+	if msg.ElapsedMS != 0 {
+		v := msg.ElapsedMS
+		out.ElapsedMs = &v
+	}
+	if msg.EtaMS != 0 {
+		v := msg.EtaMS
+		out.EtaMs = &v
+	}
+	if msg.Measurements != 0 {
+		v := msg.Measurements
+		out.Measurements = &v
+	}
+	if msg.CurrentDate != "" {
+		if t, err := time.Parse("2006-01-02", msg.CurrentDate); err == nil {
+			out.CurrentDate = &openapi_types.Date{Time: t}
+		}
+	}
+	if msg.TargetDate != "" {
+		if t, err := time.Parse("2006-01-02", msg.TargetDate); err == nil {
+			out.TargetDate = &openapi_types.Date{Time: t}
+		}
 	}
 	return out
 }
