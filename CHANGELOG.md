@@ -8,28 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `progress` field on `BacktestRun` (returned by `GET /portfolios/{slug}/runs`
-  and `GET /portfolios/{slug}/runs/{runId}`): latest snapshot of `pct`,
-  `step`/`totalSteps`, `currentDate`/`targetDate`, `elapsedMs`/`etaMs`, and
-  `measurements` for active runs. Sourced from the in-memory progress hub;
-  absent for queued/terminal runs and briefly after an API restart until the
-  next progress message arrives. Lets polling clients show progress without
-  opening the SSE stream.
+- Live progress (`pct`, `step`, `eta`) on `GET /portfolios/{slug}/runs`
+  and `GET /portfolios/{slug}/runs/{runId}`, so polling clients can show
+  progress without opening the SSE stream.
+- Splice-universe support: backtest a ticker beyond its history using a
+  designated proxy for earlier dates.
 
 ### Changed
-- Runtime Docker image base switched from `alpine` + `apk add go` to
-  `golang:alpine`. The runtime needs a Go toolchain to build user repos,
-  and `golang:alpine` tracks upstream Go releases promptly without pinning
-  a version in the Dockerfile.
-- Bumped `github.com/penny-vault/pvbt` to v0.9.0 (single-ticker strategy
-  parameters now overridable from the CLI; new splice-universe feature for
-  backtesting beyond a ticker's history) and `github.com/pelletier/go-toml/v2`
-  to v2.3.1.
-- Renamed OpenAPI schema `RunProgressEvent` → `RunProgress`. The schema now
-  serves both the polled `BacktestRun.progress` field and the SSE `progress`
-  event payload. The schema was previously doc-only (not generated as a Go
-  type and not referenced by any operation), so this should not affect
-  existing clients.
+- Single-ticker strategy parameters can now be overridden from the CLI.
 
 ## [3.0.0] - 2026-05-03
 
