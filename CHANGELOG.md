@@ -11,11 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live progress (`pct`, `step`, `eta`) on `GET /portfolios/{slug}/runs`
   and `GET /portfolios/{slug}/runs/{runId}`, so polling clients can show
   progress without opening the SSE stream.
-- Splice-universe support: backtest a ticker beyond its history using a
-  designated proxy for earlier dates.
-
-### Changed
-- Single-ticker strategy parameters can now be overridden from the CLI.
 
 ## [3.0.0] - 2026-05-03
 
