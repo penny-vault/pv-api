@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,11 +45,12 @@ var ErrNoSubject = errors.New("missing authenticated subject")
 // Handler serves the POST/GET/PATCH/DELETE endpoints of /portfolios and
 // /portfolios/{slug}.
 type Handler struct {
-	store      Store
-	strategies strategy.ReadStore
-	opener     SnapshotOpener
-	dispatcher Dispatcher
-	hub        *progress.Hub
+	store        Store
+	strategies   strategy.ReadStore
+	opener       SnapshotOpener
+	dispatcher   Dispatcher
+	hub          *progress.Hub
+	snapshotsDir string
 
 	ephemeralBuilder strategy.BuilderFunc
 	urlValidator     strategy.URLValidatorFunc
@@ -417,11 +420,22 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 	}
 	slug := c.Params("slug")
 
+	// Look up the portfolio first so we can purge its snapshot subdir after
+	// the row is gone. If the lookup fails we still attempt the delete and
+	// surface whatever error it returns; the dir will be reaped by the
+	// scheduled orphan sweep.
+	p, lookupErr := h.store.Get(c.Context(), ownerSub, slug)
 	if err := h.store.Delete(c.Context(), ownerSub, slug); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return writeProblem(c, fiber.StatusNotFound, "Not Found", "portfolio not found: "+slug)
 		}
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if lookupErr == nil && h.snapshotsDir != "" {
+		dir := filepath.Join(h.snapshotsDir, p.ID.String())
+		if rmErr := os.RemoveAll(dir); rmErr != nil {
+			log.Warn().Err(rmErr).Str("dir", dir).Msg("portfolio snapshot dir cleanup failed")
+		}
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -629,41 +643,44 @@ func (h *Handler) readSnapshot(c fiber.Ctx, fn func(SnapshotReader) (any, error)
 // freshly queued backtest run. Callers reach this branch when the portfolio's
 // snapshot is missing; the body tells the client to poll the run resource and
 // retry the original read once the run reaches a terminal state.
+//
+// To prevent a deterministic failure (e.g. strategy not installed) from
+// looping every read forever, we cap auto-resubmit at one consecutive
+// failure: after a success there is one "free" auto-retry, but if two
+// consecutive runs have already failed we surface 503 with last_error
+// rather than queue a third doomed run. Callers can still re-trigger
+// explicitly via POST /portfolios/{slug}/runs.
 func (h *Handler) respondRecalculating(c fiber.Ctx, p Portfolio, slug string) error {
 	if h.dispatcher == nil {
 		return writeProblem(c, fiber.StatusNotImplemented, "Not Implemented", "backtest dispatcher not configured")
 	}
 
-	runID, runStatus, perr := h.findOrSubmitInFlightRun(c, p.ID)
+	runs, err := h.store.ListRuns(c.Context(), p.ID)
+	if err != nil {
+		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
+	}
+	if id, status, ok := pickInflight(runs); ok {
+		return h.writeRecalculating(c, slug, id, status)
+	}
+
+	if p.Status == StatusFailed && consecutiveFailedRuns(runs) >= 2 {
+		detail := "two consecutive backtest runs failed; retry via POST /portfolios/" + slug + "/runs"
+		if p.LastError != nil && *p.LastError != "" {
+			detail += ": " + *p.LastError
+		}
+		return writeProblem(c, fiber.StatusServiceUnavailable, "Snapshot Unavailable", detail)
+	}
+
+	id, status, perr := h.submitFreshRun(c, p.ID)
 	if perr != nil {
 		return perr
 	}
-
-	msg := "snapshot is being recomputed; poll the run status to determine when it has completed"
-	body := openapi.RecalculatingResponse{
-		Status:        openapi.RecalculatingResponseStatusRecalculating,
-		RunId:         openapi_types.UUID(runID),
-		PortfolioSlug: slug,
-		RunStatus:     openapi.RunStatus(runStatus),
-		PollUrl:       fmt.Sprintf("/portfolios/%s/runs/%s", slug, runID),
-		Message:       &msg,
-	}
-	return writeJSON(c, fiber.StatusAccepted, body)
+	return h.writeRecalculating(c, slug, id, status)
 }
 
-// findOrSubmitInFlightRun returns the id and status of a queued/running run
-// for the portfolio, submitting a fresh one if none exists. The partial unique
-// index on backtest_runs guarantees at most one in-flight row; if a concurrent
-// caller wins the Submit race we observe ErrRunInFlight and re-query.
-func (h *Handler) findOrSubmitInFlightRun(c fiber.Ctx, portfolioID uuid.UUID) (uuid.UUID, string, error) {
-	runs, err := h.store.ListRuns(c.Context(), portfolioID)
-	if err != nil {
-		return uuid.Nil, "", writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
-	}
-	if id, status, ok := pickInflight(runs); ok {
-		return id, status, nil
-	}
-
+// submitFreshRun enqueues a new backtest run, handling the duplicate-submit
+// race by re-querying for the row a concurrent caller just inserted.
+func (h *Handler) submitFreshRun(c fiber.Ctx, portfolioID uuid.UUID) (uuid.UUID, string, error) {
 	id, err := h.dispatcher.Submit(c.Context(), portfolioID)
 	switch {
 	case errors.Is(err, ErrRunInFlight):
@@ -683,6 +700,19 @@ func (h *Handler) findOrSubmitInFlightRun(c fiber.Ctx, portfolioID uuid.UUID) (u
 	return id, "queued", nil
 }
 
+func (h *Handler) writeRecalculating(c fiber.Ctx, slug string, runID uuid.UUID, runStatus string) error {
+	msg := "snapshot is being recomputed; poll the run status to determine when it has completed"
+	body := openapi.RecalculatingResponse{
+		Status:        openapi.RecalculatingResponseStatusRecalculating,
+		RunId:         openapi_types.UUID(runID),
+		PortfolioSlug: slug,
+		RunStatus:     openapi.RunStatus(runStatus),
+		PollUrl:       fmt.Sprintf("/portfolios/%s/runs/%s", slug, runID),
+		Message:       &msg,
+	}
+	return writeJSON(c, fiber.StatusAccepted, body)
+}
+
 // pickInflight returns the first run that is queued or running, if any.
 func pickInflight(runs []Run) (uuid.UUID, string, bool) {
 	for _, r := range runs {
@@ -691,6 +721,21 @@ func pickInflight(runs []Run) (uuid.UUID, string, bool) {
 		}
 	}
 	return uuid.Nil, "", false
+}
+
+// consecutiveFailedRuns counts the number of 'failed' rows at the head of
+// runs (most recent first), stopping at the first non-failed entry. Used to
+// cap auto-resubmit so a deterministically-failing portfolio doesn't loop
+// forever on every read.
+func consecutiveFailedRuns(runs []Run) int {
+	n := 0
+	for _, r := range runs {
+		if r.Status != string(StatusFailed) {
+			break
+		}
+		n++
+	}
+	return n
 }
 
 // GET /portfolios/{slug}/drawdowns

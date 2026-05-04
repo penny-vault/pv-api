@@ -22,10 +22,11 @@ import (
 
 // Config drives the backtest subsystem. Populated at startup from viper.
 type Config struct {
-	SnapshotsDir   string        // absolute path; required
-	MaxConcurrency int           // 0 -> runtime.NumCPU()
-	Timeout        time.Duration // per-run timeout; 0 -> 15 minutes
-	RunnerMode     string        // "host" or "docker"; "kubernetes" lands in plan 9
+	SnapshotsDir     string        // absolute path; required
+	MaxConcurrency   int           // 0 -> runtime.NumCPU()
+	Timeout          time.Duration // per-run timeout; 0 -> 15 minutes
+	RunnerMode       string        // "host" or "docker"; "kubernetes" lands in plan 9
+	OrphanGCInterval time.Duration // periodic orphan snapshot sweep; 0 -> 7d, <0 disables
 }
 
 // ApplyDefaults fills zero-valued fields with their defaults.
@@ -35,6 +36,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Timeout == 0 {
 		c.Timeout = 15 * time.Minute
+	}
+	if c.OrphanGCInterval == 0 {
+		c.OrphanGCInterval = 7 * 24 * time.Hour
 	}
 }
 

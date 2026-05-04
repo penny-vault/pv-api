@@ -58,6 +58,7 @@ func (f *fakeRunner) Run(ctx context.Context, req backtest.RunRequest) error {
 type fakeRunStore struct {
 	mu      sync.Mutex
 	created []uuid.UUID
+	failed  []uuid.UUID
 }
 
 func newFakeRunStore() *fakeRunStore { return &fakeRunStore{} }
@@ -74,7 +75,10 @@ func (f *fakeRunStore) UpdateRunRunning(_ context.Context, _ uuid.UUID) error { 
 func (f *fakeRunStore) UpdateRunSuccess(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
 	return nil
 }
-func (f *fakeRunStore) UpdateRunFailed(_ context.Context, _ uuid.UUID, _ string, _ int32) error {
+func (f *fakeRunStore) UpdateRunFailed(_ context.Context, runID uuid.UUID, _ string, _ int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failed = append(f.failed, runID)
 	return nil
 }
 
@@ -120,5 +124,31 @@ var _ = Describe("Dispatcher", func() {
 		}
 		_, err := d.Submit(context.Background(), uuid.New())
 		Expect(err).To(MatchError(backtest.ErrQueueFull))
+	})
+
+	It("marks the row failed when the queue is full so the partial unique index releases", func() {
+		// Regression: returning ErrQueueFull used to leave a 'queued' row in
+		// backtest_runs with no worker to process it. The partial unique index
+		// then blocked all future Submit calls and pickInflight surfaced the
+		// orphan to readers as "still recalculating" forever.
+		runner := &fakeRunner{block: make(chan struct{})}
+		defer close(runner.block)
+		rs := newFakeRunStore()
+		d := backtest.NewDispatcher(backtest.Config{
+			SnapshotsDir: "/tmp", RunnerMode: "host", MaxConcurrency: 1,
+		}, runner, rs, nil)
+		d.Start(context.Background())
+		DeferCleanup(func() { d.Shutdown(5 * time.Second) })
+
+		for range 5 {
+			_, _ = d.Submit(context.Background(), uuid.New())
+		}
+		_, err := d.Submit(context.Background(), uuid.New())
+		Expect(err).To(MatchError(backtest.ErrQueueFull))
+
+		rs.mu.Lock()
+		defer rs.mu.Unlock()
+		Expect(rs.failed).To(HaveLen(1))
+		Expect(rs.failed[0]).To(Equal(rs.created[len(rs.created)-1]))
 	})
 })

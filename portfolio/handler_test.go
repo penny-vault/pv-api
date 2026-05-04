@@ -490,6 +490,40 @@ var _ = Describe("portfolio.Handler", func() {
 		Expect(status).To(Equal(404))
 	})
 
+	It("removes the portfolio's snapshot subdir on Delete", func() {
+		snapsDir := GinkgoT().TempDir()
+		portID := uuid.Must(uuid.NewV7())
+		store.rows = []portfolio.Portfolio{{
+			ID: portID, OwnerSub: sub1, Slug: "to-be-purged",
+			Name: "to-be-purged", StrategyCode: "adm",
+			Parameters: map[string]any{"riskOn": "SPY"},
+		}}
+
+		// Simulate a backtest having written a snapshot for this portfolio.
+		portDir := filepath.Join(snapsDir, portID.String())
+		Expect(os.MkdirAll(portDir, 0o750)).To(Succeed())
+		snapFile := filepath.Join(portDir, uuid.New().String()+".sqlite")
+		Expect(os.WriteFile(snapFile, []byte("x"), 0o644)).To(Succeed())
+
+		// Re-mount Delete on a handler wired with the snapshots dir.
+		h := portfolio.NewHandler(store, strategies, nil, nil, nil, nil, strategy.EphemeralOptions{}).
+			WithSnapshotsDir(snapsDir)
+		app2 := fiber.New()
+		app2.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, sub1)
+			return c.Next()
+		})
+		app2.Delete("/portfolios/:slug", h.Delete)
+
+		httpReq := httptest.NewRequest("DELETE", "/portfolios/to-be-purged", nil)
+		resp, err := app2.Test(httpReq)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(204))
+
+		_, statErr := os.Stat(portDir)
+		Expect(os.IsNotExist(statErr)).To(BeTrue(), "snapshot dir should be removed on delete")
+	})
+
 	It("returns status in the GET /portfolios/:slug response", func() {
 		store.rows = []portfolio.Portfolio{{
 			ID:           uuid.Must(uuid.NewV7()),
@@ -798,6 +832,69 @@ var _ = Describe("Handler.Summary", func() {
 		var got openapi.RecalculatingResponse
 		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
 		Expect(got.RunId.String()).To(Equal(raceWinner.String()))
+	})
+
+	It("auto-resubmits on a single failed run but stops after two consecutive failures", func() {
+		// Snapshot reads on a 'failed' portfolio used to submit a new run on
+		// every request, so deterministic failures looped forever. The cap
+		// allows one auto-retry after a failure; a second consecutive failure
+		// surfaces 503 instead of queueing a third doomed run.
+		pid := uuid.Must(uuid.NewV7())
+		lastErr := "strategy not installed"
+		store.rows = []portfolio.Portfolio{{
+			ID: pid, OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusFailed, LastError: &lastErr,
+		}}
+		store.runs = map[uuid.UUID][]portfolio.Run{
+			pid: {{ID: uuid.Must(uuid.NewV7()), PortfolioID: pid, Status: "failed"}},
+		}
+
+		// First read: one prior failure, expect auto-retry (202).
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
+
+		// Simulate the auto-retry also failing.
+		store.runs[pid] = append([]portfolio.Run{
+			{ID: uuid.Must(uuid.NewV7()), PortfolioID: pid, Status: "failed"},
+		}, store.runs[pid]...)
+
+		// Second read: two consecutive failures, expect 503 with last_error.
+		req = httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err = app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusServiceUnavailable))
+		Expect(disp.calls.Load()).To(Equal(int64(1)), "no third submit after two consecutive failures")
+		body, _ := io.ReadAll(resp.Body)
+		Expect(string(body)).To(ContainSubstring(lastErr))
+	})
+
+	It("auto-retries after a success even if older runs failed", func() {
+		// Counting "consecutive failures" must reset at the most recent
+		// success, otherwise a portfolio that recovered would never auto-retry
+		// again after a single new failure.
+		pid := uuid.Must(uuid.NewV7())
+		lastErr := "transient"
+		store.rows = []portfolio.Portfolio{{
+			ID: pid, OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusFailed, LastError: &lastErr,
+		}}
+		// ListRuns returns most-recent first: failed, success, failed.
+		store.runs = map[uuid.UUID][]portfolio.Run{
+			pid: {
+				{ID: uuid.Must(uuid.NewV7()), PortfolioID: pid, Status: "failed"},
+				{ID: uuid.Must(uuid.NewV7()), PortfolioID: pid, Status: "success"},
+				{ID: uuid.Must(uuid.NewV7()), PortfolioID: pid, Status: "failed"},
+			},
+		}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/summary", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusAccepted))
+		Expect(disp.calls.Load()).To(Equal(int64(1)))
 	})
 
 	It("returns 200 with the summary payload when the snapshot opens", func() {

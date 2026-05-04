@@ -34,6 +34,13 @@ func (h *Handler) WithHub(hub *progress.Hub) *Handler {
 	return h
 }
 
+// WithSnapshotsDir wires the on-disk snapshots root so Delete can purge a
+// portfolio's snapshot subdirectory. Empty disables the cleanup.
+func (h *Handler) WithSnapshotsDir(dir string) *Handler {
+	h.snapshotsDir = dir
+	return h
+}
+
 // StreamRunProgress implements GET /portfolios/:slug/runs/:runId/progress.
 // It streams Server-Sent Events with per-step progress until the run reaches
 // a terminal state, then closes the connection.

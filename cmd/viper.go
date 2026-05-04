@@ -33,6 +33,7 @@ func setViperDefaults() {
 	viper.SetDefault("server.allow_origins", "http://localhost:5174,http://localhost:9000")
 	viper.SetDefault("backtest.max_concurrency", 0)
 	viper.SetDefault("backtest.timeout", "15m")
+	viper.SetDefault("backtest.orphan_gc_interval", 7*24*time.Hour)
 	viper.SetDefault("runner.mode", "host")
 	viper.SetDefault("runner.docker.socket", "unix:///var/run/docker.sock")
 	viper.SetDefault("runner.docker.network", "")

@@ -111,8 +111,15 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	}
 	defer cleanup()
 
-	tmp := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite.tmp")
-	final := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String()+".sqlite")
+	// Snapshots are keyed by runID inside a per-portfolio subdirectory.
+	// Per-run filenames let prune delete old artifacts without clobbering
+	// the active snapshot, and let users diff successive runs.
+	portfolioDir := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String())
+	if err := os.MkdirAll(portfolioDir, 0o750); err != nil {
+		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mkdir snapshots subdir: %w", err))
+	}
+	tmp := filepath.Join(portfolioDir, runID.String()+".sqlite.tmp")
+	final := filepath.Join(portfolioDir, runID.String()+".sqlite")
 	_ = os.Remove(tmp)
 
 	var progressWriter io.Writer

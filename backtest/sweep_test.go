@@ -27,21 +27,61 @@ import (
 	"github.com/penny-vault/pv-api/backtest"
 )
 
-var _ = Describe("StartupSweep", func() {
-	It("removes .tmp files older than 1h", func() {
-		dir := GinkgoT().TempDir()
-		old := filepath.Join(dir, "abc.sqlite.tmp")
-		Expect(os.WriteFile(old, []byte("x"), 0o644)).To(Succeed())
-		past := time.Now().Add(-2 * time.Hour)
-		Expect(os.Chtimes(old, past, past)).To(Succeed())
+type fakeSweeper struct {
+	called  bool
+	reason  string
+	ports   int
+	runs    int
+	returns []int
+}
 
-		recent := filepath.Join(dir, "def.sqlite.tmp")
+func (f *fakeSweeper) MarkAllRunningAsFailed(_ context.Context, reason string) (int, int, error) {
+	f.called = true
+	f.reason = reason
+	if len(f.returns) >= 2 {
+		return f.returns[0], f.returns[1], nil
+	}
+	return f.ports, f.runs, nil
+}
+
+var _ = Describe("StartupSweep", func() {
+	It("removes .tmp files older than 1h, including those in per-portfolio subdirs", func() {
+		dir := GinkgoT().TempDir()
+		past := time.Now().Add(-2 * time.Hour)
+
+		// Top-level stale tmp (legacy layout).
+		oldTop := filepath.Join(dir, "abc.sqlite.tmp")
+		Expect(os.WriteFile(oldTop, []byte("x"), 0o644)).To(Succeed())
+		Expect(os.Chtimes(oldTop, past, past)).To(Succeed())
+
+		// Stale tmp inside a per-portfolio subdir (current layout).
+		subDir := filepath.Join(dir, "portfolio-uuid")
+		Expect(os.MkdirAll(subDir, 0o750)).To(Succeed())
+		oldNested := filepath.Join(subDir, "run-uuid.sqlite.tmp")
+		Expect(os.WriteFile(oldNested, []byte("x"), 0o644)).To(Succeed())
+		Expect(os.Chtimes(oldNested, past, past)).To(Succeed())
+
+		// Recent tmp must survive.
+		recent := filepath.Join(subDir, "fresh-run.sqlite.tmp")
 		Expect(os.WriteFile(recent, []byte("x"), 0o644)).To(Succeed())
 
 		Expect(backtest.StartupSweep(context.Background(), dir, nil)).To(Succeed())
-		_, oErr := os.Stat(old)
+
+		_, oErr := os.Stat(oldTop)
 		Expect(os.IsNotExist(oErr)).To(BeTrue())
+		_, nErr := os.Stat(oldNested)
+		Expect(os.IsNotExist(nErr)).To(BeTrue())
 		_, rErr := os.Stat(recent)
 		Expect(rErr).NotTo(HaveOccurred())
+	})
+
+	It("invokes the portfolio sweeper to flip in-flight portfolios and runs", func() {
+		dir := GinkgoT().TempDir()
+		sweeper := &fakeSweeper{returns: []int{2, 5}}
+
+		Expect(backtest.StartupSweep(context.Background(), dir, sweeper)).To(Succeed())
+
+		Expect(sweeper.called).To(BeTrue())
+		Expect(sweeper.reason).To(ContainSubstring("server restarted"))
 	})
 })

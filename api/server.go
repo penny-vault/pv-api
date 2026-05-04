@@ -59,6 +59,7 @@ type Config struct {
 	Pool              *pgxpool.Pool        // optional: if set, real handlers mount; otherwise stubs
 	Dispatcher        portfolio.Dispatcher // optional: if nil, /runs POST returns 501
 	SnapshotOpener    portfolio.SnapshotOpener
+	SnapshotsDir      string // optional: enables snapshot dir cleanup on portfolio delete
 	ProgressHub       *progress.Hub
 	AlertChecker      alert.EmailSummarizer // optional: if nil, email-summary returns 503
 	UnsubscribeSecret string                // optional: HMAC secret for unsubscribe tokens
@@ -137,6 +138,9 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 		)
 		if conf.ProgressHub != nil {
 			portfolioHandler.WithHub(conf.ProgressHub)
+		}
+		if conf.SnapshotsDir != "" {
+			portfolioHandler.WithSnapshotsDir(conf.SnapshotsDir)
 		}
 		RegisterPortfolioRoutesWith(protected, portfolioHandler)
 		alertStore := alert.NewPoolStore(conf.Pool)

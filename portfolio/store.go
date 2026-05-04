@@ -94,9 +94,22 @@ func (p PoolStore) SetFailed(ctx context.Context, id uuid.UUID, errMsg string) e
 }
 
 // MarkAllRunningAsFailed implements backtest.PortfolioSweeper. It flips every
-// portfolio whose status is 'running' to 'failed' at server startup.
-func (p PoolStore) MarkAllRunningAsFailed(ctx context.Context, reason string) (int, error) {
+// portfolio whose status is 'running' to 'failed' and every in-flight
+// backtest_runs row to 'failed' at server startup.
+func (p PoolStore) MarkAllRunningAsFailed(ctx context.Context, reason string) (int, int, error) {
 	return MarkAllRunningAsFailed(ctx, p.Pool, reason)
+}
+
+// AllPortfolioIDs returns the set of portfolio UUIDs currently in the
+// portfolios table. Used by the orphan snapshot sweep.
+func (p PoolStore) AllPortfolioIDs(ctx context.Context) (map[uuid.UUID]struct{}, error) {
+	return AllPortfolioIDs(ctx, p.Pool)
+}
+
+// AllRunIDs returns the set of backtest_runs UUIDs currently in the
+// backtest_runs table. Used by the orphan snapshot sweep.
+func (p PoolStore) AllRunIDs(ctx context.Context) (map[uuid.UUID]struct{}, error) {
+	return AllRunIDs(ctx, p.Pool)
 }
 
 // MarkRunningTx atomically marks both the portfolio and its run as running.

@@ -179,6 +179,7 @@ func init() {
 	serverCmd.Flags().String("strategy-ephemeral-dir", "", "ephemeral build dir for unofficial strategies (default: <data-dir>/strategies/ephemeral)")
 	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 60*time.Second, "max time for one ephemeral clone+build")
 	serverCmd.Flags().String("backtest-snapshots-dir", "", "directory where backtest snapshot files are stored (default: <data-dir>/snapshots)")
+	serverCmd.Flags().Duration("backtest-orphan-gc-interval", 7*24*time.Hour, "how often to sweep snapshot files no DB row references; <0 disables (sweep still runs at startup)")
 	serverCmd.Flags().String("runner-docker-socket", "unix:///var/run/docker.sock", "Docker daemon socket URL")
 	serverCmd.Flags().String("runner-docker-network", "", "Docker network for backtest containers; empty = daemon default")
 	serverCmd.Flags().Float64("runner-docker-cpu-limit", 0.0, "per-container CPU limit in cores; 0 = unlimited")
@@ -235,10 +236,11 @@ var serverCmd = &cobra.Command{
 
 		// Build backtest config from viper and apply defaults.
 		btCfg := backtest.Config{
-			SnapshotsDir:   conf.Backtest.SnapshotsDir,
-			MaxConcurrency: conf.Backtest.MaxConcurrency,
-			Timeout:        conf.Backtest.Timeout,
-			RunnerMode:     conf.Runner.Mode,
+			SnapshotsDir:     conf.Backtest.SnapshotsDir,
+			MaxConcurrency:   conf.Backtest.MaxConcurrency,
+			Timeout:          conf.Backtest.Timeout,
+			OrphanGCInterval: conf.Backtest.OrphanGCInterval,
+			RunnerMode:       conf.Runner.Mode,
 		}
 		btCfg.ApplyDefaults()
 		if err := btCfg.Validate(); err != nil {
@@ -364,6 +366,8 @@ var serverCmd = &cobra.Command{
 			log.Warn().Err(err).Msg("startup sweep")
 		}
 
+		go backtest.StartOrphanGC(ctx, btCfg.SnapshotsDir, portfolioStore, btCfg.OrphanGCInterval)
+
 		var schedulerDone chan struct{}
 		if conf.Scheduler.Enabled {
 			schedCfg := scheduler.Config{
@@ -416,6 +420,7 @@ var serverCmd = &cobra.Command{
 			},
 			Dispatcher:        dispatcherAdapter{bt: dispatcher},
 			SnapshotOpener:    snapshot.Opener{},
+			SnapshotsDir:      btCfg.SnapshotsDir,
 			ProgressHub:       hub,
 			AlertChecker:      checker,
 			UnsubscribeSecret: unsubscribeSecret,

@@ -76,9 +76,10 @@ type strategyConf struct {
 
 // backtestConf controls the backtest runtime.
 type backtestConf struct {
-	SnapshotsDir   string        `mapstructure:"snapshots_dir"`
-	MaxConcurrency int           `mapstructure:"max_concurrency"`
-	Timeout        time.Duration `mapstructure:"timeout"`
+	SnapshotsDir     string        `mapstructure:"snapshots_dir"`
+	MaxConcurrency   int           `mapstructure:"max_concurrency"`
+	Timeout          time.Duration `mapstructure:"timeout"`
+	OrphanGCInterval time.Duration `mapstructure:"orphan_gc_interval"`
 }
 
 // runnerConf holds the runner execution-mode setting.

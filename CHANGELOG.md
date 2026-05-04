@@ -12,6 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `GET /portfolios/{slug}/runs/{runId}`, so polling clients can show
   progress without opening the SSE stream.
 
+### Fixed
+- Snapshot reads no longer loop in `recalculating` forever. Each backtest
+  run now writes its own snapshot file under
+  `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`, so pruning older runs
+  no longer deletes the active snapshot.
+- Auto-recompute on a `failed` portfolio now stops after one consecutive
+  failed retry (previously every read enqueued a new doomed run); the
+  response is `503` with `last_error` in the body. Use `POST
+  /portfolios/{slug}/runs` to retry explicitly.
+- Snapshot subdirectory is removed when a portfolio is deleted.
+- Server restart no longer leaves portfolios stuck recalculating: orphaned
+  `queued`/`running` backtest runs are flipped to `failed` at startup, and
+  a queue-full `Submit` no longer leaves a phantom `queued` row behind.
+
+### Added
+- Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`
+  that no DB row references, plus per-portfolio dirs whose portfolio has
+  been deleted. Runs at startup and every `backtest.orphan_gc_interval`
+  (default 7d; <0 disables the periodic sweep).
+
 ## [3.0.0] - 2026-05-03
 
 A complete rewrite of pv-api on Fiber v3, structured around a strategy

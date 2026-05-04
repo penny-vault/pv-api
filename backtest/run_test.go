@@ -110,7 +110,8 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			})
 
-		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		runID := uuid.New()
+		err := r.Run(context.Background(), ps.row.ID, runID)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(ps.markRunning).To(BeTrue())
@@ -118,7 +119,7 @@ var _ = Describe("Run orchestration", func() {
 		Expect(ps.markFailed).To(BeEmpty())
 		Expect(ps.lastKpis.CurrentValue).To(BeNumerically("~", 103000, 0.01))
 
-		Expect(ps.snapshotOut).To(Equal(filepath.Join(snapsDir, ps.row.ID.String()+".sqlite")))
+		Expect(ps.snapshotOut).To(Equal(filepath.Join(snapsDir, ps.row.ID.String(), runID.String()+".sqlite")))
 		_, stErr := os.Stat(ps.snapshotOut)
 		Expect(stErr).NotTo(HaveOccurred())
 		_, stErr = os.Stat(ps.snapshotOut + ".tmp")
@@ -306,6 +307,50 @@ var _ = Describe("Run orchestration", func() {
 		err := r.Run(context.Background(), ps.row.ID, uuid.New())
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(ps.PruneRunsCalls).To(HaveLen(1))
+	})
+
+	It("does not delete the active snapshot when pruning an older run's path", func() {
+		// Regression: snapshots used to share one path per portfolio, so prune
+		// of any older row would os.Remove the file the latest run had just
+		// written. With per-run paths, run #1's path differs from run #2's,
+		// and pruning the older entry must leave the active snapshot intact.
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		ps := &fakePortfolioStore{row: backtest.PortfolioRow{
+			ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+			Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+		}}
+
+		r := backtest.NewRunner(backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"},
+			&backtest.HostRunner{}, backtest.ArtifactBinary, ps, &fakeRunStoreFull{},
+			func(_ context.Context, _, _ string) (string, func(), error) {
+				return fakeStratBin, func() {}, nil
+			})
+
+		firstRunID := uuid.New()
+		Expect(r.Run(context.Background(), ps.row.ID, firstRunID)).To(Succeed())
+		firstPath := ps.snapshotOut
+		_, stErr := os.Stat(firstPath)
+		Expect(stErr).NotTo(HaveOccurred())
+
+		// Simulate the scheduler re-running: prune will return the first run's
+		// path now that it's "older" than the about-to-complete run.
+		ps.PruneRunsReturn = []string{firstPath}
+		ps.row.Status = "queued"
+
+		secondRunID := uuid.New()
+		Expect(r.Run(context.Background(), ps.row.ID, secondRunID)).To(Succeed())
+
+		Expect(ps.snapshotOut).NotTo(Equal(firstPath))
+		_, stErr = os.Stat(ps.snapshotOut)
+		Expect(stErr).NotTo(HaveOccurred(), "active snapshot must survive prune of older run")
+		_, stErr = os.Stat(firstPath)
+		Expect(os.IsNotExist(stErr)).To(BeTrue(), "older run's snapshot should have been pruned")
 	})
 
 	It("removes snapshot files returned by PruneRuns", func() {

@@ -317,18 +317,79 @@ func MarkFailedTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uu
 	return tx.Commit(ctx)
 }
 
+// AllPortfolioIDs returns the set of portfolio UUIDs currently in the
+// portfolios table. Used by the orphan snapshot sweep to identify per-
+// portfolio dirs whose UUID no row claims.
+func AllPortfolioIDs(ctx context.Context, pool *pgxpool.Pool) (map[uuid.UUID]struct{}, error) {
+	rows, err := pool.Query(ctx, `SELECT id FROM portfolios`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[uuid.UUID]struct{})
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = struct{}{}
+	}
+	return out, rows.Err()
+}
+
+// AllRunIDs returns the set of backtest_runs UUIDs currently in the
+// backtest_runs table. Used by the orphan snapshot sweep to identify
+// snapshot files whose run row has been pruned.
+func AllRunIDs(ctx context.Context, pool *pgxpool.Pool) (map[uuid.UUID]struct{}, error) {
+	rows, err := pool.Query(ctx, `SELECT id FROM backtest_runs`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[uuid.UUID]struct{})
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = struct{}{}
+	}
+	return out, rows.Err()
+}
+
 // MarkAllRunningAsFailed flips every portfolio whose status is 'running' to
-// 'failed' with the supplied reason. Called at startup to clear any portfolios
-// that were left mid-run when the server was previously killed.
-// Returns the number of rows updated.
-func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason string) (int, error) {
-	tag, err := pool.Exec(ctx,
+// 'failed' and every backtest_runs row in 'queued' or 'running' to 'failed'
+// with the supplied reason. Called at startup to clear any state that was
+// left mid-run when the server was previously killed: orphaned in-flight run
+// rows would otherwise be returned forever by pickInflight, and orphaned
+// 'running' portfolios would never transition. Returns (portfolios updated,
+// runs updated).
+func MarkAllRunningAsFailed(ctx context.Context, pool *pgxpool.Pool, reason string) (int, int, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() {
+		if rerr := tx.Rollback(ctx); rerr != nil && !errors.Is(rerr, pgx.ErrTxClosed) {
+			log.Warn().Err(rerr).Msg("portfolio: tx rollback failed")
+		}
+	}()
+	pTag, err := tx.Exec(ctx,
 		`UPDATE portfolios SET status='failed', last_error=$1, updated_at=NOW()
 		  WHERE status='running'`, reason)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return int(tag.RowsAffected()), nil
+	rTag, err := tx.Exec(ctx,
+		`UPDATE backtest_runs SET status='failed', finished_at=NOW(), error=$1
+		  WHERE status IN ('queued', 'running')`, reason)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, 0, err
+	}
+	return int(pTag.RowsAffected()), int(rTag.RowsAffected()), nil
 }
 
 // PruneRuns deletes backtest_runs rows older than the most recent run_retention

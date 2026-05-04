@@ -139,6 +139,11 @@ func (d *Dispatcher) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UU
 	case d.tasks <- task{portfolioID: portfolioID, runID: run.ID}:
 		return run.ID, nil
 	default:
+		// Release the partial unique index on backtest_runs so a future
+		// Submit isn't blocked by a row no worker will ever pick up.
+		if uerr := d.runs.UpdateRunFailed(ctx, run.ID, "dispatcher queue full", 0); uerr != nil {
+			log.Warn().Err(uerr).Stringer("run_id", run.ID).Msg("failed to mark queue-full run as failed")
+		}
 		return uuid.Nil, ErrQueueFull
 	}
 }
