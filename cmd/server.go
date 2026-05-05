@@ -111,7 +111,7 @@ func (a backtestPortfolioStoreAdapter) MarkRunningTx(ctx context.Context, portfo
 }
 
 func (a backtestPortfolioStoreAdapter) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
-	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	snapshotPath string, currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64,
 	inceptionDate time.Time, durationMs int32) error {
 	return a.store.MarkReadyTx(ctx, portfolioID, runID, snapshotPath,
 		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)

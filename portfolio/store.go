@@ -84,7 +84,7 @@ func (p PoolStore) SetRunning(ctx context.Context, id uuid.UUID) error {
 
 // SetReady marks the portfolio as ready and writes KPI columns (backtest path).
 func (p PoolStore) SetReady(ctx context.Context, id uuid.UUID, snapshotPath string,
-	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64, inceptionDate time.Time) error {
+	currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64, inceptionDate time.Time) error {
 	return SetReady(ctx, p.Pool, id, snapshotPath, currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate)
 }
 
@@ -119,7 +119,7 @@ func (p PoolStore) MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UU
 
 // MarkReadyTx atomically marks the portfolio as ready and the run as success.
 func (p PoolStore) MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID,
-	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	snapshotPath string, currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64,
 	inceptionDate time.Time, durationMs int32) error {
 	return MarkReadyTx(ctx, p.Pool, portfolioID, runID, snapshotPath,
 		currentValue, ytdReturn, maxDrawdown, sharpe, cagr, inceptionDate, durationMs)

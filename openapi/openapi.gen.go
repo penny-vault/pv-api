@@ -256,6 +256,7 @@ func (e TransactionType) Valid() bool {
 // Defines values for GetPortfolioMetricsParamsWindow.
 const (
 	GetPortfolioMetricsParamsWindowMtd            GetPortfolioMetricsParamsWindow = "mtd"
+	GetPortfolioMetricsParamsWindowN10yr          GetPortfolioMetricsParamsWindow = "10yr"
 	GetPortfolioMetricsParamsWindowN1yr           GetPortfolioMetricsParamsWindow = "1yr"
 	GetPortfolioMetricsParamsWindowN3yr           GetPortfolioMetricsParamsWindow = "3yr"
 	GetPortfolioMetricsParamsWindowN5yr           GetPortfolioMetricsParamsWindow = "5yr"
@@ -268,6 +269,8 @@ const (
 func (e GetPortfolioMetricsParamsWindow) Valid() bool {
 	switch e {
 	case GetPortfolioMetricsParamsWindowMtd:
+		return true
+	case GetPortfolioMetricsParamsWindowN10yr:
 		return true
 	case GetPortfolioMetricsParamsWindowN1yr:
 		return true
@@ -288,83 +291,107 @@ func (e GetPortfolioMetricsParamsWindow) Valid() bool {
 
 // Defines values for GetPortfolioMetricsParamsMetric.
 const (
-	ActiveReturn            GetPortfolioMetricsParamsMetric = "ActiveReturn"
-	Alpha                   GetPortfolioMetricsParamsMetric = "Alpha"
-	AverageHoldingPeriod    GetPortfolioMetricsParamsMetric = "AverageHoldingPeriod"
-	AverageLoss             GetPortfolioMetricsParamsMetric = "AverageLoss"
-	AverageMAE              GetPortfolioMetricsParamsMetric = "AverageMAE"
-	AverageMFE              GetPortfolioMetricsParamsMetric = "AverageMFE"
-	AverageWin              GetPortfolioMetricsParamsMetric = "AverageWin"
-	AvgDrawdown             GetPortfolioMetricsParamsMetric = "AvgDrawdown"
-	AvgDrawdownDays         GetPortfolioMetricsParamsMetric = "AvgDrawdownDays"
-	AvgUlcerIndex           GetPortfolioMetricsParamsMetric = "AvgUlcerIndex"
-	Beta                    GetPortfolioMetricsParamsMetric = "Beta"
-	CAGR                    GetPortfolioMetricsParamsMetric = "CAGR"
-	CVaR                    GetPortfolioMetricsParamsMetric = "CVaR"
-	Calmar                  GetPortfolioMetricsParamsMetric = "Calmar"
-	ConsecutiveLosses       GetPortfolioMetricsParamsMetric = "ConsecutiveLosses"
-	ConsecutiveWins         GetPortfolioMetricsParamsMetric = "ConsecutiveWins"
-	DownsideCaptureRatio    GetPortfolioMetricsParamsMetric = "DownsideCaptureRatio"
-	DownsideDeviation       GetPortfolioMetricsParamsMetric = "DownsideDeviation"
-	DynamicWithdrawalRate   GetPortfolioMetricsParamsMetric = "DynamicWithdrawalRate"
-	EdgeRatio               GetPortfolioMetricsParamsMetric = "EdgeRatio"
-	ExcessKurtosis          GetPortfolioMetricsParamsMetric = "ExcessKurtosis"
-	Exposure                GetPortfolioMetricsParamsMetric = "Exposure"
-	GainLossRatio           GetPortfolioMetricsParamsMetric = "GainLossRatio"
-	GainToPainRatio         GetPortfolioMetricsParamsMetric = "GainToPainRatio"
-	InformationRatio        GetPortfolioMetricsParamsMetric = "InformationRatio"
-	KRatio                  GetPortfolioMetricsParamsMetric = "KRatio"
-	KellerRatio             GetPortfolioMetricsParamsMetric = "KellerRatio"
-	KellyCriterion          GetPortfolioMetricsParamsMetric = "KellyCriterion"
-	LTCG                    GetPortfolioMetricsParamsMetric = "LTCG"
-	LongProfitFactor        GetPortfolioMetricsParamsMetric = "LongProfitFactor"
-	LongWinRate             GetPortfolioMetricsParamsMetric = "LongWinRate"
-	MWRR                    GetPortfolioMetricsParamsMetric = "MWRR"
-	MaxDrawdown             GetPortfolioMetricsParamsMetric = "MaxDrawdown"
-	MedianMAE               GetPortfolioMetricsParamsMetric = "MedianMAE"
-	MedianMFE               GetPortfolioMetricsParamsMetric = "MedianMFE"
-	MedianUlcerIndex        GetPortfolioMetricsParamsMetric = "MedianUlcerIndex"
-	NPositivePeriods        GetPortfolioMetricsParamsMetric = "NPositivePeriods"
-	NonQualifiedIncome      GetPortfolioMetricsParamsMetric = "NonQualifiedIncome"
-	OmegaRatio              GetPortfolioMetricsParamsMetric = "OmegaRatio"
-	P90UlcerIndex           GetPortfolioMetricsParamsMetric = "P90UlcerIndex"
-	PerpetualWithdrawalRate GetPortfolioMetricsParamsMetric = "PerpetualWithdrawalRate"
-	ProbabilisticSharpe     GetPortfolioMetricsParamsMetric = "ProbabilisticSharpe"
-	ProfitFactor            GetPortfolioMetricsParamsMetric = "ProfitFactor"
-	QualifiedDividends      GetPortfolioMetricsParamsMetric = "QualifiedDividends"
-	RSquared                GetPortfolioMetricsParamsMetric = "RSquared"
-	RecoveryFactor          GetPortfolioMetricsParamsMetric = "RecoveryFactor"
-	STCG                    GetPortfolioMetricsParamsMetric = "STCG"
-	SafeWithdrawalRate      GetPortfolioMetricsParamsMetric = "SafeWithdrawalRate"
-	Sharpe                  GetPortfolioMetricsParamsMetric = "Sharpe"
-	ShortProfitFactor       GetPortfolioMetricsParamsMetric = "ShortProfitFactor"
-	ShortWinRate            GetPortfolioMetricsParamsMetric = "ShortWinRate"
-	Skewness                GetPortfolioMetricsParamsMetric = "Skewness"
-	SmartSharpe             GetPortfolioMetricsParamsMetric = "SmartSharpe"
-	SmartSortino            GetPortfolioMetricsParamsMetric = "SmartSortino"
-	Sortino                 GetPortfolioMetricsParamsMetric = "Sortino"
-	StdDev                  GetPortfolioMetricsParamsMetric = "StdDev"
-	TWRR                    GetPortfolioMetricsParamsMetric = "TWRR"
-	TailRatio               GetPortfolioMetricsParamsMetric = "TailRatio"
-	TaxCostRatio            GetPortfolioMetricsParamsMetric = "TaxCostRatio"
-	TaxDrag                 GetPortfolioMetricsParamsMetric = "TaxDrag"
-	TrackingError           GetPortfolioMetricsParamsMetric = "TrackingError"
-	TradeCaptureRatio       GetPortfolioMetricsParamsMetric = "TradeCaptureRatio"
-	TradeGainLossRatio      GetPortfolioMetricsParamsMetric = "TradeGainLossRatio"
-	Treynor                 GetPortfolioMetricsParamsMetric = "Treynor"
-	Turnover                GetPortfolioMetricsParamsMetric = "Turnover"
-	UlcerIndex              GetPortfolioMetricsParamsMetric = "UlcerIndex"
-	UnrealizedLTCG          GetPortfolioMetricsParamsMetric = "UnrealizedLTCG"
-	UnrealizedSTCG          GetPortfolioMetricsParamsMetric = "UnrealizedSTCG"
-	UpsideCaptureRatio      GetPortfolioMetricsParamsMetric = "UpsideCaptureRatio"
-	ValueAtRisk             GetPortfolioMetricsParamsMetric = "ValueAtRisk"
-	WinRate                 GetPortfolioMetricsParamsMetric = "WinRate"
+	ActiveReturn               GetPortfolioMetricsParamsMetric = "ActiveReturn"
+	AfterTaxCAGR               GetPortfolioMetricsParamsMetric = "AfterTaxCAGR"
+	AfterTaxTWRR               GetPortfolioMetricsParamsMetric = "AfterTaxTWRR"
+	Alpha                      GetPortfolioMetricsParamsMetric = "Alpha"
+	AverageHoldingPeriod       GetPortfolioMetricsParamsMetric = "AverageHoldingPeriod"
+	AverageLoss                GetPortfolioMetricsParamsMetric = "AverageLoss"
+	AverageMAE                 GetPortfolioMetricsParamsMetric = "AverageMAE"
+	AverageMFE                 GetPortfolioMetricsParamsMetric = "AverageMFE"
+	AverageWin                 GetPortfolioMetricsParamsMetric = "AverageWin"
+	AvgDrawdown                GetPortfolioMetricsParamsMetric = "AvgDrawdown"
+	AvgDrawdownDays            GetPortfolioMetricsParamsMetric = "AvgDrawdownDays"
+	AvgUlcerIndex              GetPortfolioMetricsParamsMetric = "AvgUlcerIndex"
+	BenchmarkAfterTaxCAGR      GetPortfolioMetricsParamsMetric = "BenchmarkAfterTaxCAGR"
+	BenchmarkAfterTaxTWRR      GetPortfolioMetricsParamsMetric = "BenchmarkAfterTaxTWRR"
+	BenchmarkAvgUlcerIndex     GetPortfolioMetricsParamsMetric = "BenchmarkAvgUlcerIndex"
+	BenchmarkCAGR              GetPortfolioMetricsParamsMetric = "BenchmarkCAGR"
+	BenchmarkCalmar            GetPortfolioMetricsParamsMetric = "BenchmarkCalmar"
+	BenchmarkDownsideDeviation GetPortfolioMetricsParamsMetric = "BenchmarkDownsideDeviation"
+	BenchmarkExcessKurtosis    GetPortfolioMetricsParamsMetric = "BenchmarkExcessKurtosis"
+	BenchmarkMWRR              GetPortfolioMetricsParamsMetric = "BenchmarkMWRR"
+	BenchmarkMaxDrawdown       GetPortfolioMetricsParamsMetric = "BenchmarkMaxDrawdown"
+	BenchmarkMedianUlcerIndex  GetPortfolioMetricsParamsMetric = "BenchmarkMedianUlcerIndex"
+	BenchmarkP90UlcerIndex     GetPortfolioMetricsParamsMetric = "BenchmarkP90UlcerIndex"
+	BenchmarkSharpe            GetPortfolioMetricsParamsMetric = "BenchmarkSharpe"
+	BenchmarkSkewness          GetPortfolioMetricsParamsMetric = "BenchmarkSkewness"
+	BenchmarkSortino           GetPortfolioMetricsParamsMetric = "BenchmarkSortino"
+	BenchmarkStdDev            GetPortfolioMetricsParamsMetric = "BenchmarkStdDev"
+	BenchmarkTWRR              GetPortfolioMetricsParamsMetric = "BenchmarkTWRR"
+	BenchmarkUlcerIndex        GetPortfolioMetricsParamsMetric = "BenchmarkUlcerIndex"
+	BenchmarkValueAtRisk       GetPortfolioMetricsParamsMetric = "BenchmarkValueAtRisk"
+	Beta                       GetPortfolioMetricsParamsMetric = "Beta"
+	CAGR                       GetPortfolioMetricsParamsMetric = "CAGR"
+	CVaR                       GetPortfolioMetricsParamsMetric = "CVaR"
+	Calmar                     GetPortfolioMetricsParamsMetric = "Calmar"
+	ConsecutiveLosses          GetPortfolioMetricsParamsMetric = "ConsecutiveLosses"
+	ConsecutiveWins            GetPortfolioMetricsParamsMetric = "ConsecutiveWins"
+	DownsideCaptureRatio       GetPortfolioMetricsParamsMetric = "DownsideCaptureRatio"
+	DownsideDeviation          GetPortfolioMetricsParamsMetric = "DownsideDeviation"
+	DynamicWithdrawalRate      GetPortfolioMetricsParamsMetric = "DynamicWithdrawalRate"
+	EdgeRatio                  GetPortfolioMetricsParamsMetric = "EdgeRatio"
+	ExcessKurtosis             GetPortfolioMetricsParamsMetric = "ExcessKurtosis"
+	Exposure                   GetPortfolioMetricsParamsMetric = "Exposure"
+	GainLossRatio              GetPortfolioMetricsParamsMetric = "GainLossRatio"
+	GainToPainRatio            GetPortfolioMetricsParamsMetric = "GainToPainRatio"
+	InformationRatio           GetPortfolioMetricsParamsMetric = "InformationRatio"
+	KRatio                     GetPortfolioMetricsParamsMetric = "KRatio"
+	KellerRatio                GetPortfolioMetricsParamsMetric = "KellerRatio"
+	KellyCriterion             GetPortfolioMetricsParamsMetric = "KellyCriterion"
+	LTCG                       GetPortfolioMetricsParamsMetric = "LTCG"
+	LongProfitFactor           GetPortfolioMetricsParamsMetric = "LongProfitFactor"
+	LongWinRate                GetPortfolioMetricsParamsMetric = "LongWinRate"
+	MWRR                       GetPortfolioMetricsParamsMetric = "MWRR"
+	MaxDrawdown                GetPortfolioMetricsParamsMetric = "MaxDrawdown"
+	MedianMAE                  GetPortfolioMetricsParamsMetric = "MedianMAE"
+	MedianMFE                  GetPortfolioMetricsParamsMetric = "MedianMFE"
+	MedianUlcerIndex           GetPortfolioMetricsParamsMetric = "MedianUlcerIndex"
+	NPositivePeriods           GetPortfolioMetricsParamsMetric = "NPositivePeriods"
+	NonQualifiedIncome         GetPortfolioMetricsParamsMetric = "NonQualifiedIncome"
+	OmegaRatio                 GetPortfolioMetricsParamsMetric = "OmegaRatio"
+	P90UlcerIndex              GetPortfolioMetricsParamsMetric = "P90UlcerIndex"
+	PerpetualWithdrawalRate    GetPortfolioMetricsParamsMetric = "PerpetualWithdrawalRate"
+	ProbabilisticSharpe        GetPortfolioMetricsParamsMetric = "ProbabilisticSharpe"
+	ProfitFactor               GetPortfolioMetricsParamsMetric = "ProfitFactor"
+	QualifiedDividends         GetPortfolioMetricsParamsMetric = "QualifiedDividends"
+	RSquared                   GetPortfolioMetricsParamsMetric = "RSquared"
+	RecoveryFactor             GetPortfolioMetricsParamsMetric = "RecoveryFactor"
+	STCG                       GetPortfolioMetricsParamsMetric = "STCG"
+	SafeWithdrawalRate         GetPortfolioMetricsParamsMetric = "SafeWithdrawalRate"
+	Sharpe                     GetPortfolioMetricsParamsMetric = "Sharpe"
+	ShortProfitFactor          GetPortfolioMetricsParamsMetric = "ShortProfitFactor"
+	ShortWinRate               GetPortfolioMetricsParamsMetric = "ShortWinRate"
+	Skewness                   GetPortfolioMetricsParamsMetric = "Skewness"
+	SmartSharpe                GetPortfolioMetricsParamsMetric = "SmartSharpe"
+	SmartSortino               GetPortfolioMetricsParamsMetric = "SmartSortino"
+	Sortino                    GetPortfolioMetricsParamsMetric = "Sortino"
+	StdDev                     GetPortfolioMetricsParamsMetric = "StdDev"
+	TWRR                       GetPortfolioMetricsParamsMetric = "TWRR"
+	TailRatio                  GetPortfolioMetricsParamsMetric = "TailRatio"
+	TaxCostRatio               GetPortfolioMetricsParamsMetric = "TaxCostRatio"
+	TaxDrag                    GetPortfolioMetricsParamsMetric = "TaxDrag"
+	TrackingError              GetPortfolioMetricsParamsMetric = "TrackingError"
+	TradeCaptureRatio          GetPortfolioMetricsParamsMetric = "TradeCaptureRatio"
+	TradeGainLossRatio         GetPortfolioMetricsParamsMetric = "TradeGainLossRatio"
+	Treynor                    GetPortfolioMetricsParamsMetric = "Treynor"
+	Turnover                   GetPortfolioMetricsParamsMetric = "Turnover"
+	UlcerIndex                 GetPortfolioMetricsParamsMetric = "UlcerIndex"
+	UnrealizedLTCG             GetPortfolioMetricsParamsMetric = "UnrealizedLTCG"
+	UnrealizedSTCG             GetPortfolioMetricsParamsMetric = "UnrealizedSTCG"
+	UpsideCaptureRatio         GetPortfolioMetricsParamsMetric = "UpsideCaptureRatio"
+	ValueAtRisk                GetPortfolioMetricsParamsMetric = "ValueAtRisk"
+	WinRate                    GetPortfolioMetricsParamsMetric = "WinRate"
 )
 
 // Valid indicates whether the value is a known member of the GetPortfolioMetricsParamsMetric enum.
 func (e GetPortfolioMetricsParamsMetric) Valid() bool {
 	switch e {
 	case ActiveReturn:
+		return true
+	case AfterTaxCAGR:
+		return true
+	case AfterTaxTWRR:
 		return true
 	case Alpha:
 		return true
@@ -383,6 +410,42 @@ func (e GetPortfolioMetricsParamsMetric) Valid() bool {
 	case AvgDrawdownDays:
 		return true
 	case AvgUlcerIndex:
+		return true
+	case BenchmarkAfterTaxCAGR:
+		return true
+	case BenchmarkAfterTaxTWRR:
+		return true
+	case BenchmarkAvgUlcerIndex:
+		return true
+	case BenchmarkCAGR:
+		return true
+	case BenchmarkCalmar:
+		return true
+	case BenchmarkDownsideDeviation:
+		return true
+	case BenchmarkExcessKurtosis:
+		return true
+	case BenchmarkMWRR:
+		return true
+	case BenchmarkMaxDrawdown:
+		return true
+	case BenchmarkMedianUlcerIndex:
+		return true
+	case BenchmarkP90UlcerIndex:
+		return true
+	case BenchmarkSharpe:
+		return true
+	case BenchmarkSkewness:
+		return true
+	case BenchmarkSortino:
+		return true
+	case BenchmarkStdDev:
+		return true
+	case BenchmarkTWRR:
+		return true
+	case BenchmarkUlcerIndex:
+		return true
+	case BenchmarkValueAtRisk:
 		return true
 	case Beta:
 		return true
@@ -707,6 +770,20 @@ type HoldingsResponse struct {
 type MetricFormat string
 
 // MetricGroup Map of pvbt metric name to array of values, one per requested window.
+// Cells are null when pvbt did not write a value for that (metric,
+// window) pair — typically because the snapshot did not span the
+// window.
+//
+// Return-style metric units by category:
+//   - `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+//   - `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+//     annualized return (e.g. 0.0817 = +8.17% per year).
+//   - `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+//     rates; interpret with care.
+//
+// Other metrics carry pvbt's documented units.
 type MetricGroup map[string][]*float64
 
 // PerformancePoint defines model for PerformancePoint.
@@ -861,24 +938,102 @@ type PortfolioCreated struct {
 // PortfolioMetrics All pvbt metrics grouped by category, column-oriented against a shared windows list.
 type PortfolioMetrics struct {
 	// Advanced Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Advanced *MetricGroup `json:"advanced,omitempty"`
 
 	// Risk Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Risk *MetricGroup `json:"risk,omitempty"`
 
 	// Summary Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Summary *MetricGroup `json:"summary,omitempty"`
 
 	// Tax Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Tax *MetricGroup `json:"tax,omitempty"`
 
 	// Trade Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Trade *MetricGroup `json:"trade,omitempty"`
 
 	// Windows Ordered list of requested windows. Each metric value array is aligned to this list.
 	Windows []string `json:"windows"`
 
 	// Withdrawal Map of pvbt metric name to array of values, one per requested window.
+	// Cells are null when pvbt did not write a value for that (metric,
+	// window) pair — typically because the snapshot did not span the
+	// window.
+	//
+	// Return-style metric units by category:
+	//   * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+	//     cumulative period return for the window (e.g. 0.1234 = +12.34%).
+	//   * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+	//     annualized return (e.g. 0.0817 = +8.17% per year).
+	//   * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+	//     Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+	//     rates; interpret with care.
+	// Other metrics carry pvbt's documented units.
 	Withdrawal *MetricGroup `json:"withdrawal,omitempty"`
 }
 
@@ -907,21 +1062,30 @@ type PortfolioStatistic struct {
 // PortfolioStatus Current lifecycle status of the portfolio's backtest.
 type PortfolioStatus string
 
-// PortfolioSummary Top-line numbers for the KPI strip.
+// PortfolioSummary Top-line numbers for the KPI strip. Every field is sourced verbatim
+// from pvbt's `metrics` table — pv-api performs no local computation.
+// Scalar fields are nullable: a null value means pvbt did not emit
+// that metric for the snapshot (typically because the window did not
+// span enough data, or the snapshot pre-dates the metric).
 type PortfolioSummary struct {
-	Alpha              float64  `json:"alpha"`
-	BenchmarkYtdReturn float64  `json:"benchmarkYtdReturn"`
-	Beta               float64  `json:"beta"`
-	CagrSinceInception float64  `json:"cagrSinceInception"`
+	Alpha *float64 `json:"alpha,omitempty"`
+	Beta  *float64 `json:"beta,omitempty"`
+
+	// CagrSinceInception Annualized return over the full snapshot.
+	CagrSinceInception *float64 `json:"cagrSinceInception,omitempty"`
 	CurrentValue       float64  `json:"currentValue"`
-	MaxDrawDown        float64  `json:"maxDrawDown"`
-	OneYearReturn      float64  `json:"oneYearReturn"`
-	Sharpe             float64  `json:"sharpe"`
-	Sortino            float64  `json:"sortino"`
-	StdDev             float64  `json:"stdDev"`
-	TaxCostRatio       float64  `json:"taxCostRatio"`
-	UlcerIndex         *float64 `json:"ulcerIndex,omitempty"`
-	YtdReturn          float64  `json:"ytdReturn"`
+	MaxDrawDown        *float64 `json:"maxDrawDown,omitempty"`
+
+	// OneYearReturn TWRR for the trailing one-year window (cumulative).
+	OneYearReturn *float64 `json:"oneYearReturn,omitempty"`
+	Sharpe        *float64 `json:"sharpe,omitempty"`
+	Sortino       *float64 `json:"sortino,omitempty"`
+	StdDev        *float64 `json:"stdDev,omitempty"`
+	TaxCostRatio  *float64 `json:"taxCostRatio,omitempty"`
+	UlcerIndex    *float64 `json:"ulcerIndex,omitempty"`
+
+	// YtdReturn TWRR for the year-to-date window (cumulative).
+	YtdReturn *float64 `json:"ytdReturn,omitempty"`
 }
 
 // PortfolioUpdateRequest PATCH body. Only `name`, `startDate`, `endDate`, and `runRetention` are mutable.

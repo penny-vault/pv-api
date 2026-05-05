@@ -191,6 +191,7 @@ func ListInstalled(ctx context.Context, pool *pgxpool.Pool) ([]Strategy, error) 
 }
 
 // UpdateStats writes performance stats and clears any previous stats_error.
+// Nil metric pointers are written as SQL NULL.
 func UpdateStats(ctx context.Context, pool *pgxpool.Pool, shortCode string, r StatsResult) error {
 	_, err := pool.Exec(ctx,
 		`UPDATE strategies

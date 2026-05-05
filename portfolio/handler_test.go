@@ -903,9 +903,10 @@ var _ = Describe("Handler.Summary", func() {
 			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
 			Status: portfolio.StatusReady, SnapshotPath: &path,
 		}}
+		sharpe := 1.23
 		wantSummary := &openapi.PortfolioSummary{
 			CurrentValue: 103000,
-			Sharpe:       1.23,
+			Sharpe:       &sharpe,
 		}
 		opener.readers[path] = &fakeSnapshotReader{summary: wantSummary}
 

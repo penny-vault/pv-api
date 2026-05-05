@@ -58,20 +58,21 @@ type StatRunRequest struct {
 // cycle between strategy and snapshot/portfolio.
 type SnapshotKpisFunc func(ctx context.Context, path string) (StatKpis, error)
 
-// StatKpis holds the scalar metrics the StatsRefresher persists.
+// StatKpis holds the scalar metrics the StatsRefresher persists. Each
+// metric field is nullable (nil = pvbt did not emit the value).
 type StatKpis struct {
-	CAGR               float64
-	MaxDrawdown        float64
-	Sharpe             float64
-	Sortino            float64
-	UlcerIndex         float64
-	Beta               float64
-	Alpha              float64
-	StdDev             float64
-	TaxCostRatio       float64
-	OneYearReturn      float64
-	YtdReturn          float64
-	BenchmarkYtdReturn float64
+	CAGR               *float64
+	MaxDrawdown        *float64
+	Sharpe             *float64
+	Sortino            *float64
+	UlcerIndex         *float64
+	Beta               *float64
+	Alpha              *float64
+	StdDev             *float64
+	TaxCostRatio       *float64
+	OneYearReturn      *float64
+	YtdReturn          *float64
+	BenchmarkYtdReturn *float64
 }
 
 // StatsRefresherConfig configures the StatsRefresher.
@@ -239,20 +240,29 @@ func (r *StatsRefresher) RunOne(ctx context.Context, shortCode string) error {
 	if err := r.store.UpdateStats(ctx, shortCode, result); err != nil {
 		return fmt.Errorf("writing stats for %s: %w", shortCode, err)
 	}
-	log.Info().Str("short_code", shortCode).
-		Float64("cagr", result.CAGR).
-		Float64("max_drawdown", result.MaxDrawdown).
-		Float64("sharpe", result.Sharpe).
-		Float64("sortino", result.Sortino).
-		Float64("ulcer_index", result.UlcerIndex).
-		Float64("beta", result.Beta).
-		Float64("alpha", result.Alpha).
-		Float64("std_dev", result.StdDev).
-		Float64("tax_cost_ratio", result.TaxCostRatio).
-		Float64("one_year_return", result.OneYearReturn).
-		Float64("ytd_return", result.YtdReturn).
-		Float64("benchmark_ytd_return", result.BenchmarkYtdReturn).
-		Msg("strategy stats updated")
+	ev := log.Info().Str("short_code", shortCode)
+	for _, f := range []struct {
+		name string
+		val  *float64
+	}{
+		{"cagr", result.CAGR},
+		{"max_drawdown", result.MaxDrawdown},
+		{"sharpe", result.Sharpe},
+		{"sortino", result.Sortino},
+		{"ulcer_index", result.UlcerIndex},
+		{"beta", result.Beta},
+		{"alpha", result.Alpha},
+		{"std_dev", result.StdDev},
+		{"tax_cost_ratio", result.TaxCostRatio},
+		{"one_year_return", result.OneYearReturn},
+		{"ytd_return", result.YtdReturn},
+		{"benchmark_ytd_return", result.BenchmarkYtdReturn},
+	} {
+		if f.val != nil {
+			ev = ev.Float64(f.name, *f.val)
+		}
+	}
+	ev.Msg("strategy stats updated")
 	return nil
 }
 

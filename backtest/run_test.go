@@ -51,7 +51,7 @@ func (f *fakePortfolioStore) MarkRunningTx(_ context.Context, _, _ uuid.UUID) er
 	return nil
 }
 func (f *fakePortfolioStore) MarkReadyTx(_ context.Context, _, _ uuid.UUID, path string,
-	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64,
 	inceptionDate time.Time, durationMs int32) error {
 	f.markReady = true
 	f.snapshotOut = path

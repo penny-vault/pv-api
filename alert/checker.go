@@ -290,8 +290,12 @@ func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPat
 	p.DayChangePct, p.DayChangeColor = email.FormatReturnPct(short.Day)
 	p.WtdPct, p.WtdColor = email.FormatReturnPct(short.WTD)
 	p.MtdPct, p.MtdColor = email.FormatReturnPct(short.MTD)
-	p.YtdPct, p.YtdColor = email.FormatReturnPct(kpis.YtdReturn)
-	p.OneYearPct, p.OneYearColor = email.FormatReturnPct(kpis.OneYearReturn)
+	if kpis.YtdReturn != nil {
+		p.YtdPct, p.YtdColor = email.FormatReturnPct(*kpis.YtdReturn)
+	}
+	if kpis.OneYearReturn != nil {
+		p.OneYearPct, p.OneYearColor = email.FormatReturnPct(*kpis.OneYearReturn)
+	}
 }
 
 func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, port portfolioData) {

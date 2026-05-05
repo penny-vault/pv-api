@@ -48,7 +48,7 @@ type PortfolioStore interface {
 	GetByID(ctx context.Context, portfolioID uuid.UUID) (PortfolioRow, error)
 	MarkRunningTx(ctx context.Context, portfolioID, runID uuid.UUID) error
 	MarkReadyTx(ctx context.Context, portfolioID, runID uuid.UUID, snapshotPath string,
-		currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+		currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64,
 		inceptionDate time.Time, durationMs int32) error
 	MarkFailedTx(ctx context.Context, portfolioID, runID uuid.UUID, errMsg string, durationMs int32) error
 	PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]string, error)
@@ -69,13 +69,14 @@ type PortfolioRow struct {
 }
 
 // SetKpis carries the KPI values written back to the portfolios row after
-// a successful backtest run.
+// a successful backtest run. Each metric pointer is nil when pvbt did not
+// emit a value for it.
 type SetKpis struct {
 	CurrentValue  float64
-	YtdReturn     float64
-	MaxDrawdown   float64
-	Sharpe        float64
-	Cagr          float64
+	YtdReturn     *float64
+	MaxDrawdown   *float64
+	Sharpe        *float64
+	Cagr          *float64
 	InceptionDate time.Time
 }
 

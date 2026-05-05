@@ -14,15 +14,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /portfolios/{slug}/statistics` now includes CAGR, Calmar, Information
   Ratio, Upside/Downside Capture, Win Rate, and Profit Factor.
 - `GET /portfolios/{slug}/trailing-returns` now also returns `portfolio-tax`
-  and `benchmark-tax` rows. Portfolio-tax cells combine pre-tax TWRR with
-  pvbt's per-window TaxDrag; benchmark-tax cells apply a flat 15% LTCG to
-  the buy-and-hold benchmark gain.
+  and `benchmark-tax` rows.
+- `GET /portfolios/{slug}/metrics` accepts `window=10yr` and exposes
+  pvbt's benchmark and after-tax metrics (`BenchmarkTWRR`, `BenchmarkCAGR`,
+  `AfterTaxTWRR`, `AfterTaxCAGR`, and the rest of the `Benchmark*` family).
 
 ### Changed
 - `PortfolioStatistic.value` is nullable. Metrics absent from the snapshot
   return `null` instead of `0`, so clients can distinguish missing from zero.
+- `GET /portfolios/{slug}/summary` is now a strict passthrough of pvbt's
+  metrics table. Every metric field (`ytdReturn`, `oneYearReturn`,
+  `cagrSinceInception`, `sharpe`, `sortino`, `beta`, `alpha`, `stdDev`,
+  `maxDrawDown`, `taxCostRatio`, `ulcerIndex`) is nullable, returning
+  `null` when pvbt did not emit the value for the snapshot.
+- `GET /portfolios/{slug}/trailing-returns` benchmark and after-tax rows
+  are now sourced from pvbt rather than recomputed locally. The buy-and-hold
+  15% LTCG approximation has been replaced by pvbt's lot-level tax model.
 - Default CORS allowlist now includes `https://pennyvault.com` and
   `https://www.pennyvault.com` alongside the localhost dev origins.
+
+### Removed
+- `PortfolioSummary.benchmarkYtdReturn`. Use
+  `GET /portfolios/{slug}/trailing-returns` for benchmark windowed returns.
 
 ### Fixed
 - Snapshot reads no longer loop in `recalculating` forever. Each backtest

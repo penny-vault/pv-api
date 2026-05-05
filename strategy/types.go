@@ -72,20 +72,23 @@ type Strategy struct {
 	UpdatedAt    time.Time
 }
 
-// StatsResult holds the performance metrics written back to the strategies table.
+// StatsResult holds the performance metrics written back to the strategies
+// table. Each field is nullable: a nil pointer means pvbt did not emit a
+// value for the corresponding metric in the snapshot, and the column is
+// written as SQL NULL.
 type StatsResult struct {
-	CAGR               float64
-	MaxDrawdown        float64
-	Sharpe             float64
-	Sortino            float64
-	UlcerIndex         float64
-	Beta               float64
-	Alpha              float64
-	StdDev             float64
-	TaxCostRatio       float64
-	OneYearReturn      float64
-	YtdReturn          float64
-	BenchmarkYtdReturn float64
+	CAGR               *float64
+	MaxDrawdown        *float64
+	Sharpe             *float64
+	Sortino            *float64
+	UlcerIndex         *float64
+	Beta               *float64
+	Alpha              *float64
+	StdDev             *float64
+	TaxCostRatio       *float64
+	OneYearReturn      *float64
+	YtdReturn          *float64
+	BenchmarkYtdReturn *float64
 	AsOf               time.Time
 }
 

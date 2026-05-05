@@ -199,8 +199,9 @@ func SetRunning(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
 
 // SetReady marks the portfolio as ready and writes all KPI columns.
 // inceptionDate is written only if the row has no existing inception_date.
+// Nil scalar metric pointers are written as SQL NULL.
 func SetReady(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, snapshotPath string,
-	currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64, inceptionDate time.Time) error {
+	currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64, inceptionDate time.Time) error {
 	const q = `
 		UPDATE portfolios SET
 			status='ready',
@@ -251,9 +252,10 @@ func MarkRunningTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID u
 }
 
 // MarkReadyTx atomically marks the portfolio as ready and the run as success,
-// writing all KPI columns in the same transaction.
+// writing all KPI columns in the same transaction. Nil scalar metric
+// pointers are written as SQL NULL.
 func MarkReadyTx(ctx context.Context, pool *pgxpool.Pool, portfolioID, runID uuid.UUID,
-	snapshotPath string, currentValue, ytdReturn, maxDrawdown, sharpe, cagr float64,
+	snapshotPath string, currentValue float64, ytdReturn, maxDrawdown, sharpe, cagr *float64,
 	inceptionDate time.Time, durationMs int32) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {

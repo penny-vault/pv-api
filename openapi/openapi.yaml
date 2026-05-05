@@ -535,6 +535,7 @@ paths:
               type: string
               enum:
                 - since_inception
+                - 10yr
                 - 5yr
                 - 3yr
                 - 1yr
@@ -559,6 +560,13 @@ paths:
                 - KellerRatio
                 - MaxDrawdown
                 - StdDev
+                - BenchmarkTWRR
+                - BenchmarkMWRR
+                - BenchmarkSharpe
+                - BenchmarkSortino
+                - BenchmarkCalmar
+                - BenchmarkMaxDrawdown
+                - BenchmarkStdDev
                 - Beta
                 - Alpha
                 - TrackingError
@@ -572,6 +580,11 @@ paths:
                 - ValueAtRisk
                 - UpsideCaptureRatio
                 - DownsideCaptureRatio
+                - BenchmarkDownsideDeviation
+                - BenchmarkUlcerIndex
+                - BenchmarkExcessKurtosis
+                - BenchmarkSkewness
+                - BenchmarkValueAtRisk
                 - WinRate
                 - AverageWin
                 - AverageLoss
@@ -601,7 +614,12 @@ paths:
                 - NonQualifiedIncome
                 - TaxCostRatio
                 - TaxDrag
+                - AfterTaxTWRR
+                - AfterTaxCAGR
+                - BenchmarkAfterTaxTWRR
+                - BenchmarkAfterTaxCAGR
                 - CAGR
+                - BenchmarkCAGR
                 - ActiveReturn
                 - SmartSharpe
                 - SmartSortino
@@ -622,6 +640,9 @@ paths:
                 - AvgUlcerIndex
                 - P90UlcerIndex
                 - MedianUlcerIndex
+                - BenchmarkAvgUlcerIndex
+                - BenchmarkP90UlcerIndex
+                - BenchmarkMedianUlcerIndex
           style: form
           explode: false
       responses:
@@ -1211,20 +1232,14 @@ components:
 
     PortfolioSummary:
       type: object
-      description: Top-line numbers for the KPI strip.
+      description: |
+        Top-line numbers for the KPI strip. Every field is sourced verbatim
+        from pvbt's `metrics` table — pv-api performs no local computation.
+        Scalar fields are nullable: a null value means pvbt did not emit
+        that metric for the snapshot (typically because the window did not
+        span enough data, or the snapshot pre-dates the metric).
       required:
         - currentValue
-        - ytdReturn
-        - benchmarkYtdReturn
-        - oneYearReturn
-        - cagrSinceInception
-        - maxDrawDown
-        - sharpe
-        - sortino
-        - beta
-        - alpha
-        - stdDev
-        - taxCostRatio
       properties:
         currentValue:
           type: number
@@ -1232,39 +1247,50 @@ components:
         ytdReturn:
           type: number
           format: double
-        benchmarkYtdReturn:
-          type: number
-          format: double
+          nullable: true
+          description: TWRR for the year-to-date window (cumulative).
         oneYearReturn:
           type: number
           format: double
+          nullable: true
+          description: TWRR for the trailing one-year window (cumulative).
         cagrSinceInception:
           type: number
           format: double
+          nullable: true
+          description: Annualized return over the full snapshot.
         maxDrawDown:
           type: number
           format: double
+          nullable: true
         sharpe:
           type: number
           format: double
+          nullable: true
         sortino:
           type: number
           format: double
+          nullable: true
         beta:
           type: number
           format: double
+          nullable: true
         alpha:
           type: number
           format: double
+          nullable: true
         stdDev:
           type: number
           format: double
+          nullable: true
         ulcerIndex:
           type: number
           format: double
+          nullable: true
         taxCostRatio:
           type: number
           format: double
+          nullable: true
 
     Drawdown:
       type: object
@@ -1306,7 +1332,21 @@ components:
           $ref: '#/components/schemas/MetricFormat'
 
     MetricGroup:
-      description: Map of pvbt metric name to array of values, one per requested window.
+      description: |
+        Map of pvbt metric name to array of values, one per requested window.
+        Cells are null when pvbt did not write a value for that (metric,
+        window) pair — typically because the snapshot did not span the
+        window.
+
+        Return-style metric units by category:
+          * `TWRR`, `BenchmarkTWRR`, `AfterTaxTWRR`, `BenchmarkAfterTaxTWRR`:
+            cumulative period return for the window (e.g. 0.1234 = +12.34%).
+          * `CAGR`, `BenchmarkCAGR`, `AfterTaxCAGR`, `BenchmarkAfterTaxCAGR`:
+            annualized return (e.g. 0.0817 = +8.17% per year).
+          * `MWRR`, `BenchmarkMWRR`: always annualized (XIRR convention).
+            Sub-annual windows (`wtd`, `mtd`, `ytd`) produce extrapolated
+            rates; interpret with care.
+        Other metrics carry pvbt's documented units.
       type: object
       additionalProperties:
         type: array

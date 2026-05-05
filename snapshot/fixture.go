@@ -122,19 +122,24 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO metrics VALUES ('2024-01-08', 'WinRate', 'since_inception', 0.62)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxCostRatio', 'since_inception', 0.015)`,
 
-		// TWRR (cumulative) and CAGR (annualized) per window — pvbt writes
-		// these for every window the portfolio spans. The fixture is 5 trading
-		// days, so only ytd/since_inception have rows; 1yr/3yr/5yr/10yr are
-		// absent and trailing-return cells for those windows must surface as null.
+		// pvbt return metrics — every trailing-returns cell is sourced from
+		// these rows. The fixture is 5 trading days, so only ytd /
+		// since_inception have rows; multi-year windows are absent and
+		// surface as null on the API. Portfolio uses TWRR / CAGR; benchmark
+		// uses BenchmarkTWRR / BenchmarkCAGR; after-tax variants use the
+		// AfterTax / BenchmarkAfterTax names.
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'since_inception', 0.03)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'ytd', 0.03)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'CAGR', 'since_inception', 6.7)`,
-
-		// TaxDrag per window — required to produce the portfolio-tax row.
-		// 0.10 means 10% of the pre-tax dollar return is consumed by taxes,
-		// so after-tax cumulative = TWRR * 0.9 = 0.027 for both windows.
-		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxDrag', 'since_inception', 0.10)`,
-		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxDrag', 'ytd', 0.10)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkTWRR', 'since_inception', 0.02)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkTWRR', 'ytd', 0.02)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkCAGR', 'since_inception', 4.5)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'AfterTaxTWRR', 'since_inception', 0.027)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'AfterTaxTWRR', 'ytd', 0.027)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'AfterTaxCAGR', 'since_inception', 5.9)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkAfterTaxTWRR', 'since_inception', 0.017)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkAfterTaxTWRR', 'ytd', 0.017)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'BenchmarkAfterTaxCAGR', 'since_inception', 3.8)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

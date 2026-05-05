@@ -25,8 +25,8 @@ import (
 	"github.com/penny-vault/pv-api/openapi"
 )
 
-// Summary returns top-line KPIs by reading metadata, the latest perf_data
-// row, and the full-window metrics table.
+// Summary returns the top-line KPI strip. Every field is sourced verbatim
+// from pvbt's metrics table; pv-api performs no return-style computation.
 func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error) {
 	k, err := r.Kpis(ctx)
 	if err != nil {
@@ -35,7 +35,6 @@ func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error)
 	return &openapi.PortfolioSummary{
 		CurrentValue:       k.CurrentValue,
 		YtdReturn:          k.YtdReturn,
-		BenchmarkYtdReturn: k.BenchmarkYtdReturn,
 		OneYearReturn:      k.OneYearReturn,
 		CagrSinceInception: k.Cagr,
 		MaxDrawDown:        k.MaxDrawdown,
@@ -44,7 +43,7 @@ func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error)
 		Beta:               k.Beta,
 		Alpha:              k.Alpha,
 		StdDev:             k.StdDev,
-		UlcerIndex:         &k.UlcerIndex,
+		UlcerIndex:         k.UlcerIndex,
 		TaxCostRatio:       k.TaxCostRatio,
 	}, nil
 }
