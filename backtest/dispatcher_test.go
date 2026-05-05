@@ -29,9 +29,11 @@ import (
 )
 
 type fakeRunner struct {
-	active int64
-	peak   int64
-	block  chan struct{}
+	active    int64
+	peak      int64
+	block     chan struct{}
+	started   chan struct{} // optional; closed by the first Run() call
+	startOnce sync.Once
 }
 
 func (f *fakeRunner) Run(ctx context.Context, req backtest.RunRequest) error {
@@ -47,6 +49,9 @@ func (f *fakeRunner) Run(ctx context.Context, req backtest.RunRequest) error {
 		break
 	}
 	defer atomic.AddInt64(&f.active, -1)
+	if f.started != nil {
+		f.startOnce.Do(func() { close(f.started) })
+	}
 	select {
 	case <-f.block:
 	case <-ctx.Done():
@@ -131,7 +136,7 @@ var _ = Describe("Dispatcher", func() {
 		// backtest_runs with no worker to process it. The partial unique index
 		// then blocked all future Submit calls and pickInflight surfaced the
 		// orphan to readers as "still recalculating" forever.
-		runner := &fakeRunner{block: make(chan struct{})}
+		runner := &fakeRunner{block: make(chan struct{}), started: make(chan struct{})}
 		defer close(runner.block)
 		rs := newFakeRunStore()
 		d := backtest.NewDispatcher(backtest.Config{
@@ -140,10 +145,18 @@ var _ = Describe("Dispatcher", func() {
 		d.Start(context.Background())
 		DeferCleanup(func() { d.Shutdown(5 * time.Second) })
 
-		for range 5 {
+		// Submit one and wait until the worker is actively blocked in Run().
+		// Otherwise on a slow scheduler the channel fills before the worker
+		// starts consuming, and more than one Submit hits the default branch.
+		_, err := d.Submit(context.Background(), uuid.New())
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(runner.started).Should(BeClosed())
+
+		// Channel buffer is MaxConcurrency*4 = 4. Fill it.
+		for range 4 {
 			_, _ = d.Submit(context.Background(), uuid.New())
 		}
-		_, err := d.Submit(context.Background(), uuid.New())
+		_, err = d.Submit(context.Background(), uuid.New())
 		Expect(err).To(MatchError(backtest.ErrQueueFull))
 
 		rs.mu.Lock()
