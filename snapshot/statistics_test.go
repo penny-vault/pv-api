@@ -36,11 +36,18 @@ var _ = Describe("Statistics", func() {
 		stats, err := r.Statistics(context.Background())
 		Expect(err).NotTo(HaveOccurred())
 
-		byLabel := map[string]float64{}
+		byLabel := map[string]*float64{}
 		for _, s := range stats {
 			byLabel[s.Label] = s.Value
 		}
-		Expect(byLabel).To(HaveKeyWithValue("Sharpe Ratio", BeNumerically("~", 1.23, 0.001)))
-		Expect(byLabel).To(HaveKeyWithValue("Beta", BeNumerically("~", 0.95, 0.001)))
+		Expect(byLabel).To(HaveKey("Sharpe Ratio"))
+		Expect(*byLabel["Sharpe Ratio"]).To(BeNumerically("~", 1.23, 0.001))
+		Expect(byLabel).To(HaveKey("Beta"))
+		Expect(*byLabel["Beta"]).To(BeNumerically("~", 0.95, 0.001))
+		Expect(byLabel).To(HaveKey("Win Rate"))
+		Expect(*byLabel["Win Rate"]).To(BeNumerically("~", 0.62, 0.001))
+
+		// Metrics absent from the fixture surface as nil so the UI can render "--".
+		Expect(byLabel).To(HaveKeyWithValue("Profit Factor", BeNil()))
 	})
 })

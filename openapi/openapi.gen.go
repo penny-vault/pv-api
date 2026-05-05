@@ -899,7 +899,9 @@ type PortfolioStatistic struct {
 	// Format How the value should be rendered. Percent values are decimal (0.1147 = 11.47%).
 	Format MetricFormat `json:"format"`
 	Label  string       `json:"label"`
-	Value  float64      `json:"value"`
+
+	// Value Null when the underlying metric is absent from the snapshot.
+	Value *float64 `json:"value"`
 }
 
 // PortfolioStatus Current lifecycle status of the portfolio's backtest.

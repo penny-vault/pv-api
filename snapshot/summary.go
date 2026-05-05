@@ -49,10 +49,10 @@ func (r *Reader) Summary(ctx context.Context) (*openapi.PortfolioSummary, error)
 	}, nil
 }
 
-// readMetric returns the value of the full-window metric for any of the given names,
-// or 0 if absent. Accepts aliases to support both legacy snake_case names (window='full')
-// and pvbt PascalCase names (window='since_inception').
-func (r *Reader) readMetric(ctx context.Context, name string, aliases ...string) (float64, error) {
+// readMetric returns the value of the full-window metric for any of the given names
+// and a found flag (false when absent). Accepts aliases to support both legacy
+// snake_case names (window='full') and pvbt PascalCase names (window='since_inception').
+func (r *Reader) readMetric(ctx context.Context, name string, aliases ...string) (float64, bool, error) {
 	allNames := append([]string{name}, aliases...)
 	ph := make([]string, len(allNames))
 	args := make([]any, len(allNames))
@@ -65,10 +65,10 @@ func (r *Reader) readMetric(ctx context.Context, name string, aliases ...string)
 		fmt.Sprintf(`SELECT value FROM metrics WHERE name IN (%s) AND window IN ('full','since_inception') ORDER BY date DESC LIMIT 1`,
 			strings.Join(ph, ",")), args...).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
+		return 0, false, nil
 	}
 	if err != nil {
-		return 0, fmt.Errorf("read metric %s: %w", name, err)
+		return 0, false, fmt.Errorf("read metric %s: %w", name, err)
 	}
-	return v, nil
+	return v, true, nil
 }

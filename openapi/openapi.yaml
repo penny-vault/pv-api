@@ -1300,6 +1300,8 @@ components:
         value:
           type: number
           format: double
+          nullable: true
+          description: Null when the underlying metric is absent from the snapshot.
         format:
           $ref: '#/components/schemas/MetricFormat'
 

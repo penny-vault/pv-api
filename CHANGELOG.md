@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live progress (`pct`, `step`, `eta`) on `GET /portfolios/{slug}/runs`
   and `GET /portfolios/{slug}/runs/{runId}`, so polling clients can show
   progress without opening the SSE stream.
+- `GET /portfolios/{slug}/statistics` now includes CAGR, Calmar, Information
+  Ratio, Upside/Downside Capture, Win Rate, and Profit Factor.
+
+### Changed
+- `PortfolioStatistic.value` is nullable. Metrics absent from the snapshot
+  return `null` instead of `0`, so clients can distinguish missing from zero.
 
 ### Fixed
 - Snapshot reads no longer loop in `recalculating` forever. Each backtest

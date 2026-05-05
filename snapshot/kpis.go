@@ -86,7 +86,7 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 	}
 	vals := map[string]float64{}
 	for _, pair := range metricAliases {
-		v, err := r.readMetric(ctx, pair[0], pair[1])
+		v, _, err := r.readMetric(ctx, pair[0], pair[1])
 		if err != nil {
 			return Kpis{}, err
 		}
