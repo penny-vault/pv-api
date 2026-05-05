@@ -17,6 +17,7 @@ package snapshot_test
 
 import (
 	"context"
+	"math"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -48,7 +49,7 @@ var _ = Describe("ShortTermReturns", func() {
 })
 
 var _ = Describe("TrailingReturns", func() {
-	It("reads portfolio cells from the metrics table and derives benchmark cells from perf_data without fallback", func() {
+	It("emits portfolio, benchmark, portfolio-tax, and benchmark-tax rows", func() {
 		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
 		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
 		r, err := snapshot.Open(path)
@@ -57,15 +58,19 @@ var _ = Describe("TrailingReturns", func() {
 
 		rows, err := r.TrailingReturns(context.Background())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(rows).To(HaveLen(2))
+		Expect(rows).To(HaveLen(4))
 
-		var portfolioRow, benchRow openapi.TrailingReturnRow
+		var portfolioRow, benchRow, portfolioTaxRow, benchTaxRow openapi.TrailingReturnRow
 		for _, row := range rows {
 			switch row.Kind {
 			case openapi.ReturnRowKindPortfolio:
 				portfolioRow = row
 			case openapi.ReturnRowKindBenchmark:
 				benchRow = row
+			case openapi.ReturnRowKindPortfolioTax:
+				portfolioTaxRow = row
+			case openapi.ReturnRowKindBenchmarkTax:
+				benchTaxRow = row
 			}
 		}
 
@@ -94,5 +99,33 @@ var _ = Describe("TrailingReturns", func() {
 		Expect(benchRow.ThreeYear).To(BeNil())
 		Expect(benchRow.FiveYear).To(BeNil())
 		Expect(benchRow.TenYear).To(BeNil())
+
+		// Portfolio-tax cells: TWRR * (1 - TaxDrag) cumulatively, then
+		// re-annualized over the actual portfolio span (2024-01-02 →
+		// 2024-01-08 = 6 days) for since_inception.
+		Expect(portfolioTaxRow.Title).To(Equal("Portfolio (after tax)"))
+		Expect(portfolioTaxRow.Ytd).NotTo(BeNil())
+		Expect(*portfolioTaxRow.Ytd).To(BeNumerically("~", 0.027, 1e-9))
+		Expect(portfolioTaxRow.SinceInception).NotTo(BeNil())
+		spanYears := 6.0 / 365.25
+		expectedPortfolioSI := math.Pow(1.027, 1.0/spanYears) - 1
+		Expect(*portfolioTaxRow.SinceInception).To(BeNumerically("~", expectedPortfolioSI, 1e-6))
+		Expect(portfolioTaxRow.OneYear).To(BeNil())
+		Expect(portfolioTaxRow.ThreeYear).To(BeNil())
+		Expect(portfolioTaxRow.FiveYear).To(BeNil())
+		Expect(portfolioTaxRow.TenYear).To(BeNil())
+
+		// Benchmark-tax cells: cumulative gain * 0.85, then re-annualized
+		// for since_inception over the same 6-day span.
+		Expect(benchTaxRow.Title).To(Equal("Benchmark (after tax)"))
+		Expect(benchTaxRow.Ytd).NotTo(BeNil())
+		Expect(*benchTaxRow.Ytd).To(BeNumerically("~", 0.02*0.85, 1e-9))
+		Expect(benchTaxRow.SinceInception).NotTo(BeNil())
+		expectedBenchSI := math.Pow(1+0.02*0.85, 1.0/spanYears) - 1
+		Expect(*benchTaxRow.SinceInception).To(BeNumerically("~", expectedBenchSI, 1e-6))
+		Expect(benchTaxRow.OneYear).To(BeNil())
+		Expect(benchTaxRow.ThreeYear).To(BeNil())
+		Expect(benchTaxRow.FiveYear).To(BeNil())
+		Expect(benchTaxRow.TenYear).To(BeNil())
 	})
 })

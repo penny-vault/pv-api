@@ -34,7 +34,13 @@ const (
 	benchmarkValueClause = `metric IN ('benchmark_value','PortfolioBenchmark')`
 )
 
-// TrailingReturns emits two rows — one portfolio, one benchmark.
+// benchmarkLTCGRate is the flat long-term capital gains rate applied to the
+// benchmark's cumulative gain to derive its after-tax row. The benchmark is
+// treated as buy-and-hold so all gains are long-term.
+const benchmarkLTCGRate = 0.15
+
+// TrailingReturns emits four rows: portfolio, benchmark, portfolio-tax,
+// benchmark-tax.
 //
 // Portfolio cells come straight from the metrics table: pvbt writes TWRR
 // per window for the cumulative cells (ytd, 1yr) and CAGR per window for
@@ -47,16 +53,28 @@ const (
 // mirrors pvbt: cumulative for sub-annual windows, CAGR for multi-year
 // windows. No fallback to the earliest row — when the snapshot does not
 // span the requested window, the cell is null.
+//
+// Portfolio-tax cells combine per-window TWRR with per-window TaxDrag
+// (= estimated_tax_dollars / preTaxReturn_dollars). Cumulative cells
+// scale TWRR by (1 - TaxDrag); multi-year cells re-annualize the
+// after-tax cumulative return over the same window span pvbt used.
+//
+// Benchmark-tax cells assume a buy-and-hold benchmark with all gains
+// realized as long-term, applying a flat 15% LTCG to the cumulative gain.
 func (r *Reader) TrailingReturns(ctx context.Context) ([]openapi.TrailingReturnRow, error) {
 	portfolioRow, err := r.portfolioTrailingRow(ctx)
 	if err != nil {
 		return nil, err
 	}
-	benchRow, err := r.benchmarkTrailingRow(ctx)
+	portfolioTaxRow, err := r.portfolioTaxTrailingRow(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return []openapi.TrailingReturnRow{portfolioRow, benchRow}, nil
+	benchRow, benchTaxRow, err := r.benchmarkTrailingRows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return []openapi.TrailingReturnRow{portfolioRow, benchRow, portfolioTaxRow, benchTaxRow}, nil
 }
 
 func (r *Reader) portfolioTrailingRow(ctx context.Context) (openapi.TrailingReturnRow, error) {
@@ -87,50 +105,56 @@ func (r *Reader) portfolioTrailingRow(ctx context.Context) (openapi.TrailingRetu
 	return row, nil
 }
 
-func (r *Reader) benchmarkTrailingRow(ctx context.Context) (openapi.TrailingReturnRow, error) {
+func (r *Reader) benchmarkTrailingRows(ctx context.Context) (openapi.TrailingReturnRow, openapi.TrailingReturnRow, error) {
 	row := openapi.TrailingReturnRow{
 		Title: "Benchmark",
 		Kind:  openapi.ReturnRowKindBenchmark,
 	}
+	taxRow := openapi.TrailingReturnRow{
+		Title: "Benchmark (after tax)",
+		Kind:  openapi.ReturnRowKindBenchmarkTax,
+	}
 	latestVal, latestDate, err := r.latestBenchmarkValueAndDate(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		return row, nil
+		return row, taxRow, nil
 	}
 	if err != nil {
-		return openapi.TrailingReturnRow{}, err
+		return openapi.TrailingReturnRow{}, openapi.TrailingReturnRow{}, err
 	}
-	if err := r.fillBenchmarkShortWindowReturns(ctx, &row, latestVal, latestDate); err != nil {
-		return openapi.TrailingReturnRow{}, err
+	if err := r.fillBenchmarkShortWindowReturns(ctx, &row, &taxRow, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, openapi.TrailingReturnRow{}, err
 	}
-	if err := r.fillBenchmarkAnnualizedReturns(ctx, &row, latestVal, latestDate); err != nil {
-		return openapi.TrailingReturnRow{}, err
+	if err := r.fillBenchmarkAnnualizedReturns(ctx, &row, &taxRow, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, openapi.TrailingReturnRow{}, err
 	}
-	if err := r.fillBenchmarkSinceInception(ctx, &row, latestVal, latestDate); err != nil {
-		return openapi.TrailingReturnRow{}, err
+	if err := r.fillBenchmarkSinceInception(ctx, &row, &taxRow, latestVal, latestDate); err != nil {
+		return openapi.TrailingReturnRow{}, openapi.TrailingReturnRow{}, err
 	}
-	return row, nil
+	return row, taxRow, nil
 }
 
-// fillBenchmarkShortWindowReturns populates Ytd and OneYear on the trailing
-// row using the corresponding benchmark anchor values.
-func (r *Reader) fillBenchmarkShortWindowReturns(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
+// fillBenchmarkShortWindowReturns populates Ytd and OneYear on the pre-tax
+// and after-tax rows using the corresponding benchmark anchor values.
+func (r *Reader) fillBenchmarkShortWindowReturns(ctx context.Context, row, taxRow *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	ytdStart := time.Date(latestDate.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 	if v, err := r.benchmarkValueOnOrAfter(ctx, ytdStart); err != nil {
 		return err
 	} else if v != nil {
 		row.Ytd = cumulativeReturn(latestVal, *v)
+		taxRow.Ytd = afterTaxCumulative(row.Ytd)
 	}
 	if v, err := r.benchmarkValueOnOrBefore(ctx, latestDate.AddDate(-1, 0, 0)); err != nil {
 		return err
 	} else if v != nil {
 		row.OneYear = cumulativeReturn(latestVal, *v)
+		taxRow.OneYear = afterTaxCumulative(row.OneYear)
 	}
 	return nil
 }
 
 // fillBenchmarkAnnualizedReturns populates ThreeYear, FiveYear, and TenYear
-// on the trailing row using benchmark anchor values N years prior.
-func (r *Reader) fillBenchmarkAnnualizedReturns(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
+// on both rows using benchmark anchor values N years prior.
+func (r *Reader) fillBenchmarkAnnualizedReturns(ctx context.Context, row, taxRow *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	for _, n := range []int{3, 5, 10} {
 		val, baseDate, err := r.benchmarkValueAndDateOnOrBefore(ctx, latestDate.AddDate(-n, 0, 0))
 		if err != nil {
@@ -141,21 +165,26 @@ func (r *Reader) fillBenchmarkAnnualizedReturns(ctx context.Context, row *openap
 		}
 		years := latestDate.Sub(baseDate).Hours() / 24 / 365.25
 		ann := annualizedReturn(latestVal, *val, years)
+		annTax := afterTaxAnnualized(latestVal, *val, years)
 		switch n {
 		case 3:
 			row.ThreeYear = ann
+			taxRow.ThreeYear = annTax
 		case 5:
 			row.FiveYear = ann
+			taxRow.FiveYear = annTax
 		case 10:
 			row.TenYear = ann
+			taxRow.TenYear = annTax
 		}
 	}
 	return nil
 }
 
 // fillBenchmarkSinceInception populates SinceInception with the annualized
-// return from the earliest benchmark observation through latestDate.
-func (r *Reader) fillBenchmarkSinceInception(ctx context.Context, row *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
+// return from the earliest benchmark observation through latestDate, on both
+// rows.
+func (r *Reader) fillBenchmarkSinceInception(ctx context.Context, row, taxRow *openapi.TrailingReturnRow, latestVal float64, latestDate time.Time) error {
 	earliestVal, earliestDate, err := r.earliestBenchmarkValueAndDate(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -165,7 +194,135 @@ func (r *Reader) fillBenchmarkSinceInception(ctx context.Context, row *openapi.T
 	}
 	years := latestDate.Sub(earliestDate).Hours() / 24 / 365.25
 	row.SinceInception = annualizedReturn(latestVal, earliestVal, years)
+	taxRow.SinceInception = afterTaxAnnualized(latestVal, earliestVal, years)
 	return nil
+}
+
+// portfolioTaxTrailingRow combines per-window TWRR with per-window TaxDrag
+// to produce after-tax cells. Cumulative cells (ytd, 1yr) scale TWRR by
+// (1 - TaxDrag). Annualized cells (3yr, 5yr, 10yr, since_inception)
+// re-annualize the after-tax cumulative return over the actual window span
+// pvbt used (which equals the nominal years when the portfolio is long
+// enough, otherwise the full portfolio span).
+func (r *Reader) portfolioTaxTrailingRow(ctx context.Context) (openapi.TrailingReturnRow, error) {
+	row := openapi.TrailingReturnRow{
+		Title: "Portfolio (after tax)",
+		Kind:  openapi.ReturnRowKindPortfolioTax,
+	}
+	span, err := r.portfolioSpanYears(ctx)
+	if err != nil {
+		return openapi.TrailingReturnRow{}, err
+	}
+	cumulative := []struct {
+		dest   **float64
+		window string
+	}{
+		{&row.Ytd, "ytd"},
+		{&row.OneYear, "1yr"},
+	}
+	for _, c := range cumulative {
+		v, err := r.portfolioAfterTaxCumulative(ctx, c.window)
+		if err != nil {
+			return openapi.TrailingReturnRow{}, err
+		}
+		*c.dest = v
+	}
+	annualized := []struct {
+		dest    **float64
+		window  string
+		nominal float64
+	}{
+		{&row.ThreeYear, "3yr", 3},
+		{&row.FiveYear, "5yr", 5},
+		{&row.TenYear, "10yr", 10},
+		{&row.SinceInception, "since_inception", math.MaxFloat64},
+	}
+	for _, c := range annualized {
+		cum, err := r.portfolioAfterTaxCumulative(ctx, c.window)
+		if err != nil {
+			return openapi.TrailingReturnRow{}, err
+		}
+		if cum == nil {
+			continue
+		}
+		years := math.Min(c.nominal, span)
+		if years <= 0 || 1+*cum <= 0 {
+			continue
+		}
+		v := math.Pow(1+*cum, 1.0/years) - 1
+		*c.dest = &v
+	}
+	return row, nil
+}
+
+// portfolioAfterTaxCumulative reads TWRR and TaxDrag for the same window and
+// returns TWRR * (1 - TaxDrag), or nil when either input is missing.
+func (r *Reader) portfolioAfterTaxCumulative(ctx context.Context, window string) (*float64, error) {
+	twrr, err := r.readWindowedMetric(ctx, "TWRR", window)
+	if err != nil {
+		return nil, err
+	}
+	if twrr == nil {
+		return nil, nil
+	}
+	td, err := r.readWindowedMetric(ctx, "TaxDrag", window)
+	if err != nil {
+		return nil, err
+	}
+	if td == nil {
+		return nil, nil
+	}
+	v := *twrr * (1 - *td)
+	return &v, nil
+}
+
+// portfolioSpanYears returns the calendar-year span of the portfolio_value
+// equity curve in perf_data, or 0 if the snapshot has no equity rows.
+func (r *Reader) portfolioSpanYears(ctx context.Context) (float64, error) {
+	var earliestStr, latestStr sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT MIN(date), MAX(date) FROM perf_data WHERE `+portfolioValueClause).
+		Scan(&earliestStr, &latestStr)
+	if err != nil {
+		return 0, fmt.Errorf("portfolio span: %w", err)
+	}
+	if !earliestStr.Valid || !latestStr.Valid {
+		return 0, nil
+	}
+	earliest, err := time.Parse(dateLayout, earliestStr.String)
+	if err != nil {
+		return 0, fmt.Errorf("parse earliest portfolio date: %w", err)
+	}
+	latest, err := time.Parse(dateLayout, latestStr.String)
+	if err != nil {
+		return 0, fmt.Errorf("parse latest portfolio date: %w", err)
+	}
+	return latest.Sub(earliest).Hours() / 24 / 365.25, nil
+}
+
+// afterTaxCumulative scales a cumulative return by (1 - benchmarkLTCGRate).
+func afterTaxCumulative(pre *float64) *float64 {
+	if pre == nil {
+		return nil
+	}
+	v := *pre * (1 - benchmarkLTCGRate)
+	return &v
+}
+
+// afterTaxAnnualized assumes a buy-and-hold benchmark with one realized LTCG
+// at the end of the window. It applies benchmarkLTCGRate to the cumulative
+// gain and re-annualizes over years.
+func afterTaxAnnualized(latest, baseline, years float64) *float64 {
+	if baseline <= 0 || latest <= 0 || years <= 0 {
+		return nil
+	}
+	cum := latest/baseline - 1
+	afterCum := cum * (1 - benchmarkLTCGRate)
+	if 1+afterCum <= 0 {
+		return nil
+	}
+	v := math.Pow(1+afterCum, 1.0/years) - 1
+	return &v
 }
 
 // cumulativeReturn returns (latest - baseline) / baseline as *float64, or nil

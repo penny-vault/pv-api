@@ -129,6 +129,12 @@ func BuildTestSnapshot(path string) error {
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'since_inception', 0.03)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'TWRR', 'ytd', 0.03)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'CAGR', 'since_inception', 6.7)`,
+
+		// TaxDrag per window — required to produce the portfolio-tax row.
+		// 0.10 means 10% of the pre-tax dollar return is consumed by taxes,
+		// so after-tax cumulative = TWRR * 0.9 = 0.027 for both windows.
+		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxDrag', 'since_inception', 0.10)`,
+		`INSERT INTO metrics VALUES ('2024-01-08', 'TaxDrag', 'ytd', 0.10)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

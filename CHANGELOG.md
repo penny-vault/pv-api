@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   progress without opening the SSE stream.
 - `GET /portfolios/{slug}/statistics` now includes CAGR, Calmar, Information
   Ratio, Upside/Downside Capture, Win Rate, and Profit Factor.
+- `GET /portfolios/{slug}/trailing-returns` now also returns `portfolio-tax`
+  and `benchmark-tax` rows. Portfolio-tax cells combine pre-tax TWRR with
+  pvbt's per-window TaxDrag; benchmark-tax cells apply a flat 15% LTCG to
+  the buy-and-hold benchmark gain.
 
 ### Changed
 - `PortfolioStatistic.value` is nullable. Metrics absent from the snapshot
