@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `PortfolioStatistic.value` is nullable. Metrics absent from the snapshot
   return `null` instead of `0`, so clients can distinguish missing from zero.
+- Default CORS allowlist now includes `https://pennyvault.com` and
+  `https://www.pennyvault.com` alongside the localhost dev origins.
 
 ### Fixed
 - Snapshot reads no longer loop in `recalculating` forever. Each backtest

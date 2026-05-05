@@ -30,7 +30,7 @@ import (
 // override runs.
 func setViperDefaults() {
 	viper.SetDefault("data_dir", "/var/lib/pvapi")
-	viper.SetDefault("server.allow_origins", "http://localhost:5174,http://localhost:9000")
+	viper.SetDefault("server.allow_origins", "http://localhost:5174,http://localhost:9000,https://pennyvault.com,https://www.pennyvault.com")
 	viper.SetDefault("backtest.max_concurrency", 0)
 	viper.SetDefault("backtest.timeout", "15m")
 	viper.SetDefault("backtest.orphan_gc_interval", 7*24*time.Hour)
