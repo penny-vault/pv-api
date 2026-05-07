@@ -12,7 +12,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/lestrrat-go/httprc/v3 v3.0.5
-	github.com/lestrrat-go/jwx/v3 v3.1.0
+	github.com/lestrrat-go/jwx/v3 v3.1.1
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/penny-vault/pvbt v0.9.3
