@@ -33,6 +33,17 @@ import (
 // ErrEmailNotConfigured is returned by SendSummary when no Mailgun API key is set.
 var ErrEmailNotConfigured = errors.New("email not configured: no Mailgun API key")
 
+// displayTZ is the timezone used for human-facing dates in alert emails. NYSE
+// time matches the trading-session calendar these portfolios run against and
+// avoids "tomorrow" appearing for a US reader after late-evening UTC rollover.
+var displayTZ = func() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
 type portfolioData struct {
 	Name         string
 	Slug         string
@@ -172,10 +183,11 @@ func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now 
 }
 
 func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData, now time.Time, success bool) email.Payload {
+	displayNow := now.In(displayTZ)
 	p := email.Payload{
 		PortfolioName: port.Name,
 		StrategyCode:  port.StrategyCode,
-		RunDate:       now.Format("Monday, January 2, 2006"),
+		RunDate:       displayNow.Format("Monday, January 2, 2006"),
 		Success:       success,
 		LogoDataURL:   email.LogoDataURL(),
 	}
@@ -195,7 +207,7 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 	}
 
 	if a.LastSentAt != nil && a.LastSentValue != nil && *a.LastSentValue > 0 && port.CurrentValue != nil {
-		pct, abs, color, since, hasDelta := email.FormatDelta(*port.CurrentValue, *a.LastSentValue, *a.LastSentAt)
+		pct, abs, color, since, hasDelta := email.FormatDelta(*port.CurrentValue, *a.LastSentValue, a.LastSentAt.In(displayTZ), displayNow)
 		p.HasDelta = hasDelta
 		p.DeltaPct = pct
 		p.DeltaAbs = abs

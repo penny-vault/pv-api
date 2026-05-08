@@ -133,6 +133,33 @@
           color: #f1f5f9 !important;
         }
       }
+      @media only screen and (max-width: 479px) {
+        /* When metric columns stack vertically, drop the right-border dividers
+           (which become bottom-borders in stacked layout) and add breathing room
+           between each label/value pair so labels don't visually attach to the
+           previous value. */
+        .pv-divider-right > table > tbody > tr > td {
+          border-right: none !important;
+          padding: 0 !important;
+        }
+        .pv-metric > table > tbody > tr > td {
+          padding: 0 0 14px !important;
+        }
+        .pv-metric:last-child > table > tbody > tr > td {
+          padding-bottom: 0 !important;
+        }
+        /* Trades/holdings tables: prevent mid-word and mid-number wrapping, and
+           tighten cell padding so wide values fit on narrow screens. */
+        .pv-table th,
+        .pv-table td {
+          padding: 9px 8px !important;
+          letter-spacing: 0 !important;
+          white-space: nowrap !important;
+        }
+        .pv-table .pv-cell-num {
+          font-size: 13px !important;
+        }
+      }
     </style>
   </head>
   <body style="word-spacing: normal; background-color: #f1f5f9">
@@ -368,9 +395,9 @@
           <tbody>
             <tr>
               <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 8px 24px 20px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-divider-right-outlook" style="vertical-align:top;width:276px;" ><![endif]-->
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:276px;" ><![endif]-->
 
-                <div class="mj-column-per-50 mj-outlook-group-fix pv-divider-right" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-50 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -413,9 +440,9 @@
 
                 <!--[if mso | IE]></td><![endif]-->
                 {{if .RelativeDelta}}
-                <!--[if mso | IE]><td class="" style="vertical-align:top;width:276px;" ><![endif]-->
+                <!--[if mso | IE]><td class="pv-metric-outlook" style="vertical-align:top;width:276px;" ><![endif]-->
 
-                <div class="mj-column-per-50 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-50 mj-outlook-group-fix pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -475,9 +502,9 @@
           <tbody>
             <tr>
               <td style="border-bottom: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 20px 24px 28px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-divider-right-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
+                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
 
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -516,9 +543,9 @@
                   </table>
                 </div>
 
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
+                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
 
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -557,9 +584,9 @@
                   </table>
                 </div>
 
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
+                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
 
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -598,9 +625,9 @@
                   </table>
                 </div>
 
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
+                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
 
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -639,9 +666,9 @@
                   </table>
                 </div>
 
-                <!--[if mso | IE]></td><td class="" style="vertical-align:top;width:110.4px;" ><![endif]-->
+                <!--[if mso | IE]></td><td class="pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
 
-                <div class="mj-column-per-20 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
+                <div class="mj-column-per-20 mj-outlook-group-fix pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
                   <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                     <tbody>
                       <tr>
@@ -725,24 +752,24 @@
                       <tr>
                         <td align="left" style="font-size: 0px; padding: 0 0 24px; word-break: break-word">
                           <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000">
-                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
+                            <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
                               <thead>
                                 <tr style="background-color: #0ea5e9">
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px">Ticker</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px">Action</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right">Shares</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right">Value</td>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Ticker</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Action</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Shares</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Value</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {{if .Trades}}{{range .Trades}}
                                 <tr style="border-top: 1px solid #e2e8f0">
-                                  <td style="padding: 13px 14px; font-size: 14px; font-weight: 700; color: #0f172a">{{.Ticker}}</td>
-                                  <td style="padding: 13px 14px; font-size: 13px">
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap">{{.Ticker}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 13px; white-space: nowrap">
                                     <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{.ActionBgColor}};color:{{.ActionColor}};">{{.Action}}</span>
                                   </td>
-                                  <td style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right">{{.Shares}}</td>
-                                  <td style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right">{{.Value}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right; white-space: nowrap">{{.Shares}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right; white-space: nowrap">{{.Value}}</td>
                                 </tr>
                                 {{end}}{{else}}
                                 <tr>
@@ -803,22 +830,22 @@
                       <tr>
                         <td align="left" style="font-size: 0px; padding: 0 0 28px; word-break: break-word">
                           <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000">
-                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
+                            <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
                               <thead>
                                 <tr style="background-color: #0ea5e9">
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px">Ticker</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right">Shares</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right">Value</td>
-                                  <td style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right">Weight</td>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Ticker</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Shares</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Value</th>
+                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Weight</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {{range .Holdings}}
                                 <tr style="border-top: 1px solid #e2e8f0">
-                                  <td style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};">{{.Ticker}}</td>
-                                  <td style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right">{{.Shares}}</td>
-                                  <td style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right">{{.Value}}</td>
-                                  <td style="padding: 13px 14px; font-size: 14px; color: #64748b; text-align: right">{{.WeightPct}}%</td>
+                                  <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};white-space:nowrap;">{{.Ticker}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right; white-space: nowrap">{{.Shares}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right; white-space: nowrap">{{.Value}}</td>
+                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #64748b; text-align: right; white-space: nowrap">{{.WeightPct}}%</td>
                                 </tr>
                                 {{end}}
                               </tbody>

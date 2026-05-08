@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server restart no longer leaves portfolios stuck recalculating: orphaned
   `queued`/`running` backtest runs are flipped to `failed` at startup, and
   a queue-full `Submit` no longer leaves a phantom `queued` row behind.
+- Alert emails render correctly on mobile: the returns grid no longer
+  attaches labels to the wrong values when columns stack, and trades-table
+  headers and dollar amounts no longer wrap mid-word or mid-number.
+- Alert email dates and the "since" label now use US/Eastern, so the run
+  date no longer reads as tomorrow for a US reader after late-evening UTC
+  rollover and "since Thursday" no longer appears on a Thursday.
 
 ### Added
 - Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`

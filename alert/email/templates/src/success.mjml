@@ -16,6 +16,19 @@
         .pv-divider-right { border-right-color: #334155 !important; }
         td { color: #f1f5f9 !important; }
       }
+      @media only screen and (max-width: 479px) {
+        /* When metric columns stack vertically, drop the right-border dividers
+           (which become bottom-borders in stacked layout) and add breathing room
+           between each label/value pair so labels don't visually attach to the
+           previous value. */
+        .pv-divider-right > table > tbody > tr > td { border-right: none !important; padding: 0 !important; }
+        .pv-metric > table > tbody > tr > td { padding: 0 0 14px !important; }
+        .pv-metric:last-child > table > tbody > tr > td { padding-bottom: 0 !important; }
+        /* Trades/holdings tables: prevent mid-word and mid-number wrapping, and
+           tighten cell padding so wide values fit on narrow screens. */
+        .pv-table th, .pv-table td { padding: 9px 8px !important; letter-spacing: 0 !important; white-space: nowrap !important; }
+        .pv-table .pv-cell-num { font-size: 13px !important; }
+      }
     </mj-style>
   </mj-head>
   <mj-body background-color="#f1f5f9" css-class="email-bg">
@@ -74,7 +87,7 @@
     <mj-raw>{{if .Benchmark}}</mj-raw>
     <mj-section background-color="#ffffff" padding="8px 24px 20px"
                 border-top="1px solid #e2e8f0" css-class="card pv-divider">
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">{{.Benchmark}}</mj-text>
@@ -82,7 +95,7 @@
                  align="center" padding="0">{{.BenchmarkDeltaPct}}</mj-text>
       </mj-column>
       <mj-raw>{{if .RelativeDelta}}</mj-raw>
-      <mj-column padding="0 0 0 16px">
+      <mj-column padding="0 0 0 16px" css-class="pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">vs Benchmark</mj-text>
@@ -96,35 +109,35 @@
     <!-- RETURNS GRID: Day / WTD / MTD / YTD / 1Y -->
     <mj-section background-color="#ffffff" padding="20px 24px 28px"
                 border-bottom="1px solid #e2e8f0" css-class="card pv-divider">
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">Day</mj-text>
         <mj-text font-size="16px" font-weight="700" color="{{.DayChangeColor}}"
                  align="center" padding="0">{{.DayChangePct}}</mj-text>
       </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">WTD</mj-text>
         <mj-text font-size="16px" font-weight="700" color="{{.WtdColor}}"
                  align="center" padding="0">{{.WtdPct}}</mj-text>
       </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">MTD</mj-text>
         <mj-text font-size="16px" font-weight="700" color="{{.MtdColor}}"
                  align="center" padding="0">{{.MtdPct}}</mj-text>
       </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right">
+      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">YTD</mj-text>
         <mj-text font-size="16px" font-weight="700" color="{{.YtdColor}}"
                  align="center" padding="0">{{.YtdPct}}</mj-text>
       </mj-column>
-      <mj-column padding="0 0 0 16px">
+      <mj-column padding="0 0 0 16px" css-class="pv-metric">
         <mj-text font-size="10px" font-weight="600" color="#94a3b8"
                  text-transform="uppercase" letter-spacing="0.8px"
                  align="center" padding="0 0 6px" css-class="pv-muted">1Y</mj-text>
@@ -141,25 +154,25 @@
                  text-transform="uppercase" letter-spacing="1px"
                  padding="0 0 16px" css-class="pv-heading">Trades to Execute</mj-text>
         <mj-text padding="0 0 24px">
-          <table width="100%" cellpadding="0" cellspacing="0"
+          <table class="pv-table" width="100%" cellpadding="0" cellspacing="0"
                  style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
             <thead>
               <tr style="background-color:#0ea5e9;">
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Ticker</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Action</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Shares</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Value</td>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Ticker</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Action</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Shares</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Value</th>
               </tr>
             </thead>
             <tbody>
               {{if .Trades}}{{range .Trades}}
               <tr style="border-top:1px solid #e2e8f0;">
-                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:#0f172a;">{{.Ticker}}</td>
-                <td style="padding:13px 14px;font-size:13px;">
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;">{{.Ticker}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:13px;white-space:nowrap;">
                   <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{.ActionBgColor}};color:{{.ActionColor}};">{{.Action}}</span>
                 </td>
-                <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
-                <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;white-space:nowrap;">{{.Shares}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;white-space:nowrap;">{{.Value}}</td>
               </tr>
               {{end}}{{else}}
               <tr>
@@ -180,23 +193,23 @@
                  text-transform="uppercase" letter-spacing="1px"
                  padding="0 0 16px" css-class="pv-heading">Current Holdings</mj-text>
         <mj-text padding="0 0 28px">
-          <table width="100%" cellpadding="0" cellspacing="0"
+          <table class="pv-table" width="100%" cellpadding="0" cellspacing="0"
                  style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
             <thead>
               <tr style="background-color:#0ea5e9;">
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Ticker</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Shares</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Value</td>
-                <td style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Weight</td>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Ticker</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Shares</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Value</th>
+                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Weight</th>
               </tr>
             </thead>
             <tbody>
               {{range .Holdings}}
               <tr style="border-top:1px solid #e2e8f0;">
-                <td style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};">{{.Ticker}}</td>
-                <td style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;">{{.Shares}}</td>
-                <td style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;">{{.Value}}</td>
-                <td style="padding:13px 14px;font-size:14px;color:#64748b;text-align:right;">{{.WeightPct}}%</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};white-space:nowrap;">{{.Ticker}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;white-space:nowrap;">{{.Shares}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;white-space:nowrap;">{{.Value}}</td>
+                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#64748b;text-align:right;white-space:nowrap;">{{.WeightPct}}%</td>
               </tr>
               {{end}}
             </tbody>

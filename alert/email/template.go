@@ -116,7 +116,10 @@ func Render(p Payload) (string, string, error) {
 	return buf.String(), buildPlaintext(p), nil
 }
 
-func FormatDelta(currentValue, previousValue float64, lastSentAt time.Time) (deltaPct, deltaAbs, color, since string, hasDelta bool) {
+// FormatDelta formats a value change since lastSentAt, relative to now. Both
+// times are interpreted in their own locations for the day-difference calc, so
+// callers should pass them already converted to the display timezone.
+func FormatDelta(currentValue, previousValue float64, lastSentAt, now time.Time) (deltaPct, deltaAbs, color, since string, hasDelta bool) {
 	if previousValue <= 0 {
 		return "", "", "", "", false
 	}
@@ -135,11 +138,24 @@ func FormatDelta(currentValue, previousValue float64, lastSentAt time.Time) (del
 	} else {
 		color = "#ef4444"
 	}
-	since = lastSentAt.Format("Monday")
-	if time.Since(lastSentAt) > 7*24*time.Hour {
-		since = lastSentAt.Format("Jan 2")
-	}
+	since = formatSinceLabel(lastSentAt, now)
 	return deltaPct, deltaAbs, color, since, true
+}
+
+func formatSinceLabel(lastSentAt, now time.Time) string {
+	sentDay := time.Date(lastSentAt.Year(), lastSentAt.Month(), lastSentAt.Day(), 0, 0, 0, 0, lastSentAt.Location())
+	nowDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	diffDays := int(nowDay.Sub(sentDay).Hours() / 24)
+	switch {
+	case diffDays <= 0:
+		return "earlier today"
+	case diffDays == 1:
+		return "yesterday"
+	case diffDays >= 2 && diffDays <= 6 && lastSentAt.Weekday() != now.Weekday():
+		return lastSentAt.Format("Monday")
+	default:
+		return lastSentAt.Format("Mon, Jan 2")
+	}
 }
 
 func FormatMoneyVal(v float64) string {

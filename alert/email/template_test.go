@@ -105,8 +105,9 @@ func TestRenderFailure(t *testing.T) {
 
 func TestFormatDelta(t *testing.T) {
 	lastSent := time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 4, 21, 0, 0, 0, 0, time.UTC)
 
-	pct, abs, color, since, hasDelta := email.FormatDelta(103240, 102000, lastSent)
+	pct, abs, color, since, hasDelta := email.FormatDelta(103240, 102000, lastSent, now)
 	if !hasDelta {
 		t.Fatal("expected hasDelta=true")
 	}
@@ -119,11 +120,36 @@ func TestFormatDelta(t *testing.T) {
 	_ = abs
 	_ = since
 
-	pct2, _, color2, _, _ := email.FormatDelta(99000, 102000, lastSent)
+	pct2, _, color2, _, _ := email.FormatDelta(99000, 102000, lastSent, now)
 	if !strings.HasPrefix(pct2, "-") {
 		t.Errorf("pct = %q; want negative", pct2)
 	}
 	if color2 != "#ef4444" {
 		t.Errorf("color = %q; want red", color2)
+	}
+}
+
+func TestFormatDeltaSinceLabel(t *testing.T) {
+	// Anchor "now" to a known weekday: 2026-04-23 is a Thursday.
+	now := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name     string
+		lastSent time.Time
+		want     string
+	}{
+		{"same day", time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC), "earlier today"},
+		{"yesterday", time.Date(2026, 4, 22, 8, 0, 0, 0, time.UTC), "yesterday"},
+		{"two days ago weekday", time.Date(2026, 4, 21, 8, 0, 0, 0, time.UTC), "Tuesday"},
+		{"six days ago weekday", time.Date(2026, 4, 17, 8, 0, 0, 0, time.UTC), "Friday"},
+		{"exactly seven days ago — same weekday, falls back to date", time.Date(2026, 4, 16, 8, 0, 0, 0, time.UTC), "Thu, Apr 16"},
+		{"two weeks ago", time.Date(2026, 4, 9, 8, 0, 0, 0, time.UTC), "Thu, Apr 9"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, _, since, _ := email.FormatDelta(103000, 100000, tc.lastSent, now)
+			if since != tc.want {
+				t.Errorf("since = %q; want %q", since, tc.want)
+			}
+		})
 	}
 }
