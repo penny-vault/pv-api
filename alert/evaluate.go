@@ -21,8 +21,25 @@ import (
 	"github.com/penny-vault/pv-api/alert/tradingdays"
 )
 
+// nyseLoc is the timezone used for alert calendar arithmetic. Daily runs fire
+// at 8 PM America/New_York (see portfolio.ClaimDue), so dedup must also be in
+// that zone — otherwise the UTC date has already rolled over and weekly/monthly
+// checks land on the wrong day.
+var nyseLoc = func() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
 func isDue(a Alert, now time.Time) bool {
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	nowET := now.In(nyseLoc)
+	today := time.Date(nowET.Year(), nowET.Month(), nowET.Day(), 0, 0, 0, 0, nyseLoc)
+	lastET := func() time.Time {
+		l := a.LastSentAt.In(nyseLoc)
+		return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, nyseLoc)
+	}
 	switch a.Frequency {
 	case FrequencyScheduledRun:
 		return true
@@ -30,26 +47,23 @@ func isDue(a Alert, now time.Time) bool {
 		if a.LastSentAt == nil {
 			return true
 		}
-		last := time.Date(a.LastSentAt.Year(), a.LastSentAt.Month(), a.LastSentAt.Day(), 0, 0, 0, 0, time.UTC)
-		return today.After(last)
+		return today.After(lastET())
 	case FrequencyWeekly:
-		if !tradingdays.IsLastTradingDayOfWeek(now) {
+		if !tradingdays.IsLastTradingDayOfWeek(nowET) {
 			return false
 		}
 		if a.LastSentAt == nil {
 			return true
 		}
-		last := time.Date(a.LastSentAt.Year(), a.LastSentAt.Month(), a.LastSentAt.Day(), 0, 0, 0, 0, time.UTC)
-		return today.After(last)
+		return today.After(lastET())
 	case FrequencyMonthly:
-		if !tradingdays.IsLastTradingDayOfMonth(now) {
+		if !tradingdays.IsLastTradingDayOfMonth(nowET) {
 			return false
 		}
 		if a.LastSentAt == nil {
 			return true
 		}
-		last := time.Date(a.LastSentAt.Year(), a.LastSentAt.Month(), a.LastSentAt.Day(), 0, 0, 0, 0, time.UTC)
-		return today.After(last)
+		return today.After(lastET())
 	default:
 		return false
 	}

@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   15% LTCG approximation has been replaced by pvbt's lot-level tax model.
 - Default CORS allowlist now includes `https://pennyvault.com` and
   `https://www.pennyvault.com` alongside the localhost dev origins.
+- Open-ended portfolios now re-run (and their daily alert emails fire) at
+  8:00 PM America/New_York rather than shortly after UTC midnight.
 
 ### Removed
 - `PortfolioSummary.benchmarkYtdReturn`. Use

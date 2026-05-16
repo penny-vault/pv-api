@@ -144,7 +144,9 @@ func (p PoolStore) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]stri
 	return PruneRuns(ctx, p.Pool, portfolioID)
 }
 
-// ClaimDue returns open-ended portfolio IDs not yet run today.
+// ClaimDue returns open-ended portfolio IDs eligible for today's run. See the
+// package-level ClaimDue for the full eligibility rule (8 PM America/New_York
+// gate plus ET calendar-day dedup).
 func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
 	return ClaimDue(ctx, p.Pool, batchSize)
 }

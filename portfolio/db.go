@@ -491,14 +491,23 @@ func ApplyUpgrade(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID
 }
 
 // ClaimDue returns up to batchSize portfolio IDs that are open-ended
-// (end_date IS NULL) and have not yet run today.
+// (end_date IS NULL) and have not yet run for the current trading day.
+// Eligibility is gated on America/New_York wall time: a portfolio is only
+// claimed once it is 8:00 PM ET or later AND its last run was on an earlier
+// ET calendar day. This keeps the daily run (and the alert emails it
+// triggers) anchored to a fixed NYSE-local time across DST transitions.
 func ClaimDue(ctx context.Context, pool *pgxpool.Pool, batchSize int) ([]uuid.UUID, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT id
 		  FROM portfolios
 		 WHERE end_date IS NULL
 		   AND status IN ('ready', 'failed')
-		   AND (last_run_at IS NULL OR last_run_at::date < CURRENT_DATE)
+		   AND (now() AT TIME ZONE 'America/New_York')::time >= TIME '20:00'
+		   AND (
+		         last_run_at IS NULL
+		         OR (last_run_at AT TIME ZONE 'America/New_York')::date
+		            < (now() AT TIME ZONE 'America/New_York')::date
+		       )
 		 ORDER BY last_run_at NULLS FIRST
 		 LIMIT $1
 	`, batchSize)
