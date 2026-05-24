@@ -37,8 +37,6 @@ func successPayload() email.Payload {
 		DeltaColor:        "#22c55e",
 		Benchmark:         "SPY",
 		BenchmarkDeltaPct: "+10.8%",
-		RelativeDelta:     "+1.2%",
-		RelativeColor:     "#22c55e",
 		Trades: []email.TradeRow{
 			{Ticker: "VTI", Action: "Buy", ActionColor: "#22c55e", Shares: "12", Value: "$2,400"},
 			{Ticker: "BND", Action: "Sell", ActionColor: "#ef4444", Shares: "5", Value: "$450"},

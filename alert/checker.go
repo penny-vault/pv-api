@@ -248,7 +248,11 @@ func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snap
 		return
 	}
 
-	prevBench, err := r.BenchmarkValueAt(ctx, *lastSentAt)
+	// Resolve the "previous" benchmark value as of lastSentAt in the snapshot's
+	// trading-day timezone (ET). Without this conversion, an 8 PM ET run stored
+	// as ~midnight UTC formats to today's date, so the lookup returns today's
+	// row — identical to curBench — and the delta is always 0%.
+	prevBench, err := r.BenchmarkValueAt(ctx, lastSentAt.In(displayTZ))
 	if err != nil || prevBench <= 0 {
 		return
 	}
@@ -260,23 +264,6 @@ func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snap
 		benchPct = -benchPct
 	}
 	p.BenchmarkDeltaPct = fmt.Sprintf("%s%.1f%%", sign, benchPct)
-
-	if p.HasDelta && p.DeltaPct != "" {
-		portPctVal := 0.0
-		if _, err := fmt.Sscanf(p.DeltaPct, "%f%%", &portPctVal); err != nil {
-			log.Warn().Err(err).Str("delta_pct", p.DeltaPct).Msg("alert: parse portfolio delta percent")
-		}
-		rel := portPctVal - benchPct
-		relSign := "+"
-		relColor := "#22c55e"
-		if rel < 0 {
-			relSign = "-"
-			rel = -rel
-			relColor = "#ef4444"
-		}
-		p.RelativeDelta = fmt.Sprintf("%s%.1f%%", relSign, rel)
-		p.RelativeColor = relColor
-	}
 }
 
 func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPath string) {

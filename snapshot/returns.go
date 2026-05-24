@@ -157,7 +157,7 @@ type ShortTermReturns struct {
 }
 
 // ShortTermReturns reads the portfolio equity series and derives the return
-// since the previous trading day, the most recent Monday, and the 1st of the
+// since the previous trading day, the prior week's close, and the 1st of the
 // current month (all relative to the last date in perf_data).
 func (r *Reader) ShortTermReturns(ctx context.Context) (ShortTermReturns, error) {
 	rows, err := r.db.QueryContext(ctx,
@@ -207,9 +207,9 @@ func (r *Reader) ShortTermReturns(ctx context.Context) (ShortTermReturns, error)
 		dayBaseline = series[1].val
 	}
 
-	// WTD: oldest row on or after the Monday of latest's week.
-	// series is DESC so iterating 0→len-1 goes newest→oldest; the last
-	// qualifying assignment gives the oldest qualifying row (the baseline).
+	// WTD: return since the prior week's close. Baseline is the most recent
+	// row strictly before this week's Monday — typically the previous Friday.
+	// series is DESC so the first such row encountered is the one we want.
 	weekday := int(latest.date.Weekday())
 	if weekday == 0 {
 		weekday = 7 // Sunday → 7
@@ -218,8 +218,9 @@ func (r *Reader) ShortTermReturns(ctx context.Context) (ShortTermReturns, error)
 	mondayStr := monday.Format(dateLayout)
 	wtdBaseline := latest.val
 	for i := 0; i < len(series); i++ {
-		if series[i].date.Format(dateLayout) >= mondayStr {
+		if series[i].date.Format(dateLayout) < mondayStr {
 			wtdBaseline = series[i].val
+			break
 		}
 	}
 

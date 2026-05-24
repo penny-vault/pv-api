@@ -39,8 +39,9 @@ var _ = Describe("ShortTermReturns", func() {
 		// Last date is 2024-01-08 (value 103000), prev trading day 2024-01-05 (value 102000)
 		// Day = (103000-102000)/102000 ≈ 0.0098
 		Expect(ret.Day).To(BeNumerically("~", 0.0098, 0.001))
-		// WTD: 2024-01-08 is Monday; first row on/after that Monday is 2024-01-08 itself → 0
-		Expect(ret.WTD).To(BeNumerically("~", 0.0, 0.001))
+		// WTD: 2024-01-08 is Monday; baseline is prior week's close 2024-01-05 (102000).
+		// WTD = (103000-102000)/102000 ≈ 0.0098 — equals Day on a Monday, as expected.
+		Expect(ret.WTD).To(BeNumerically("~", 0.0098, 0.001))
 		// MTD: first row on/after 2024-01-01 is 2024-01-02 (100000)
 		// MTD = (103000-100000)/100000 = 0.03
 		Expect(ret.MTD).To(BeNumerically("~", 0.03, 0.001))

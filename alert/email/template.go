@@ -80,8 +80,6 @@ type Payload struct {
 
 	Benchmark         string
 	BenchmarkDeltaPct string
-	RelativeDelta     string
-	RelativeColor     string
 
 	DayChangePct   string
 	DayChangeColor string
@@ -209,11 +207,7 @@ func buildPlaintext(p Payload) string {
 		fmt.Fprintf(&b, "Change: %s (%s) since %s\n", p.DeltaPct, p.DeltaAbs, p.SinceLabel)
 	}
 	if p.Benchmark != "" && p.BenchmarkDeltaPct != "" {
-		fmt.Fprintf(&b, "%s: %s", p.Benchmark, p.BenchmarkDeltaPct)
-		if p.RelativeDelta != "" {
-			fmt.Fprintf(&b, "  Relative: %s", p.RelativeDelta)
-		}
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "Benchmark (%s): %s\n", p.Benchmark, p.BenchmarkDeltaPct)
 	}
 	b.WriteString("\n")
 	if p.DayChangePct != "" {

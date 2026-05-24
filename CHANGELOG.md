@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alert email dates and the "since" label now use US/Eastern, so the run
   date no longer reads as tomorrow for a US reader after late-evening UTC
   rollover and "since Thursday" no longer appears on a Thursday.
+- Alert email WTD return now spans the prior week's close, so Monday's
+  move is included (previously WTD was anchored at Monday's close, so it
+  equaled zero on Monday and omitted Monday from the rest of the week).
+- Alert email benchmark return now reflects the benchmark's actual daily
+  move. Previously the lookup formatted `last_sent_at` as a UTC date, so
+  for an 8 PM ET run it resolved to today's date and matched the current
+  benchmark row — the delta was always 0%.
+- Alert email benchmark block is now a single `Benchmark (SPY)` stat
+  showing the benchmark's daily return. The separate `vs Benchmark`
+  excess-return cell has been removed.
 
 ### Added
 - Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`
