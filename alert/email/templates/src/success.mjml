@@ -17,17 +17,15 @@
         td { color: #f1f5f9 !important; }
       }
       @media only screen and (max-width: 479px) {
-        /* When metric columns stack vertically, drop the right-border dividers
-           (which become bottom-borders in stacked layout) and add breathing room
-           between each label/value pair so labels don't visually attach to the
-           previous value. */
-        .pv-divider-right > table > tbody > tr > td { border-right: none !important; padding: 0 !important; }
-        .pv-metric > table > tbody > tr > td { padding: 0 0 14px !important; }
-        .pv-metric:last-child > table > tbody > tr > td { padding-bottom: 0 !important; }
         /* Trades/holdings tables: prevent mid-word and mid-number wrapping, and
            tighten cell padding so wide values fit on narrow screens. */
         .pv-table th, .pv-table td { padding: 9px 8px !important; letter-spacing: 0 !important; white-space: nowrap !important; }
         .pv-table .pv-cell-num { font-size: 13px !important; }
+        /* Returns grid: on phones swap the wide layout (a row per series, five
+           window columns) for the flipped layout (a row per window, a column
+           per series), which fits a narrow screen far better. */
+        .pv-returns-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
+        .pv-returns-tall { display: block !important; max-height: none !important; overflow: visible !important; }
       }
     </mj-style>
   </mj-head>
@@ -83,66 +81,65 @@
     </mj-section>
     <mj-raw>{{end}}</mj-raw>
 
-    <!-- BENCHMARK COMPARISON -->
-    <mj-raw>{{if .Benchmark}}</mj-raw>
-    <mj-section background-color="#ffffff" padding="8px 24px 20px"
-                border-top="1px solid #e2e8f0" css-class="card pv-divider">
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">{{.Benchmark}}</mj-text>
-        <mj-text font-size="15px" font-weight="700" color="#334155"
-                 align="center" padding="0">{{.BenchmarkDeltaPct}}</mj-text>
-      </mj-column>
-      <mj-raw>{{if .RelativeDelta}}</mj-raw>
-      <mj-column padding="0 0 0 16px" css-class="pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">vs Benchmark</mj-text>
-        <mj-text font-size="15px" font-weight="700" color="{{.RelativeColor}}"
-                 align="center" padding="0">{{.RelativeDelta}}</mj-text>
-      </mj-column>
-      <mj-raw>{{end}}</mj-raw>
-    </mj-section>
-    <mj-raw>{{end}}</mj-raw>
-
-    <!-- RETURNS GRID: Day / WTD / MTD / YTD / 1Y -->
-    <mj-section background-color="#ffffff" padding="20px 24px 28px"
+    <!-- RETURNS GRID: Portfolio vs Benchmark across Day / WTD / MTD / YTD / 1Y -->
+    <mj-section background-color="#ffffff" padding="20px 24px 24px"
                 border-bottom="1px solid #e2e8f0" css-class="card pv-divider">
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px 0 0" css-class="pv-divider-right pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">Day</mj-text>
-        <mj-text font-size="16px" font-weight="700" color="{{.DayChangeColor}}"
-                 align="center" padding="0">{{.DayChangePct}}</mj-text>
-      </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">WTD</mj-text>
-        <mj-text font-size="16px" font-weight="700" color="{{.WtdColor}}"
-                 align="center" padding="0">{{.WtdPct}}</mj-text>
-      </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">MTD</mj-text>
-        <mj-text font-size="16px" font-weight="700" color="{{.MtdColor}}"
-                 align="center" padding="0">{{.MtdPct}}</mj-text>
-      </mj-column>
-      <mj-column border-right="1px solid #e2e8f0" padding="0 16px" css-class="pv-divider-right pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">YTD</mj-text>
-        <mj-text font-size="16px" font-weight="700" color="{{.YtdColor}}"
-                 align="center" padding="0">{{.YtdPct}}</mj-text>
-      </mj-column>
-      <mj-column padding="0 0 0 16px" css-class="pv-metric">
-        <mj-text font-size="10px" font-weight="600" color="#94a3b8"
-                 text-transform="uppercase" letter-spacing="0.8px"
-                 align="center" padding="0 0 6px" css-class="pv-muted">1Y</mj-text>
-        <mj-text font-size="16px" font-weight="700" color="{{.OneYearColor}}"
-                 align="center" padding="0">{{.OneYearPct}}</mj-text>
+      <mj-column>
+        <mj-text padding="0">
+          <!-- Wide (desktop): a row per series, a column per window. -->
+          <div class="pv-returns-wide">
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:collapse;width:100%;table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width:32%;padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">&nbsp;</th>
+                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">Day</th>
+                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">WTD</th>
+                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">MTD</th>
+                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">YTD</th>
+                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">1Y</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .Returns}}
+                <tr>
+                  <td style="padding:10px 8px 0 0;font-size:12px;font-weight:600;color:#334155;text-align:left;">{{.Label}}</td>
+                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Day.Color}};">{{.Day.Pct}}</span></td>
+                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Wtd.Color}};">{{.Wtd.Pct}}</span></td>
+                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Mtd.Color}};">{{.Mtd.Pct}}</span></td>
+                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Ytd.Color}};">{{.Ytd.Pct}}</span></td>
+                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.OneYear.Color}};">{{.OneYear.Pct}}</span></td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+          <!-- Narrow (phone): flipped — a row per window, a column per series.
+               Hidden until the max-width:479px media query reveals it. -->
+          <div class="pv-returns-tall" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:collapse;width:100%;table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width:26%;padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">&nbsp;</th>
+                  {{range .SeriesLabels}}
+                  <th style="padding:0 0 10px;font-size:11px;font-weight:600;color:#94a3b8;text-align:right;">{{.}}</th>
+                  {{end}}
+                </tr>
+              </thead>
+              <tbody>
+                {{range .ReturnWindows}}
+                <tr>
+                  <td style="padding:11px 8px 0 0;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">{{.Label}}</td>
+                  {{range .Cells}}
+                  <td style="padding:11px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:15px;font-weight:700;color:{{.Color}};">{{.Pct}}</span></td>
+                  {{end}}
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+        </mj-text>
       </mj-column>
     </mj-section>
 

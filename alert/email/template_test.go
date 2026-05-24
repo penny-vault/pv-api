@@ -45,13 +45,21 @@ func successPayload() email.Payload {
 				OneYear: email.ReturnCell{Pct: "+11.8%", Color: "#16a34a"},
 			},
 			{
-				Label:   "SPY",
+				Label:   "Benchmark (SPY)",
 				Day:     email.ReturnCell{Pct: "+0.8%", Color: "#16a34a"},
 				Wtd:     email.ReturnCell{Pct: "+2.1%", Color: "#16a34a"},
 				Mtd:     email.ReturnCell{Pct: "+5.0%", Color: "#16a34a"},
 				Ytd:     email.ReturnCell{Pct: "—", Color: "#94a3b8"},
 				OneYear: email.ReturnCell{Pct: "+10.8%", Color: "#16a34a"},
 			},
+		},
+		SeriesLabels: []string{"Portfolio", "Benchmark (SPY)"},
+		ReturnWindows: []email.ReturnsWindow{
+			{Label: "Day", Cells: []email.ReturnCell{{Pct: "+1.2%", Color: "#16a34a"}, {Pct: "+0.8%", Color: "#16a34a"}}},
+			{Label: "WTD", Cells: []email.ReturnCell{{Pct: "+3.3%", Color: "#16a34a"}, {Pct: "+2.1%", Color: "#16a34a"}}},
+			{Label: "MTD", Cells: []email.ReturnCell{{Pct: "+7.7%", Color: "#16a34a"}, {Pct: "+5.0%", Color: "#16a34a"}}},
+			{Label: "YTD", Cells: []email.ReturnCell{{Pct: "-2.4%", Color: "#dc2626"}, {Pct: "—", Color: "#94a3b8"}}},
+			{Label: "1Y", Cells: []email.ReturnCell{{Pct: "+11.8%", Color: "#16a34a"}, {Pct: "+10.8%", Color: "#16a34a"}}},
 		},
 		Trades: []email.TradeRow{
 			{Ticker: "VTI", Action: "Buy", ActionColor: "#22c55e", Shares: "12", Value: "$2,400"},

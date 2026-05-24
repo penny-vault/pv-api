@@ -264,25 +264,61 @@ func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPat
 		OneYear: returnCell(deref(kpis.OneYearReturn), kpis.OneYearReturn != nil),
 	})
 
+	if row, ok := benchmarkReturnsRow(ctx, r, benchmark, kpis); ok {
+		p.Returns = append(p.Returns, row)
+	}
+
+	fillPhoneReturns(p)
+}
+
+// benchmarkReturnsRow builds the benchmark row, or returns ok=false when the
+// portfolio has no benchmark or the snapshot carries no benchmark series.
+func benchmarkReturnsRow(ctx context.Context, r *snapshot.Reader, benchmark string, kpis snapshot.Kpis) (email.ReturnsRow, bool) {
 	if benchmark == "" {
-		return
+		return email.ReturnsRow{}, false
 	}
 	curBench, err := r.BenchmarkCurrentValue(ctx)
 	if err != nil || curBench <= 0 {
-		return // snapshot carries no benchmark series
+		return email.ReturnsRow{}, false
 	}
 	benchShort, err := r.BenchmarkShortTermReturns(ctx)
 	if err != nil {
-		return
+		return email.ReturnsRow{}, false
 	}
-	p.Returns = append(p.Returns, email.ReturnsRow{
-		Label:   benchmark,
+	return email.ReturnsRow{
+		Label:   fmt.Sprintf("Benchmark (%s)", benchmark),
 		Day:     returnCell(benchShort.Day, true),
 		Wtd:     returnCell(benchShort.WTD, true),
 		Mtd:     returnCell(benchShort.MTD, true),
 		Ytd:     returnCell(deref(kpis.BenchmarkYtdReturn), kpis.BenchmarkYtdReturn != nil),
 		OneYear: returnCell(deref(kpis.BenchmarkOneYearReturn), kpis.BenchmarkOneYearReturn != nil),
-	})
+	}, true
+}
+
+// fillPhoneReturns derives the flipped phone layout from the wide Returns rows:
+// the series labels become column headers, and each window (Day, WTD, …)
+// becomes a row whose cells line up with those columns.
+func fillPhoneReturns(p *email.Payload) {
+	for _, row := range p.Returns {
+		p.SeriesLabels = append(p.SeriesLabels, row.Label)
+	}
+	windows := []struct {
+		label string
+		pick  func(email.ReturnsRow) email.ReturnCell
+	}{
+		{"Day", func(r email.ReturnsRow) email.ReturnCell { return r.Day }},
+		{"WTD", func(r email.ReturnsRow) email.ReturnCell { return r.Wtd }},
+		{"MTD", func(r email.ReturnsRow) email.ReturnCell { return r.Mtd }},
+		{"YTD", func(r email.ReturnsRow) email.ReturnCell { return r.Ytd }},
+		{"1Y", func(r email.ReturnsRow) email.ReturnCell { return r.OneYear }},
+	}
+	for _, w := range windows {
+		win := email.ReturnsWindow{Label: w.label}
+		for _, row := range p.Returns {
+			win.Cells = append(win.Cells, w.pick(row))
+		}
+		p.ReturnWindows = append(p.ReturnWindows, win)
+	}
 }
 
 func deref(v *float64) float64 {

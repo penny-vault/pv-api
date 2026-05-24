@@ -72,6 +72,7 @@ type ReturnCell struct {
 
 // ReturnsRow is one labeled line of the returns comparison grid: the
 // portfolio's returns, or the benchmark's, across the standard windows.
+// It drives the wide (desktop) layout, where each row is a series.
 type ReturnsRow struct {
 	Label   string
 	Day     ReturnCell
@@ -79,6 +80,14 @@ type ReturnsRow struct {
 	Mtd     ReturnCell
 	Ytd     ReturnCell
 	OneYear ReturnCell
+}
+
+// ReturnsWindow is one row of the narrow (phone) layout, which flips the grid
+// so each row is a window (Day, WTD, …) and each column is a series. Cells are
+// ordered to match SeriesLabels on the Payload.
+type ReturnsWindow struct {
+	Label string
+	Cells []ReturnCell
 }
 
 type Payload struct {
@@ -96,9 +105,15 @@ type Payload struct {
 	SinceLabel   string
 	DeltaColor   string
 
-	// Returns is the comparison grid: row 0 is the portfolio, row 1 (when
-	// present) is the benchmark. Each row spans Day/WTD/MTD/YTD/1Y.
+	// Returns drives the wide (desktop) returns grid: row 0 is the portfolio,
+	// row 1 (when present) is the benchmark, each spanning Day/WTD/MTD/YTD/1Y.
 	Returns []ReturnsRow
+	// SeriesLabels and ReturnWindows drive the narrow (phone) layout, which
+	// flips the grid: a row per window, a column per series. SeriesLabels are
+	// the column headers ("Portfolio", "Benchmark (SPY)"); each ReturnsWindow's
+	// Cells line up with them.
+	SeriesLabels  []string
+	ReturnWindows []ReturnsWindow
 
 	Trades   []TradeRow
 	Holdings []HoldingRow

@@ -62,10 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move is included (previously WTD was anchored at Monday's close, so it
   equaled zero on Monday and omitted Monday from the rest of the week).
 - Alert email now shows the benchmark as its own row in the returns grid
-  (Portfolio and, e.g., SPY across Day/WTD/MTD/YTD/1Y) instead of the
-  confusing standalone "vs Benchmark" comparison. The benchmark row is
-  always populated from the snapshot, so it no longer disappears or reads
-  0% on the first email or after a weekend.
+  (Portfolio and, e.g., Benchmark (SPY) across Day/WTD/MTD/YTD/1Y) instead
+  of the confusing standalone "vs Benchmark" comparison. The benchmark row
+  is always populated from the snapshot, so it no longer disappears or
+  reads 0% on the first email or after a weekend. On phones the grid flips
+  so each row is a window and each column is a series, which fits a narrow
+  screen better (Apple Mail / iOS Mail; Gmail's app shows the wide table).
 - Alert email returns that round to zero now render as a neutral "0.0%"
   rather than a green "+0.0%", so a flat day isn't shown as a gain.
 
