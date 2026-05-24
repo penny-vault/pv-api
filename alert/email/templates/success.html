@@ -386,7 +386,7 @@
 
       <!--[if mso | IE]></td></tr></table><![endif]-->
 
-      {{end}}<!-- BENCHMARK COMPARISON -->{{if .Benchmark}}
+      {{end}}<!-- RETURNS GRID: Portfolio vs Benchmark across Day / WTD / MTD / YTD / 1Y -->
 
       <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
 
@@ -394,274 +394,29 @@
         <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
           <tbody>
             <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 8px 24px 20px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-metric-outlook" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="vertical-align: top; padding: 0">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    Benchmark ({{.Benchmark}})
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-weight: 700; line-height: 1; text-align: center; color: #334155">
-                                    {{.BenchmarkDeltaPct}}
-                                  </div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      {{end}}<!-- RETURNS GRID: Day / WTD / MTD / YTD / 1Y -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-bottom: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 20px 24px 28px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
-
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="border-right: 1px solid #e2e8f0; vertical-align: top; padding: 0 16px 0 0">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    Day
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:16px;font-weight:700;line-height:1;text-align:center;color:{{.DayChangeColor}};">{{.DayChangePct}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
-
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="border-right: 1px solid #e2e8f0; vertical-align: top; padding: 0 16px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    WTD
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:16px;font-weight:700;line-height:1;text-align:center;color:{{.WtdColor}};">{{.WtdPct}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
-
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="border-right: 1px solid #e2e8f0; vertical-align: top; padding: 0 16px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    MTD
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:16px;font-weight:700;line-height:1;text-align:center;color:{{.MtdColor}};">{{.MtdPct}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td><td class="pv-divider-right-outlook pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
-
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-divider-right pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="border-right: 1px solid #e2e8f0; vertical-align: top; padding: 0 16px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    YTD
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:16px;font-weight:700;line-height:1;text-align:center;color:{{.YtdColor}};">{{.YtdPct}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td><td class="pv-metric-outlook" style="vertical-align:top;width:110.4px;" ><![endif]-->
-
-                <div class="mj-column-per-20 mj-outlook-group-fix pv-metric" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="vertical-align: top; padding: 0 0 0 16px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 6px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 600;
-                                      letter-spacing: 0.8px;
-                                      line-height: 1;
-                                      text-align: center;
-                                      text-transform: uppercase;
-                                      color: #94a3b8;
-                                    "
-                                  >
-                                    1Y
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:16px;font-weight:700;line-height:1;text-align:center;color:{{.OneYearColor}};">{{.OneYearPct}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
+              <td style="border-bottom: 1px solid #e2e8f0; padding: 20px 24px 24px">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%" style="width: 100%; table-layout: fixed; border-collapse: collapse">
+                  <tbody>
+                    <tr>
+                      <td style="width: 24%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: left; padding: 0 0 10px">&nbsp;</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; padding: 0 0 10px; white-space: nowrap">Day</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; padding: 0 0 10px; white-space: nowrap">WTD</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; padding: 0 0 10px; white-space: nowrap">MTD</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; padding: 0 0 10px; white-space: nowrap">YTD</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; padding: 0 0 10px; white-space: nowrap">1Y</td>
+                    </tr>
+                    {{range .Returns}}
+                    <tr>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; font-weight: 600; color: #334155; text-align: left; padding: 10px 0 0; white-space: nowrap">{{.Label}}</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 700; text-align: right; padding: 10px 0 0; white-space: nowrap; color: {{.Day.Color}}">{{.Day.Pct}}</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 700; text-align: right; padding: 10px 0 0; white-space: nowrap; color: {{.Wtd.Color}}">{{.Wtd.Pct}}</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 700; text-align: right; padding: 10px 0 0; white-space: nowrap; color: {{.Mtd.Color}}">{{.Mtd.Pct}}</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 700; text-align: right; padding: 10px 0 0; white-space: nowrap; color: {{.Ytd.Color}}">{{.Ytd.Pct}}</td>
+                      <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 700; text-align: right; padding: 10px 0 0; white-space: nowrap; color: {{.OneYear.Color}}">{{.OneYear.Pct}}</td>
+                    </tr>
+                    {{end}}
+                  </tbody>
+                </table>
               </td>
             </tr>
           </tbody>

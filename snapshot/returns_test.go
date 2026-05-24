@@ -46,6 +46,23 @@ var _ = Describe("ShortTermReturns", func() {
 		// MTD = (103000-100000)/100000 = 0.03
 		Expect(ret.MTD).To(BeNumerically("~", 0.03, 0.001))
 	})
+
+	It("computes the same windows from the benchmark series", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
+		r, err := snapshot.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		defer r.Close()
+
+		ret, err := r.BenchmarkShortTermReturns(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		// Benchmark last date 2024-01-08 (102000), prior trading day / prior
+		// week's close both 2024-01-05 (101500). Day == WTD ≈ 0.0049 on a Monday.
+		Expect(ret.Day).To(BeNumerically("~", 0.0049, 0.001))
+		Expect(ret.WTD).To(BeNumerically("~", 0.0049, 0.001))
+		// MTD baseline is 2024-01-02 (100000): (102000-100000)/100000 = 0.02
+		Expect(ret.MTD).To(BeNumerically("~", 0.02, 0.001))
+	})
 })
 
 var _ = Describe("TrailingReturns", func() {

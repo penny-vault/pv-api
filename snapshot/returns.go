@@ -31,6 +31,11 @@ import (
 const (
 	portfolioValueClause = `metric IN ('portfolio_value','PortfolioEquity')`
 	benchmarkValueClause = `metric IN ('benchmark_value','PortfolioBenchmark')`
+
+	// Full series queries, assembled from the clauses above at compile time so
+	// the query passed to QueryContext is a constant (no runtime concatenation).
+	portfolioSeriesQuery = `SELECT date, value FROM perf_data WHERE ` + portfolioValueClause + ` ORDER BY date DESC`
+	benchmarkSeriesQuery = `SELECT date, value FROM perf_data WHERE ` + benchmarkValueClause + ` ORDER BY date DESC`
 )
 
 // trailingRowSpec describes how to build one row of the trailing-returns
@@ -160,9 +165,18 @@ type ShortTermReturns struct {
 // since the previous trading day, the prior week's close, and the 1st of the
 // current month (all relative to the last date in perf_data).
 func (r *Reader) ShortTermReturns(ctx context.Context) (ShortTermReturns, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT date, value FROM perf_data WHERE `+portfolioValueClause+
-			` ORDER BY date DESC`)
+	return r.shortTermReturns(ctx, portfolioSeriesQuery)
+}
+
+// BenchmarkShortTermReturns derives the same Day/WTD/MTD returns as
+// ShortTermReturns, but from the benchmark equity series. Returns a zero
+// struct when the snapshot carries no benchmark rows.
+func (r *Reader) BenchmarkShortTermReturns(ctx context.Context) (ShortTermReturns, error) {
+	return r.shortTermReturns(ctx, benchmarkSeriesQuery)
+}
+
+func (r *Reader) shortTermReturns(ctx context.Context, seriesQuery string) (ShortTermReturns, error) {
+	rows, err := r.db.QueryContext(ctx, seriesQuery)
 	if err != nil {
 		return ShortTermReturns{}, fmt.Errorf("short term returns: %w", err)
 	}

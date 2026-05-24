@@ -63,6 +63,24 @@ type HoldingRow struct {
 	Value       string
 }
 
+// ReturnCell is one formatted return percentage and the color it renders in.
+// Pct is "—" when the snapshot has no value for that window.
+type ReturnCell struct {
+	Pct   string
+	Color string
+}
+
+// ReturnsRow is one labeled line of the returns comparison grid: the
+// portfolio's returns, or the benchmark's, across the standard windows.
+type ReturnsRow struct {
+	Label   string
+	Day     ReturnCell
+	Wtd     ReturnCell
+	Mtd     ReturnCell
+	Ytd     ReturnCell
+	OneYear ReturnCell
+}
+
 type Payload struct {
 	PortfolioName string
 	StrategyCode  string
@@ -78,19 +96,9 @@ type Payload struct {
 	SinceLabel   string
 	DeltaColor   string
 
-	Benchmark         string
-	BenchmarkDeltaPct string
-
-	DayChangePct   string
-	DayChangeColor string
-	WtdPct         string
-	WtdColor       string
-	MtdPct         string
-	MtdColor       string
-	YtdPct         string
-	YtdColor       string
-	OneYearPct     string
-	OneYearColor   string
+	// Returns is the comparison grid: row 0 is the portfolio, row 1 (when
+	// present) is the benchmark. Each row spans Day/WTD/MTD/YTD/1Y.
+	Returns []ReturnsRow
 
 	Trades   []TradeRow
 	Holdings []HoldingRow
@@ -176,14 +184,20 @@ func FormatMoneyVal(v float64) string {
 }
 
 // FormatReturnPct formats a fractional return (e.g. 0.034) as "+3.4%" and
-// returns the appropriate color string for light-mode rendering.
+// returns the appropriate color string for light-mode rendering. A value that
+// rounds to zero renders as "0.0%" with no sign and a neutral color, so a tiny
+// move isn't dressed up as a gain or a loss.
 func FormatReturnPct(v float64) (pct, color string) {
-	sign := "+"
-	if v < 0 {
-		sign = "-"
-		v = -v
+	rounded := math.Round(v*1000) / 10 // percent, one decimal place
+	if rounded == 0 {
+		return "0.0%", "#94a3b8"
 	}
-	pct = fmt.Sprintf("%s%.1f%%", sign, v*100)
+	sign := "+"
+	if rounded < 0 {
+		sign = "-"
+		rounded = -rounded
+	}
+	pct = fmt.Sprintf("%s%.1f%%", sign, rounded)
 	if sign == "+" {
 		color = "#16a34a"
 	} else {
@@ -206,13 +220,14 @@ func buildPlaintext(p Payload) string {
 	if p.HasDelta {
 		fmt.Fprintf(&b, "Change: %s (%s) since %s\n", p.DeltaPct, p.DeltaAbs, p.SinceLabel)
 	}
-	if p.Benchmark != "" && p.BenchmarkDeltaPct != "" {
-		fmt.Fprintf(&b, "Benchmark (%s): %s\n", p.Benchmark, p.BenchmarkDeltaPct)
-	}
 	b.WriteString("\n")
-	if p.DayChangePct != "" {
-		fmt.Fprintf(&b, "Day: %s  WTD: %s  MTD: %s  YTD: %s  1Y: %s\n\n",
-			p.DayChangePct, p.WtdPct, p.MtdPct, p.YtdPct, p.OneYearPct)
+	if len(p.Returns) > 0 {
+		fmt.Fprintf(&b, "%-12s %7s %7s %7s %7s %7s\n", "", "DAY", "WTD", "MTD", "YTD", "1Y")
+		for _, row := range p.Returns {
+			fmt.Fprintf(&b, "%-12s %7s %7s %7s %7s %7s\n",
+				row.Label, row.Day.Pct, row.Wtd.Pct, row.Mtd.Pct, row.Ytd.Pct, row.OneYear.Pct)
+		}
+		b.WriteString("\n")
 	}
 	if len(p.Trades) == 0 {
 		b.WriteString("No trades required.\n\n")

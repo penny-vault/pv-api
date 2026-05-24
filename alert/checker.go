@@ -216,57 +216,26 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 	}
 
 	if port.SnapshotPath != nil {
-		c.fillBenchmarkDelta(ctx, &p, *port.SnapshotPath, a.LastSentAt, port.Benchmark)
-	}
-
-	if port.SnapshotPath != nil {
-		c.fillReturns(ctx, &p, *port.SnapshotPath)
+		c.fillReturns(ctx, &p, *port.SnapshotPath, port.Benchmark)
 		c.fillHoldingsAndTrades(ctx, &p, port)
 	}
 
 	return p
 }
 
-func (c *Checker) fillBenchmarkDelta(ctx context.Context, p *email.Payload, snapshotPath string, lastSentAt *time.Time, benchmark string) {
-	r, err := snapshot.Open(snapshotPath)
-	if err != nil {
-		return
+// returnCell formats a fractional return into a grid cell, rendering an
+// em-dash for windows the snapshot did not emit (present == false).
+func returnCell(v float64, present bool) email.ReturnCell {
+	if !present {
+		return email.ReturnCell{Pct: "—", Color: "#94a3b8"}
 	}
-	defer func() {
-		if err := r.Close(); err != nil {
-			log.Warn().Err(err).Msg("alert: snapshot close")
-		}
-	}()
-
-	curBench, err := r.BenchmarkCurrentValue(ctx)
-	if err != nil || curBench <= 0 {
-		return
-	}
-
-	p.Benchmark = benchmark
-	if lastSentAt == nil {
-		return
-	}
-
-	// Resolve the "previous" benchmark value as of lastSentAt in the snapshot's
-	// trading-day timezone (ET). Without this conversion, an 8 PM ET run stored
-	// as ~midnight UTC formats to today's date, so the lookup returns today's
-	// row — identical to curBench — and the delta is always 0%.
-	prevBench, err := r.BenchmarkValueAt(ctx, lastSentAt.In(displayTZ))
-	if err != nil || prevBench <= 0 {
-		return
-	}
-
-	benchPct := (curBench - prevBench) / prevBench * 100
-	sign := "+"
-	if benchPct < 0 {
-		sign = "-"
-		benchPct = -benchPct
-	}
-	p.BenchmarkDeltaPct = fmt.Sprintf("%s%.1f%%", sign, benchPct)
+	pct, color := email.FormatReturnPct(v)
+	return email.ReturnCell{Pct: pct, Color: color}
 }
 
-func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPath string) {
+// fillReturns builds the returns comparison grid: a Portfolio row always, and
+// a benchmark row when the portfolio has a benchmark with data in the snapshot.
+func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPath, benchmark string) {
 	r, err := snapshot.Open(snapshotPath)
 	if err != nil {
 		return
@@ -286,15 +255,41 @@ func (c *Checker) fillReturns(ctx context.Context, p *email.Payload, snapshotPat
 		return
 	}
 
-	p.DayChangePct, p.DayChangeColor = email.FormatReturnPct(short.Day)
-	p.WtdPct, p.WtdColor = email.FormatReturnPct(short.WTD)
-	p.MtdPct, p.MtdColor = email.FormatReturnPct(short.MTD)
-	if kpis.YtdReturn != nil {
-		p.YtdPct, p.YtdColor = email.FormatReturnPct(*kpis.YtdReturn)
+	p.Returns = append(p.Returns, email.ReturnsRow{
+		Label:   "Portfolio",
+		Day:     returnCell(short.Day, true),
+		Wtd:     returnCell(short.WTD, true),
+		Mtd:     returnCell(short.MTD, true),
+		Ytd:     returnCell(deref(kpis.YtdReturn), kpis.YtdReturn != nil),
+		OneYear: returnCell(deref(kpis.OneYearReturn), kpis.OneYearReturn != nil),
+	})
+
+	if benchmark == "" {
+		return
 	}
-	if kpis.OneYearReturn != nil {
-		p.OneYearPct, p.OneYearColor = email.FormatReturnPct(*kpis.OneYearReturn)
+	curBench, err := r.BenchmarkCurrentValue(ctx)
+	if err != nil || curBench <= 0 {
+		return // snapshot carries no benchmark series
 	}
+	benchShort, err := r.BenchmarkShortTermReturns(ctx)
+	if err != nil {
+		return
+	}
+	p.Returns = append(p.Returns, email.ReturnsRow{
+		Label:   benchmark,
+		Day:     returnCell(benchShort.Day, true),
+		Wtd:     returnCell(benchShort.WTD, true),
+		Mtd:     returnCell(benchShort.MTD, true),
+		Ytd:     returnCell(deref(kpis.BenchmarkYtdReturn), kpis.BenchmarkYtdReturn != nil),
+		OneYear: returnCell(deref(kpis.BenchmarkOneYearReturn), kpis.BenchmarkOneYearReturn != nil),
+	})
+}
+
+func deref(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, port portfolioData) {

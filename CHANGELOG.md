@@ -61,13 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alert email WTD return now spans the prior week's close, so Monday's
   move is included (previously WTD was anchored at Monday's close, so it
   equaled zero on Monday and omitted Monday from the rest of the week).
-- Alert email benchmark return now reflects the benchmark's actual daily
-  move. Previously the lookup formatted `last_sent_at` as a UTC date, so
-  for an 8 PM ET run it resolved to today's date and matched the current
-  benchmark row — the delta was always 0%.
-- Alert email benchmark block is now a single `Benchmark (SPY)` stat
-  showing the benchmark's daily return. The separate `vs Benchmark`
-  excess-return cell has been removed.
+- Alert email now shows the benchmark as its own row in the returns grid
+  (Portfolio and, e.g., SPY across Day/WTD/MTD/YTD/1Y) instead of the
+  confusing standalone "vs Benchmark" comparison. The benchmark row is
+  always populated from the snapshot, so it no longer disappears or reads
+  0% on the first email or after a weekend.
+- Alert email returns that round to zero now render as a neutral "0.0%"
+  rather than a green "+0.0%", so a flat day isn't shown as a gain.
 
 ### Added
 - Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`

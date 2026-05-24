@@ -27,20 +27,21 @@ import (
 // table. Every metric field is nullable: nil means pvbt did not emit a
 // value for that (name, window) pair in this snapshot.
 type Kpis struct {
-	CurrentValue       float64
-	YtdReturn          *float64
-	OneYearReturn      *float64
-	BenchmarkYtdReturn *float64
-	Cagr               *float64
-	MaxDrawdown        *float64
-	Sharpe             *float64
-	Sortino            *float64
-	Beta               *float64
-	Alpha              *float64
-	StdDev             *float64
-	UlcerIndex         *float64
-	TaxCostRatio       *float64
-	InceptionDate      time.Time
+	CurrentValue           float64
+	YtdReturn              *float64
+	OneYearReturn          *float64
+	BenchmarkYtdReturn     *float64
+	BenchmarkOneYearReturn *float64
+	Cagr                   *float64
+	MaxDrawdown            *float64
+	Sharpe                 *float64
+	Sortino                *float64
+	Beta                   *float64
+	Alpha                  *float64
+	StdDev                 *float64
+	UlcerIndex             *float64
+	TaxCostRatio           *float64
+	InceptionDate          time.Time
 }
 
 // Kpis assembles the KPI struct by reading pvbt-emitted rows from the
@@ -64,13 +65,15 @@ func (r *Reader) Kpis(ctx context.Context) (Kpis, error) {
 		{nil, "TWRR", "ytd"},
 		{nil, "TWRR", "1yr"},
 		{nil, "BenchmarkTWRR", "ytd"},
+		{nil, "BenchmarkTWRR", "1yr"},
 		{nil, "CAGR", "since_inception"},
 	}
 	out := Kpis{CurrentValue: curVal, InceptionDate: start}
 	windowed[0].dest = &out.YtdReturn
 	windowed[1].dest = &out.OneYearReturn
 	windowed[2].dest = &out.BenchmarkYtdReturn
-	windowed[3].dest = &out.Cagr
+	windowed[3].dest = &out.BenchmarkOneYearReturn
+	windowed[4].dest = &out.Cagr
 	for _, c := range windowed {
 		v, rerr := r.readWindowedMetric(ctx, c.metric, c.window)
 		if rerr != nil {
