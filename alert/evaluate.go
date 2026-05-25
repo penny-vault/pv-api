@@ -44,6 +44,9 @@ func isDue(a Alert, now time.Time) bool {
 	case FrequencyScheduledRun:
 		return true
 	case FrequencyDaily:
+		if !tradingdays.IsTrading(nowET) {
+			return false
+		}
 		if a.LastSentAt == nil {
 			return true
 		}
