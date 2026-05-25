@@ -27,6 +27,9 @@ func ptrTime(t time.Time) *time.Time { return &t }
 func TestIsDue(t *testing.T) {
 	tuesday := time.Date(2025, 4, 22, 15, 0, 0, 0, time.UTC)
 	friday := time.Date(2025, 4, 25, 15, 0, 0, 0, time.UTC)
+	saturday := time.Date(2025, 4, 26, 15, 0, 0, 0, time.UTC)
+	sunday := time.Date(2025, 4, 27, 15, 0, 0, 0, time.UTC)
+	memorialDay := time.Date(2025, 5, 26, 15, 0, 0, 0, time.UTC) // NYSE holiday
 	lastOfApril := time.Date(2025, 4, 30, 15, 0, 0, 0, time.UTC)
 
 	yesterday := ptrTime(tuesday.AddDate(0, 0, -1))
@@ -43,6 +46,9 @@ func TestIsDue(t *testing.T) {
 		{"daily/no prior", Alert{ID: uuid.New(), Frequency: FrequencyDaily}, tuesday, true},
 		{"daily/sent yesterday", Alert{ID: uuid.New(), Frequency: FrequencyDaily, LastSentAt: yesterday}, tuesday, true},
 		{"daily/sent today", Alert{ID: uuid.New(), Frequency: FrequencyDaily, LastSentAt: sameDay}, tuesday, false},
+		{"daily/saturday no prior", Alert{ID: uuid.New(), Frequency: FrequencyDaily}, saturday, false},
+		{"daily/sunday no prior", Alert{ID: uuid.New(), Frequency: FrequencyDaily}, sunday, false},
+		{"daily/holiday no prior", Alert{ID: uuid.New(), Frequency: FrequencyDaily}, memorialDay, false},
 		{"weekly/not last day", Alert{ID: uuid.New(), Frequency: FrequencyWeekly}, tuesday, false},
 		{"weekly/last day no prior", Alert{ID: uuid.New(), Frequency: FrequencyWeekly}, friday, true},
 		{"weekly/last day sent today", Alert{ID: uuid.New(), Frequency: FrequencyWeekly, LastSentAt: ptrTime(friday)}, friday, false},
