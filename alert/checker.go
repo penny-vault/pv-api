@@ -17,6 +17,7 @@ package alert
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -45,14 +46,15 @@ var displayTZ = func() *time.Location {
 }()
 
 type portfolioData struct {
-	Name         string
-	Slug         string
-	StrategyCode string
-	Benchmark    string
-	CurrentValue *float64
-	Status       string
-	LastError    *string
-	SnapshotPath *string
+	Name             string
+	Slug             string
+	StrategyCode     string
+	StrategySchedule string // tradecron rebalance spec, from the describe JSON
+	Benchmark        string
+	CurrentValue     *float64
+	Status           string
+	LastError        *string
+	SnapshotPath     *string
 }
 
 // Checker implements Notifier using Postgres and Mailgun.
@@ -92,7 +94,7 @@ func (c *Checker) NotifyRunComplete(ctx context.Context, portfolioID, _ uuid.UUI
 	}
 
 	for _, a := range alerts {
-		if !isDue(a, now) {
+		if !isDue(a, port.StrategySchedule, now) {
 			continue
 		}
 		if sendErr := c.sendOne(ctx, a, port, now, success); sendErr != nil {
@@ -133,13 +135,29 @@ func (c *Checker) SendSummary(ctx context.Context, portfolioID uuid.UUID, recipi
 // that reach this via SendSummary have already validated the portfolio by slug,
 // so a not-found here is a transient race and is acceptable as a 500.
 func (c *Checker) loadPortfolio(ctx context.Context, id uuid.UUID) (portfolioData, error) {
-	var p portfolioData
+	var (
+		p            portfolioData
+		describeJSON []byte
+	)
 	err := c.pool.QueryRow(ctx,
-		`SELECT name, slug, strategy_code, benchmark, current_value, status, last_error, snapshot_path
+		`SELECT name, slug, strategy_code, benchmark, current_value, status, last_error, snapshot_path, strategy_describe_json
 		   FROM portfolios WHERE id=$1`, id,
 	).Scan(&p.Name, &p.Slug, &p.StrategyCode, &p.Benchmark,
-		&p.CurrentValue, &p.Status, &p.LastError, &p.SnapshotPath)
-	return p, err
+		&p.CurrentValue, &p.Status, &p.LastError, &p.SnapshotPath, &describeJSON)
+	if err != nil {
+		return p, err
+	}
+	if len(describeJSON) > 0 {
+		var d struct {
+			Schedule string `json:"schedule"`
+		}
+		if jerr := json.Unmarshal(describeJSON, &d); jerr != nil {
+			log.Warn().Err(jerr).Stringer("portfolio_id", id).Msg("alert: parse strategy describe json")
+		} else {
+			p.StrategySchedule = d.Schedule
+		}
+	}
+	return p, nil
 }
 
 func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now time.Time, success bool) error {

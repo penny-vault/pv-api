@@ -42,6 +42,8 @@ import (
 	"github.com/penny-vault/pv-api/snapshot"
 	"github.com/penny-vault/pv-api/sql"
 	"github.com/penny-vault/pv-api/strategy"
+	"github.com/penny-vault/pvbt/data"
+	"github.com/penny-vault/pvbt/tradecron"
 )
 
 // backtestPortfolioStoreAdapter adapts *portfolio.PoolStore to the
@@ -233,6 +235,20 @@ var serverCmd = &cobra.Command{
 		pool := sql.Instance(ctx, conf.DB.URL)
 
 		applyDataDirFallbacks(&conf)
+
+		// Load the NYSE trading calendar into pvbt's tradecron from the pv-data
+		// database. The scheduler (8 PM ET on trading days) and the alert
+		// cadence checks both depend on this; load it before anything can run.
+		holidayProvider, err := data.NewPVDataProvider(nil)
+		if err != nil {
+			log.Fatal().Err(err).Msg("market calendar: open pv-data provider")
+		}
+		holidays, err := holidayProvider.FetchMarketHolidays(ctx)
+		_ = holidayProvider.Close()
+		if err != nil {
+			log.Fatal().Err(err).Msg("market calendar: fetch holidays")
+		}
+		tradecron.SetMarketHolidays(holidays)
 
 		// Build backtest config from viper and apply defaults.
 		btCfg := backtest.Config{

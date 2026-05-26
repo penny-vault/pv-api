@@ -32,18 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   15% LTCG approximation has been replaced by pvbt's lot-level tax model.
 - Default CORS allowlist now includes `https://pennyvault.com` and
   `https://www.pennyvault.com` alongside the localhost dev origins.
-- Open-ended portfolios now re-run (and their daily alert emails fire) at
-  8:00 PM America/New_York rather than shortly after UTC midnight.
+- Open-ended portfolios re-run at 8:00 PM America/New_York on NYSE trading
+  days only; weekends and market holidays no longer trigger a run.
+- `scheduled_run` ("every run") alert emails now fire on the portfolio's
+  strategy rebalance days rather than on every calendar-day run.
 
 ### Removed
 - `PortfolioSummary.benchmarkYtdReturn`. Use
   `GET /portfolios/{slug}/trailing-returns` for benchmark windowed returns.
 
 ### Fixed
-- Daily alert emails no longer fire on weekends and NYSE holidays. They are
-  now gated on the trading-day calendar, matching the weekly and monthly
-  alerts, so a non-trading-day run no longer sends an update (with a
-  spurious one-day return computed off stale data).
+- Alert emails no longer arrive on weekends or NYSE holidays. The portfolio
+  update that triggers them no longer runs on a closed-market day, so no
+  update with a spurious one-day return computed off stale data is sent.
 - Snapshot reads no longer loop in `recalculating` forever. Each backtest
   run now writes its own snapshot file under
   `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`, so pruning older runs
