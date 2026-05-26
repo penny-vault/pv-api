@@ -16,15 +16,17 @@
 package alert
 
 import (
+	"sync"
 	"time"
 
-	"github.com/penny-vault/pv-api/alert/tradingdays"
+	"github.com/rs/zerolog/log"
+
+	"github.com/penny-vault/pvbt/tradecron"
 )
 
 // nyseLoc is the timezone used for alert calendar arithmetic. Daily runs fire
-// at 8 PM America/New_York (see portfolio.ClaimDue), so dedup must also be in
-// that zone — otherwise the UTC date has already rolled over and weekly/monthly
-// checks land on the wrong day.
+// at 8 PM America/New_York, so dedup must also be in that zone -- otherwise the
+// UTC date has already rolled over and the cadence checks land on the wrong day.
 var nyseLoc = func() *time.Location {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
@@ -33,41 +35,100 @@ var nyseLoc = func() *time.Location {
 	return loc
 }()
 
-func isDue(a Alert, now time.Time) bool {
-	nowET := now.In(nyseLoc)
-	today := time.Date(nowET.Year(), nowET.Month(), nowET.Day(), 0, 0, 0, 0, nyseLoc)
-	lastET := func() time.Time {
-		l := a.LastSentAt.In(nyseLoc)
-		return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, nyseLoc)
+// The cadence checks delegate to pvbt's tradecron, using the holiday calendar
+// loaded into tradecron at startup. weekEnd/monthEnd answer "last trading day
+// of the week/month"; market answers "is a trading day".
+var (
+	calOnce  sync.Once
+	weekEnd  *tradecron.TradeCron
+	monthEnd *tradecron.TradeCron
+	market   *tradecron.MarketStatus
+)
+
+func buildCalendar() {
+	calOnce.Do(func() {
+		var err error
+		if weekEnd, err = tradecron.New("@weekend", tradecron.RegularHours); err != nil {
+			log.Error().Err(err).Msg("alert: build @weekend schedule")
+			return
+		}
+		if monthEnd, err = tradecron.New("@monthend", tradecron.RegularHours); err != nil {
+			log.Error().Err(err).Msg("alert: build @monthend schedule")
+			return
+		}
+		market = tradecron.NewMarketStatus(&tradecron.RegularHours)
+	})
+}
+
+// calReady reports whether the trading calendar can answer cadence questions.
+// The holiday data is loaded into tradecron at server startup; if it is missing
+// the cadence checks report false so an alert is never sent for a day whose
+// trading status cannot be verified.
+func calReady() bool {
+	if !tradecron.HolidaysInitialized() {
+		return false
 	}
+	buildCalendar()
+	return market != nil && weekEnd != nil && monthEnd != nil
+}
+
+func isTradingDay(t time.Time) bool { return calReady() && market.IsMarketDay(t) }
+
+func isLastTradingDayOfWeek(t time.Time) bool { return calReady() && weekEnd.IsTradeDay(t) }
+
+func isLastTradingDayOfMonth(t time.Time) bool { return calReady() && monthEnd.IsTradeDay(t) }
+
+// strategyFiresOn reports whether a strategy whose rebalance schedule is spec
+// rebalances on day t. An empty or unparseable schedule is treated as firing
+// every trading day.
+func strategyFiresOn(spec string, t time.Time) bool {
+	if !calReady() {
+		return false
+	}
+	if spec == "" {
+		return market.IsMarketDay(t)
+	}
+	tc, err := tradecron.New(spec, tradecron.RegularHours)
+	if err != nil {
+		log.Warn().Err(err).Str("schedule", spec).Msg("alert: unparseable strategy schedule; treating as every trading day")
+		return market.IsMarketDay(t)
+	}
+	return tc.IsTradeDay(t)
+}
+
+// isDue reports whether alert a should be sent for a run completing at now.
+// strategySchedule is the portfolio's rebalance schedule, used by the
+// scheduled_run ("every run") cadence. A second send is suppressed once an
+// alert has already gone out for the current ET day.
+func isDue(a Alert, strategySchedule string, now time.Time) bool {
+	nowET := now.In(nyseLoc)
+
 	switch a.Frequency {
 	case FrequencyScheduledRun:
-		return true
+		if !strategyFiresOn(strategySchedule, nowET) {
+			return false
+		}
 	case FrequencyDaily:
-		if !tradingdays.IsTrading(nowET) {
+		if !isTradingDay(nowET) {
 			return false
 		}
-		if a.LastSentAt == nil {
-			return true
-		}
-		return today.After(lastET())
 	case FrequencyWeekly:
-		if !tradingdays.IsLastTradingDayOfWeek(nowET) {
+		if !isLastTradingDayOfWeek(nowET) {
 			return false
 		}
-		if a.LastSentAt == nil {
-			return true
-		}
-		return today.After(lastET())
 	case FrequencyMonthly:
-		if !tradingdays.IsLastTradingDayOfMonth(nowET) {
+		if !isLastTradingDayOfMonth(nowET) {
 			return false
 		}
-		if a.LastSentAt == nil {
-			return true
-		}
-		return today.After(lastET())
 	default:
 		return false
 	}
+
+	if a.LastSentAt == nil {
+		return true
+	}
+	today := time.Date(nowET.Year(), nowET.Month(), nowET.Day(), 0, 0, 0, 0, nyseLoc)
+	last := a.LastSentAt.In(nyseLoc)
+	lastDay := time.Date(last.Year(), last.Month(), last.Day(), 0, 0, 0, 0, nyseLoc)
+	return today.After(lastDay)
 }

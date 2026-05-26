@@ -20,13 +20,20 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/backtest"
+	"github.com/penny-vault/pvbt/tradecron"
 )
+
+// scheduleSpec fires at 8:00 PM America/New_York on every trading day. AllHours
+// lets the post-close time resolve; tradecron skips weekends and NYSE holidays
+// from the calendar loaded at startup, so the run never happens on a closed day.
+const scheduleSpec = "0 20 * * *"
 
 // PortfolioStore is the subset of portfolio store operations the scheduler needs.
 type PortfolioStore interface {
@@ -55,37 +62,108 @@ func New(cfg Config, store PortfolioStore, dispatcher Dispatcher) *Scheduler {
 	}
 }
 
-// Run blocks until ctx is cancelled, firing tickOnce immediately and then at
-// each cfg.TickInterval.
+// Run drives portfolio updates off a tradecron schedule: it sleeps until the
+// next 8 PM ET trading-day fire, dispatches the due portfolios, and repeats.
+// It blocks until ctx is cancelled. The market calendar must already be loaded
+// into tradecron (see cmd startup) or the schedule will panic.
 func (s *Scheduler) Run(ctx context.Context) error {
-	s.tickOnce(ctx)
-	ticker := time.NewTicker(s.cfg.TickInterval)
-	defer ticker.Stop()
+	sched, err := tradecron.New(scheduleSpec, tradecron.AllHours)
+	if err != nil {
+		return fmt.Errorf("scheduler: build schedule: %w", err)
+	}
+
+	// Catch up a fire we may have slept through -- e.g. a restart after 8 PM ET
+	// on a trading day. dispatchDue skips portfolios that already ran today.
+	now := time.Now()
+	if last, ok := mostRecentFire(sched, now); ok && sameDay(last, now) {
+		s.dispatchDue(ctx, sched.Next(now))
+	}
+
 	for {
+		fire := sched.Next(time.Now())
+		timer := time.NewTimer(time.Until(fire))
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return ctx.Err()
-		case <-ticker.C:
-			s.tickOnce(ctx)
+		case <-timer.C:
+			s.dispatchDue(ctx, sched.Next(fire))
 		}
 	}
 }
 
-func (s *Scheduler) tickOnce(ctx context.Context) {
-	ids, err := s.store.ClaimDue(ctx, s.cfg.BatchSize)
-	if err != nil {
-		log.Error().Err(err).Msg("scheduler: claim failed")
-		return
-	}
-	for _, id := range ids {
-		runID, err := s.dispatcher.Submit(ctx, id)
-		switch {
-		case errors.Is(err, backtest.ErrQueueFull):
-			log.Warn().Stringer("portfolio_id", id).Msg("scheduler: queue full, skipped until next tick")
-		case err != nil:
-			log.Error().Err(err).Stringer("portfolio_id", id).Msg("scheduler: submit failed")
-		default:
-			log.Info().Stringer("portfolio_id", id).Stringer("run_id", runID).Msg("scheduler: dispatched")
+// dispatchDue claims due portfolios and submits each for a backtest. It keeps
+// claiming until none remain, retrying queue-full submissions with TickInterval
+// backoff until the queue drains, ctx is cancelled, or the next fire (until)
+// arrives. Successful submits create a queued run, which ClaimDue then excludes,
+// so re-claiming neither double-submits nor spins.
+func (s *Scheduler) dispatchDue(ctx context.Context, until time.Time) {
+	for {
+		ids, err := s.store.ClaimDue(ctx, s.cfg.BatchSize)
+		if err != nil {
+			log.Error().Err(err).Msg("scheduler: claim failed")
+			return
+		}
+		if len(ids) == 0 {
+			return
+		}
+
+		dispatched, queueFull := 0, false
+		for _, id := range ids {
+			runID, serr := s.dispatcher.Submit(ctx, id)
+			switch {
+			case errors.Is(serr, backtest.ErrQueueFull):
+				queueFull = true
+			case serr != nil:
+				log.Error().Err(serr).Stringer("portfolio_id", id).Msg("scheduler: submit failed")
+			default:
+				dispatched++
+				log.Info().Stringer("portfolio_id", id).Stringer("run_id", runID).Msg("scheduler: dispatched")
+			}
+		}
+
+		if queueFull {
+			log.Warn().Msg("scheduler: dispatch queue full, waiting to retry")
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(s.cfg.TickInterval):
+			}
+			if !time.Now().Before(until) {
+				return
+			}
+			continue
+		}
+
+		// No queue pressure: if we made no progress the remaining claims are
+		// hard-erroring, so stop rather than spin.
+		if dispatched == 0 {
+			return
 		}
 	}
+}
+
+// mostRecentFire returns the latest schedule fire at or before now, if any
+// occurred within the lookback window.
+func mostRecentFire(sched *tradecron.TradeCron, now time.Time) (time.Time, bool) {
+	probe := now.AddDate(0, 0, -10)
+	var last time.Time
+	found := false
+	for {
+		next := sched.Next(probe)
+		if next.After(now) {
+			break
+		}
+		last, found, probe = next, true, next
+	}
+	return last, found
+}
+
+// sameDay reports whether a and b fall on the same calendar day, compared in
+// a's location.
+func sameDay(a, b time.Time) bool {
+	b = b.In(a.Location())
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
