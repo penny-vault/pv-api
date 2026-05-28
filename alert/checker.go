@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -406,8 +407,8 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, p
 			Action:        action,
 			ActionColor:   actionColor,
 			ActionBgColor: actionBgColor,
-			Shares:        email.FormatMoneyVal(tx.Quantity),
-			Value:         "$" + email.FormatMoneyVal(tx.Amount),
+			Shares:        email.FormatMoneyVal(math.Abs(tx.Quantity)),
+			Value:         "$" + email.FormatMoneyVal(math.Abs(tx.Amount)),
 		})
 	}
 }

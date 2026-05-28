@@ -146,20 +146,25 @@ func FormatDelta(currentValue, previousValue float64, lastSentAt, now time.Time)
 	}
 	diff := currentValue - previousValue
 	pct := diff / previousValue * 100
+	roundedPct := math.Round(pct*100) / 100
+	roundedDiff := math.Round(diff)
+	since = formatSinceLabel(lastSentAt, now)
+	if roundedPct == 0 && roundedDiff == 0 {
+		return "0.00%", "$0", "#94a3b8", since, true
+	}
 	sign := "+"
 	if diff < 0 {
 		sign = "-"
 		diff = -diff
 		pct = math.Abs(pct)
 	}
-	deltaPct = fmt.Sprintf("%s%.1f%%", sign, pct)
+	deltaPct = fmt.Sprintf("%s%.2f%%", sign, pct)
 	deltaAbs = fmt.Sprintf("%s$%s", sign, FormatMoneyVal(diff))
 	if sign == "+" {
 		color = "#22c55e"
 	} else {
 		color = "#ef4444"
 	}
-	since = formatSinceLabel(lastSentAt, now)
 	return deltaPct, deltaAbs, color, since, true
 }
 
@@ -180,11 +185,17 @@ func formatSinceLabel(lastSentAt, now time.Time) string {
 }
 
 func FormatMoneyVal(v float64) string {
+	sign := ""
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
 	s := fmt.Sprintf("%.0f", v)
 	if len(s) <= 3 {
-		return s
+		return sign + s
 	}
 	var result strings.Builder
+	result.WriteString(sign)
 	offset := len(s) % 3
 	if offset > 0 {
 		result.WriteString(s[:offset])
@@ -198,21 +209,21 @@ func FormatMoneyVal(v float64) string {
 	return result.String()
 }
 
-// FormatReturnPct formats a fractional return (e.g. 0.034) as "+3.4%" and
+// FormatReturnPct formats a fractional return (e.g. 0.034) as "+3.40%" and
 // returns the appropriate color string for light-mode rendering. A value that
-// rounds to zero renders as "0.0%" with no sign and a neutral color, so a tiny
-// move isn't dressed up as a gain or a loss.
+// rounds to zero at two-decimal precision renders as "0.00%" with no sign and
+// a neutral color, so a tiny move isn't dressed up as a gain or a loss.
 func FormatReturnPct(v float64) (pct, color string) {
-	rounded := math.Round(v*1000) / 10 // percent, one decimal place
+	rounded := math.Round(v*10000) / 100 // percent, two decimal places
 	if rounded == 0 {
-		return "0.0%", "#94a3b8"
+		return "0.00%", "#94a3b8"
 	}
 	sign := "+"
 	if rounded < 0 {
 		sign = "-"
 		rounded = -rounded
 	}
-	pct = fmt.Sprintf("%s%.1f%%", sign, rounded)
+	pct = fmt.Sprintf("%s%.2f%%", sign, rounded)
 	if sign == "+" {
 		color = "#16a34a"
 	} else {

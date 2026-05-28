@@ -151,6 +151,57 @@ func TestFormatDelta(t *testing.T) {
 	if color2 != "#ef4444" {
 		t.Errorf("color = %q; want red", color2)
 	}
+
+	pct3, abs3, color3, _, hasDelta3 := email.FormatDelta(102000, 102000, lastSent, now)
+	if !hasDelta3 {
+		t.Fatal("expected hasDelta=true when value did not change")
+	}
+	if pct3 != "0.00%" {
+		t.Errorf("pct = %q; want %q for zero change", pct3, "0.00%")
+	}
+	if abs3 != "$0" {
+		t.Errorf("abs = %q; want %q for zero change", abs3, "$0")
+	}
+	if color3 != "#94a3b8" {
+		t.Errorf("color = %q; want grey for zero change", color3)
+	}
+
+	// A delta that rounds to zero at 2-decimal pct and integer dollar
+	// precision should also be neutral, not green-positive.
+	pct4, abs4, color4, _, _ := email.FormatDelta(102000.40, 102000, lastSent, now)
+	if pct4 != "0.00%" || abs4 != "$0" || color4 != "#94a3b8" {
+		t.Errorf("near-zero delta = (%q, %q, %q); want neutral zero", pct4, abs4, color4)
+	}
+}
+
+func TestFormatMoneyVal(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{12, "12"},
+		{123, "123"},
+		{1234, "1,234"},
+		{12345, "12,345"},
+		{123456, "123,456"},
+		{1234567, "1,234,567"},
+		{-1, "-1"},
+		{-12, "-12"},
+		{-123, "-123"},
+		{-1234, "-1,234"},
+		{-12345, "-12,345"},
+		{-123456, "-123,456"},
+		{-761224, "-761,224"},
+		{-1761224, "-1,761,224"},
+	}
+	for _, tc := range cases {
+		got := email.FormatMoneyVal(tc.in)
+		if got != tc.want {
+			t.Errorf("FormatMoneyVal(%v) = %q; want %q", tc.in, got, tc.want)
+		}
+	}
 }
 
 func TestFormatDeltaSinceLabel(t *testing.T) {
