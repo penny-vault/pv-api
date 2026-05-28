@@ -154,7 +154,8 @@ func NewApp(ctx context.Context, conf Config) (*fiber.App, error) {
 			ephOpts,
 		))
 
-		if err := startRegistrySync(ctx, strategyStore, strategyStore, conf.Registry); err != nil {
+		autoUpgrader := portfolio.NewAutoUpgrader(portfolioHandler, strategyStore)
+		if err := startRegistrySync(ctx, strategyStore, strategyStore, autoUpgrader, conf.Registry); err != nil {
 			return nil, fmt.Errorf("start registry sync: %w", err)
 		}
 	} else {
@@ -207,7 +208,9 @@ func snapshotKpis(ctx context.Context, path string) (strategy.StatKpis, error) {
 // startRegistrySync spins off a goroutine that runs the strategy.Syncer
 // on conf.SyncInterval. Runs independently of the HTTP server; errors are
 // logged but never propagated.
-func startRegistrySync(ctx context.Context, store strategy.Store, statsStore strategy.StatsStore, conf RegistryConfig) error {
+func startRegistrySync(ctx context.Context, store strategy.Store, statsStore strategy.StatsStore,
+	autoUpgrader strategy.PortfolioAutoUpgrader, conf RegistryConfig,
+) error {
 	if conf.SyncInterval <= 0 {
 		return ErrRegistrySyncInterval
 	}
@@ -254,6 +257,7 @@ func startRegistrySync(ctx context.Context, store strategy.Store, statsStore str
 		Concurrency:     conf.Concurrency,
 		Interval:        conf.SyncInterval,
 		Stats:           statsRefresher,
+		AutoUpgrader:    autoUpgrader,
 	})
 	go func() { _ = syncer.Run(ctx) }()
 	go func() { statsRefresher.Run(ctx) }()

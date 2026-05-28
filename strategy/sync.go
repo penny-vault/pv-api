@@ -41,6 +41,13 @@ type StatsRunner interface {
 	RunOne(ctx context.Context, shortCode string) error
 }
 
+// PortfolioAutoUpgrader is the interface the Syncer uses to upgrade
+// portfolios after a new strategy version installs. The narrow interface
+// keeps the strategy package free of a portfolio import dependency.
+type PortfolioAutoUpgrader interface {
+	AutoUpgradeAfterInstall(ctx context.Context, shortCode, newVer string)
+}
+
 // Store is the subset of strategy.db operations the Syncer needs. The
 // production implementation wraps `*pgxpool.Pool`; tests pass an in-memory
 // fake.
@@ -75,8 +82,9 @@ type SyncerOptions struct {
 	RunnerMode      string        // "host" (default) | "docker"
 	OfficialDir     string
 	Concurrency     int
-	Interval        time.Duration // 0 = Tick-only; Run reuses this as its period
-	Stats           StatsRunner   // optional; if set, RunOne is called after each successful install
+	Interval        time.Duration         // 0 = Tick-only; Run reuses this as its period
+	Stats           StatsRunner           // optional; if set, RunOne is called after each successful install
+	AutoUpgrader    PortfolioAutoUpgrader // optional; if set, called after each successful install to upgrade eligible portfolios
 }
 
 // expectedArtifactKind returns the artifact_kind string the current runner
@@ -297,6 +305,12 @@ func (s *Syncer) runInstall(ctx context.Context, l Listing, version, dest string
 				log.Warn().Err(err).Str("short_code", sc).Msg("post-install stats failed")
 			}
 		}()
+	}
+	if s.opts.AutoUpgrader != nil {
+		sc := shortCode
+		ver := version
+		upgradeCtx := context.WithoutCancel(ctx)
+		go s.opts.AutoUpgrader.AutoUpgradeAfterInstall(upgradeCtx, sc, ver)
 	}
 }
 

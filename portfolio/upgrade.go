@@ -30,13 +30,9 @@ import (
 // Flow:
 //  1. Authenticate; load the portfolio; reject if status='running'.
 //  2. Look up the registry strategy; return 422 if not installable.
-//  3. If portfolio.strategy_ver == registry.installed_ver → 200 already_at_latest.
-//  4. Diff the old (frozen on the portfolio) vs new (registry) describe.
-//  5. If body has parameters → validate against new describe; on success use them.
-//     Else if diff is compatible → merge kept values + new defaults.
-//     Else → 409 parameters_incompatible with diff body.
-//  6. Atomically update the portfolio (ApplyUpgrade).
-//  7. Enqueue a new run via Dispatcher.Submit; return 200 with run_id.
+//  3. Delegate the upgrade decision to doUpgrade (shared with the
+//     auto-upgrader).
+//  4. Shape the result as an HTTP response.
 //
 // See docs/superpowers/specs/2026-04-25-portfolio-strategy-upgrade-design.md.
 func (h *Handler) Upgrade(c fiber.Ctx) error {
@@ -44,41 +40,17 @@ func (h *Handler) Upgrade(c fiber.Ctx) error {
 	if !ok {
 		return err
 	}
-	if p.StrategyVer != nil && *p.StrategyVer == *s.InstalledVer {
-		return writeJSON(c, fiber.StatusOK, fiber.Map{
-			"status":  "already_at_latest",
-			"version": *s.InstalledVer,
-		})
-	}
 
 	bodyParams, ok, err := parseUpgradeBody(c)
 	if !ok {
 		return err
 	}
 
-	oldDescribe, newDescribe, ok, err := decodeUpgradeDescribes(c, p, s)
-	if !ok {
-		return err
-	}
-
-	diff := DiffParameters(oldDescribe, newDescribe)
-	nextParams, ok, err := h.resolveUpgradeParams(c, p, s, bodyParams, diff, newDescribe)
-	if !ok {
-		return err
-	}
-
-	paramsJSON, err := json.Marshal(nextParams)
+	res, err := h.doUpgrade(c.Context(), p, s, bodyParams)
 	if err != nil {
 		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
 	}
-	presetName := MatchPresetName(nextParams, newDescribe)
-
-	if err := h.store.ApplyUpgrade(c.Context(), p.ID, *s.InstalledVer,
-		json.RawMessage(s.DescribeJSON), paramsJSON, presetName); err != nil {
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
-	}
-
-	return h.finalizeUpgrade(c, p, s)
+	return writeUpgradeResponse(c, p, s, res)
 }
 
 // loadUpgradeTargets loads the portfolio and the registry strategy row.
@@ -129,43 +101,43 @@ func parseUpgradeBody(c fiber.Ctx) (map[string]any, bool, error) {
 	return body.Parameters, true, nil
 }
 
-// decodeUpgradeDescribes loads the old describe (frozen on the portfolio
-// row) and the new describe (from the registry strategy row). ok=false
-// means a 500 response was written and the caller must stop.
-func decodeUpgradeDescribes(c fiber.Ctx, p Portfolio, s strategy.Strategy) (strategy.Describe, strategy.Describe, bool, error) {
-	var oldDescribe strategy.Describe
-	if len(p.StrategyDescribeJSON) > 0 {
-		if err := json.Unmarshal(p.StrategyDescribeJSON, &oldDescribe); err != nil {
-			return strategy.Describe{}, strategy.Describe{}, false, writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
-				"stored describe is invalid: "+err.Error())
+// writeUpgradeResponse converts an UpgradeResult into the HTTP response
+// shape defined by the upgrade endpoint contract.
+func writeUpgradeResponse(c fiber.Ctx, p Portfolio, s strategy.Strategy, res UpgradeResult) error {
+	switch res.Outcome {
+	case UpgradeOutcomeAlreadyAtLatest:
+		return writeJSON(c, fiber.StatusOK, fiber.Map{
+			"status":  "already_at_latest",
+			"version": *s.InstalledVer,
+		})
+	case UpgradeOutcomeInvalidParams:
+		return writeProblem(c, fiber.StatusBadRequest, "Bad Request", res.ValidateErr.Error())
+	case UpgradeOutcomeIncompatibleParams:
+		return writeIncompatibleParametersResponse(c, p, s, res.Diff)
+	case UpgradeOutcomeApplied:
+		body := fiber.Map{
+			"status":       "upgraded",
+			"from_version": res.FromVersion,
+			"to_version":   res.ToVersion,
 		}
-	}
-	var newDescribe strategy.Describe
-	if err := json.Unmarshal(s.DescribeJSON, &newDescribe); err != nil {
-		return strategy.Describe{}, strategy.Describe{}, false, writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error",
-			"registry describe is invalid: "+err.Error())
-	}
-	return oldDescribe, newDescribe, true, nil
-}
-
-// resolveUpgradeParams picks the parameters that the upgraded portfolio
-// should use. ok=false means a response was written and the caller must
-// stop; the returned error is whatever the response writer returned.
-func (h *Handler) resolveUpgradeParams(
-	c fiber.Ctx, p Portfolio, s strategy.Strategy, bodyParams map[string]any,
-	diff ParameterDiff, newDescribe strategy.Describe,
-) (map[string]any, bool, error) {
-	switch {
-	case bodyParams != nil:
-		if err := validateParameters(bodyParams, newDescribe); err != nil {
-			return nil, false, writeProblem(c, fiber.StatusBadRequest, "Bad Request", err.Error())
+		if res.RunErr != nil {
+			switch {
+			case errors.Is(res.RunErr, ErrRunInFlight):
+				body["note"] = "a backtest run was already in flight; the upgrade is committed and the existing run will continue"
+				return writeJSON(c, fiber.StatusOK, body)
+			case errors.Is(res.RunErr, ErrQueueFull):
+				return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
+					"backtest queue is full; the upgrade was committed but no run was queued. Retry by calling POST /portfolios/{slug}/runs")
+			default:
+				return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", res.RunErr.Error())
+			}
 		}
-		return bodyParams, true, nil
-	case diff.Compatible():
-		return mergeKeptAndDefaults(p.Parameters, newDescribe, diff), true, nil
-	default:
-		return nil, false, writeIncompatibleParametersResponse(c, p, s, diff)
+		if res.RunID != nil {
+			body["run_id"] = res.RunID.String()
+		}
+		return writeJSON(c, fiber.StatusOK, body)
 	}
+	return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", "unknown upgrade outcome")
 }
 
 // writeIncompatibleParametersResponse emits the 409 body that asks the
@@ -195,40 +167,6 @@ func writeIncompatibleParametersResponse(c fiber.Ctx, p Portfolio, s strategy.St
 		},
 		"current_parameters": p.Parameters,
 		"new_describe":       json.RawMessage(s.DescribeJSON),
-	})
-}
-
-// finalizeUpgrade dispatches the post-upgrade backtest run and writes the
-// success response. Handles the various dispatcher error modes (queue full,
-// run in flight, no dispatcher configured) gracefully.
-func (h *Handler) finalizeUpgrade(c fiber.Ctx, p Portfolio, s strategy.Strategy) error {
-	if h.dispatcher == nil {
-		return writeJSON(c, fiber.StatusOK, fiber.Map{
-			"status":       "upgraded",
-			"from_version": deref(p.StrategyVer),
-			"to_version":   *s.InstalledVer,
-		})
-	}
-	runID, err := h.dispatcher.Submit(c.Context(), p.ID)
-	switch {
-	case errors.Is(err, ErrRunInFlight):
-		return writeJSON(c, fiber.StatusOK, fiber.Map{
-			"status":       "upgraded",
-			"from_version": deref(p.StrategyVer),
-			"to_version":   *s.InstalledVer,
-			"note":         "a backtest run was already in flight; the upgrade is committed and the existing run will continue",
-		})
-	case errors.Is(err, ErrQueueFull):
-		return writeProblem(c, fiber.StatusServiceUnavailable, "Service Unavailable",
-			"backtest queue is full; the upgrade was committed but no run was queued. Retry by calling POST /portfolios/{slug}/runs")
-	case err != nil:
-		return writeProblem(c, fiber.StatusInternalServerError, "Internal Server Error", err.Error())
-	}
-	return writeJSON(c, fiber.StatusOK, fiber.Map{
-		"status":       "upgraded",
-		"from_version": deref(p.StrategyVer),
-		"to_version":   *s.InstalledVer,
-		"run_id":       runID.String(),
 	})
 }
 

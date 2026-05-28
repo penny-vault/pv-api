@@ -193,6 +193,17 @@ func (f *fakeStore) PruneRuns(_ context.Context, _ uuid.UUID) ([]string, error) 
 	return nil, nil
 }
 
+// ListByStrategyCode returns every portfolio whose strategy_code matches.
+func (f *fakeStore) ListByStrategyCode(_ context.Context, shortCode string) ([]portfolio.Portfolio, error) {
+	var out []portfolio.Portfolio
+	for _, p := range f.rows {
+		if p.StrategyCode == shortCode {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeStore) ApplyUpgrade(_ context.Context, portfolioID uuid.UUID, newVer string,
 	newDescribe, newParams json.RawMessage, presetName *string,
 ) error {

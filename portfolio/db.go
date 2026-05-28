@@ -67,6 +67,30 @@ func List(ctx context.Context, pool *pgxpool.Pool, ownerSub string) ([]Portfolio
 	return out, rows.Err()
 }
 
+// ListByStrategyCode returns every portfolio (across all owners) whose
+// strategy_code equals shortCode. Used by the auto-upgrader after a new
+// strategy version installs to find candidates for upgrade.
+func ListByStrategyCode(ctx context.Context, pool *pgxpool.Pool, shortCode string) ([]Portfolio, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT `+portfolioColumns+` FROM portfolios WHERE strategy_code = $1`,
+		shortCode,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("querying portfolios by strategy_code: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Portfolio
+	for rows.Next() {
+		p, scanErr := scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // Get returns one portfolio by (ownerSub, slug). ErrNotFound if no row.
 func Get(ctx context.Context, pool *pgxpool.Pool, ownerSub, slug string) (Portfolio, error) {
 	row := pool.QueryRow(ctx,

@@ -39,6 +39,7 @@ type Store interface {
 	ApplyUpgrade(ctx context.Context, portfolioID uuid.UUID, newVer string,
 		newDescribe json.RawMessage, newParams json.RawMessage,
 		newPresetName *string) error
+	ListByStrategyCode(ctx context.Context, shortCode string) ([]Portfolio, error)
 }
 
 // PoolStore adapts *pgxpool.Pool to the Store interface.
@@ -149,6 +150,13 @@ func (p PoolStore) PruneRuns(ctx context.Context, portfolioID uuid.UUID) ([]stri
 // gate plus ET calendar-day dedup).
 func (p PoolStore) ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error) {
 	return ClaimDue(ctx, p.Pool, batchSize)
+}
+
+// ListByStrategyCode returns every portfolio (across all owners) whose
+// strategy_code equals shortCode. Used by the auto-upgrader after a new
+// strategy version installs.
+func (p PoolStore) ListByStrategyCode(ctx context.Context, shortCode string) ([]Portfolio, error) {
+	return ListByStrategyCode(ctx, p.Pool, shortCode)
 }
 
 // ApplyUpgrade updates the portfolio's strategy version, describe JSON,
