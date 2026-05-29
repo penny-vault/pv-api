@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-const defaultEphemeralTimeout = 60 * time.Second
+const defaultEphemeralTimeout = 5 * time.Minute
 
 // EphemeralOptions configures a single EphemeralBuild call.
 type EphemeralOptions struct {
