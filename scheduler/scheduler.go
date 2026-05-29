@@ -35,6 +35,19 @@ import (
 // from the calendar loaded at startup, so the run never happens on a closed day.
 const scheduleSpec = "0 20 * * *"
 
+// nyseLoc anchors the schedule to Eastern time. tradecron interprets a plain
+// numeric cron's clock field in the location of the time.Time handed to Next(),
+// not in its internal Eastern calendar -- so "0 20" fires at 8 PM in whatever
+// zone we pass. On a UTC host that is 8 PM UTC (4 PM ET); localizing now() to
+// Eastern is what makes the spec mean 8 PM ET regardless of server timezone.
+var nyseLoc = func() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
 // PortfolioStore is the subset of portfolio store operations the scheduler needs.
 type PortfolioStore interface {
 	ClaimDue(ctx context.Context, batchSize int) ([]uuid.UUID, error)
@@ -74,13 +87,13 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 	// Catch up a fire we may have slept through -- e.g. a restart after 8 PM ET
 	// on a trading day. dispatchDue skips portfolios that already ran today.
-	now := time.Now()
+	now := time.Now().In(nyseLoc)
 	if last, ok := mostRecentFire(sched, now); ok && sameDay(last, now) {
 		s.dispatchDue(ctx, sched.Next(now))
 	}
 
 	for {
-		fire := sched.Next(time.Now())
+		fire := sched.Next(time.Now().In(nyseLoc))
 		timer := time.NewTimer(time.Until(fire))
 		select {
 		case <-ctx.Done():

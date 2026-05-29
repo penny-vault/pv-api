@@ -61,8 +61,8 @@ type backtestRunStoreAdapter struct {
 	store *portfolio.PoolRunStore
 }
 
-func (a backtestRunStoreAdapter) CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (backtest.RunRow, error) {
-	r, err := a.store.CreateRun(ctx, portfolioID, status)
+func (a backtestRunStoreAdapter) CreateRun(ctx context.Context, portfolioID uuid.UUID, status, trigger string) (backtest.RunRow, error) {
+	r, err := a.store.CreateRun(ctx, portfolioID, status, trigger)
 	if err != nil {
 		return backtest.RunRow{}, err
 	}
@@ -136,7 +136,7 @@ type dispatcherAdapter struct {
 }
 
 func (a dispatcherAdapter) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
-	id, err := a.bt.Submit(ctx, portfolioID)
+	id, err := a.bt.Submit(ctx, portfolioID, backtest.TriggerManual)
 	if errors.Is(err, backtest.ErrQueueFull) {
 		return uuid.Nil, portfolio.ErrQueueFull
 	}
@@ -160,7 +160,7 @@ type schedulerDispatcherAdapter struct {
 }
 
 func (a schedulerDispatcherAdapter) Submit(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	return a.bt.Submit(ctx, id)
+	return a.bt.Submit(ctx, id, backtest.TriggerScheduled)
 }
 
 func init() {

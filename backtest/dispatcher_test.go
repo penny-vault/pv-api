@@ -68,7 +68,7 @@ type fakeRunStore struct {
 
 func newFakeRunStore() *fakeRunStore { return &fakeRunStore{} }
 
-func (f *fakeRunStore) CreateRun(_ context.Context, pid uuid.UUID, status string) (backtest.RunRow, error) {
+func (f *fakeRunStore) CreateRun(_ context.Context, pid uuid.UUID, status, _ string) (backtest.RunRow, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	runID := uuid.New()
@@ -101,12 +101,12 @@ var _ = Describe("Dispatcher", func() {
 		// buffer (MaxConcurrency*4 = 8) has the headroom to absorb the rest
 		// without racing the workers' first reads.
 		for range 2 {
-			_, err := d.Submit(context.Background(), uuid.New())
+			_, err := d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 			Expect(err).NotTo(HaveOccurred())
 		}
 		Eventually(func() int64 { return atomic.LoadInt64(&runner.active) }).Should(Equal(int64(2)))
 		for range 8 {
-			_, err := d.Submit(context.Background(), uuid.New())
+			_, err := d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 			Expect(err).NotTo(HaveOccurred())
 		}
 		Consistently(func() int64 { return atomic.LoadInt64(&runner.peak) }).Should(Equal(int64(2)))
@@ -125,9 +125,9 @@ var _ = Describe("Dispatcher", func() {
 
 		// Fill the queue: 1 in-flight + 4 buffered == 5; 6th should fail.
 		for range 5 {
-			_, _ = d.Submit(context.Background(), uuid.New())
+			_, _ = d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 		}
-		_, err := d.Submit(context.Background(), uuid.New())
+		_, err := d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 		Expect(err).To(MatchError(backtest.ErrQueueFull))
 	})
 
@@ -148,15 +148,15 @@ var _ = Describe("Dispatcher", func() {
 		// Submit one and wait until the worker is actively blocked in Run().
 		// Otherwise on a slow scheduler the channel fills before the worker
 		// starts consuming, and more than one Submit hits the default branch.
-		_, err := d.Submit(context.Background(), uuid.New())
+		_, err := d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 		Expect(err).NotTo(HaveOccurred())
 		Eventually(runner.started).Should(BeClosed())
 
 		// Channel buffer is MaxConcurrency*4 = 4. Fill it.
 		for range 4 {
-			_, _ = d.Submit(context.Background(), uuid.New())
+			_, _ = d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 		}
-		_, err = d.Submit(context.Background(), uuid.New())
+		_, err = d.Submit(context.Background(), uuid.New(), backtest.TriggerScheduled)
 		Expect(err).To(MatchError(backtest.ErrQueueFull))
 
 		rs.mu.Lock()

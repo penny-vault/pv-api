@@ -38,14 +38,15 @@ func seedPrunePortfolio(ctx context.Context, pool *pgxpool.Pool) (portfolio.Stor
 	slug := "prune-" + uuid.NewString()[:8]
 
 	p := portfolio.Portfolio{
-		OwnerSub:     ownerSub,
-		Slug:         slug,
-		Name:         "Prune test portfolio",
-		StrategyCode: "__smoke_stub__",
-		Parameters:   map[string]any{},
-		Benchmark:    "SPY",
-		Status:       portfolio.StatusPending,
-		RunRetention: 2, // default retention
+		OwnerSub:             ownerSub,
+		Slug:                 slug,
+		Name:                 "Prune test portfolio",
+		StrategyCode:         "__smoke_stub__",
+		StrategyDescribeJSON: []byte("{}"),
+		Parameters:           map[string]any{},
+		Benchmark:            "SPY",
+		Status:               portfolio.StatusPending,
+		RunRetention:         2, // default retention
 	}
 	Expect(store.Insert(ctx, p)).To(Succeed())
 
@@ -92,7 +93,7 @@ var _ = Describe("PruneRuns", Ordered, func() {
 		store, runStore, portID, _, _ := seedPrunePortfolio(ctx, pool)
 
 		// retention is 2; create only 1 run (no snapshot path)
-		run, err := runStore.CreateRun(ctx, portID, "queued")
+		run, err := runStore.CreateRun(ctx, portID, "queued", "scheduled")
 		Expect(err).NotTo(HaveOccurred())
 		_ = run
 
@@ -107,7 +108,7 @@ var _ = Describe("PruneRuns", Ordered, func() {
 		// Create 4 runs with snapshot paths; retention is 2 so 2 oldest should be pruned.
 		var snapshots []string
 		for i := 0; i < 4; i++ {
-			run, err := runStore.CreateRun(ctx, portID, "queued")
+			run, err := runStore.CreateRun(ctx, portID, "queued", "scheduled")
 			Expect(err).NotTo(HaveOccurred())
 			path := fmt.Sprintf("/tmp/snap-%d-%s.sqlite", i, uuid.NewString()[:8])
 			Expect(runStore.UpdateRunSuccess(ctx, run.ID, path, 100)).To(Succeed())
@@ -130,7 +131,7 @@ var _ = Describe("PruneRuns", Ordered, func() {
 		Expect(store.UpdateRunRetention(ctx, ownerSub, slug, 1)).To(Succeed())
 
 		for i := 0; i < 3; i++ {
-			run, err := runStore.CreateRun(ctx, portID, "queued")
+			run, err := runStore.CreateRun(ctx, portID, "queued", "scheduled")
 			Expect(err).NotTo(HaveOccurred())
 			path := fmt.Sprintf("/tmp/x-%d-%s.sqlite", i, uuid.NewString()[:8])
 			Expect(runStore.UpdateRunSuccess(ctx, run.ID, path, 100)).To(Succeed())

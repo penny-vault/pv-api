@@ -134,7 +134,7 @@ func (f *fakeStore) Delete(_ context.Context, ownerSub, slug string) error {
 
 // RunStore stub methods — not exercised by handler tests.
 
-func (f *fakeStore) CreateRun(_ context.Context, _ uuid.UUID, _ string) (portfolio.Run, error) {
+func (f *fakeStore) CreateRun(_ context.Context, _ uuid.UUID, _, _ string) (portfolio.Run, error) {
 	return portfolio.Run{}, nil
 }
 

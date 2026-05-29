@@ -55,8 +55,8 @@ var _ = Describe("PoolRunStore", Ordered, func() {
 
 		portfolioID = uuid.New()
 		_, err = pool.Exec(context.Background(), `
-			INSERT INTO portfolios (id, owner_sub, slug, name, strategy_code, strategy_ver, parameters, benchmark, mode, status)
-			VALUES ($1, 'smoke|user', 'run-store-smoke-slug', 'smoke', '__smoke_stub__', 'v0.0.0', '{}'::jsonb, 'SPY', 'one_shot', 'pending')
+			INSERT INTO portfolios (id, owner_sub, slug, name, strategy_code, strategy_ver, strategy_clone_url, strategy_describe_json, parameters, benchmark, status)
+			VALUES ($1, 'smoke|user', 'run-store-smoke-slug', 'smoke', '__smoke_stub__', 'v0.0.0', '', '{}'::jsonb, '{}'::jsonb, 'SPY', 'pending')
 		`, portfolioID)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -68,7 +68,7 @@ var _ = Describe("PoolRunStore", Ordered, func() {
 	})
 
 	It("creates a queued run and advances it to success", func() {
-		r, err := store.CreateRun(context.Background(), portfolioID, "queued")
+		r, err := store.CreateRun(context.Background(), portfolioID, "queued", "scheduled")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(r.Status).To(Equal("queued"))
 
@@ -91,13 +91,13 @@ var _ = Describe("PoolRunStore", Ordered, func() {
 		// Create one queued run, then try to create another. The partial unique
 		// index should reject the second insert and PoolRunStore translates the
 		// 23505 violation to portfolio.ErrRunInFlight.
-		first, err := store.CreateRun(context.Background(), portfolioID, "queued")
+		first, err := store.CreateRun(context.Background(), portfolioID, "queued", "scheduled")
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
 			_, _ = pool.Exec(context.Background(), `DELETE FROM backtest_runs WHERE id=$1`, first.ID)
 		})
 
-		_, err = store.CreateRun(context.Background(), portfolioID, "queued")
+		_, err = store.CreateRun(context.Background(), portfolioID, "queued", "scheduled")
 		Expect(err).To(MatchError(portfolio.ErrRunInFlight))
 	})
 })
@@ -135,14 +135,15 @@ var _ = Describe("PoolStore run_retention", Ordered, func() {
 
 	It("persists an explicit run_retention", func() {
 		p := portfolio.Portfolio{
-			OwnerSub:     "smoke|rr-user",
-			Slug:         "rr-explicit-test",
-			Name:         "RR explicit",
-			StrategyCode: "__rr_stub__",
-			Parameters:   map[string]any{},
-			Benchmark:    "SPY",
-			Status:       portfolio.StatusPending,
-			RunRetention: 5,
+			OwnerSub:             "smoke|rr-user",
+			Slug:                 "rr-explicit-test",
+			Name:                 "RR explicit",
+			StrategyCode:         "__rr_stub__",
+			StrategyDescribeJSON: []byte("{}"),
+			Parameters:           map[string]any{},
+			Benchmark:            "SPY",
+			Status:               portfolio.StatusPending,
+			RunRetention:         5,
 		}
 		Expect(store.Insert(ctx, p)).To(Succeed())
 

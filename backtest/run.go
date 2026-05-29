@@ -88,12 +88,12 @@ func (o *orchestrator) WithProgressHub(h *ProgressHub) *orchestrator {
 //  5. fsyncs and renames the tmp file to its final path.
 //  6. Opens the snapshot, reads KPIs, and writes them back to the DB.
 //  7. On any failure, marks both the portfolio and run as failed.
-func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) error {
+func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID, scheduled bool) error {
 	started := time.Now()
 
 	row, err := o.ps.GetByID(ctx, portfolioID)
 	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("load portfolio: %w", err))
+		return o.fail(ctx, portfolioID, runID, started, scheduled, fmt.Errorf("load portfolio: %w", err))
 	}
 	if row.Status == "running" {
 		_ = o.rs.UpdateRunFailed(ctx, runID, "portfolio already running",
@@ -102,12 +102,12 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	}
 
 	if err := o.ps.MarkRunningTx(ctx, portfolioID, runID); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark running: %w", err))
+		return o.fail(ctx, portfolioID, runID, started, scheduled, fmt.Errorf("mark running: %w", err))
 	}
 
 	artifact, cleanup, err := o.resolve(ctx, row.StrategyCloneURL, row.StrategyVer)
 	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("%w: %w", ErrStrategyNotInstalled, err))
+		return o.fail(ctx, portfolioID, runID, started, scheduled, fmt.Errorf("%w: %w", ErrStrategyNotInstalled, err))
 	}
 	defer cleanup()
 
@@ -116,7 +116,7 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 	// the active snapshot, and let users diff successive runs.
 	portfolioDir := filepath.Join(o.cfg.SnapshotsDir, portfolioID.String())
 	if err := os.MkdirAll(portfolioDir, 0o750); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mkdir snapshots subdir: %w", err))
+		return o.fail(ctx, portfolioID, runID, started, scheduled, fmt.Errorf("mkdir snapshots subdir: %w", err))
 	}
 	tmp := filepath.Join(portfolioDir, runID.String()+".sqlite.tmp")
 	final := filepath.Join(portfolioDir, runID.String()+".sqlite")
@@ -136,28 +136,30 @@ func (o *orchestrator) Run(ctx context.Context, portfolioID, runID uuid.UUID) er
 		Timeout:        o.cfg.Timeout,
 		ProgressWriter: progressWriter,
 	}); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, err)
+		return o.fail(ctx, portfolioID, runID, started, scheduled, err)
 	}
 
 	if err := fsyncAndRename(tmp, final); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, err)
+		return o.fail(ctx, portfolioID, runID, started, scheduled, err)
 	}
 
 	kp, err := readKpisFromSnapshot(ctx, final)
 	if err != nil {
-		return o.fail(ctx, portfolioID, runID, started, err)
+		return o.fail(ctx, portfolioID, runID, started, scheduled, err)
 	}
 
 	if err := o.ps.MarkReadyTx(ctx, portfolioID, runID, final,
 		kp.CurrentValue, kp.YtdReturn, kp.MaxDrawdown, kp.Sharpe, kp.Cagr,
 		kp.InceptionDate, durationMs(time.Since(started))); err != nil {
-		return o.fail(ctx, portfolioID, runID, started, fmt.Errorf("mark ready: %w", err))
+		return o.fail(ctx, portfolioID, runID, started, scheduled, fmt.Errorf("mark ready: %w", err))
 	}
 	o.prune(ctx, portfolioID)
 	if o.hub != nil {
 		o.hub.Complete(runID, "success", "")
 	}
-	if o.notifier != nil {
+	// Manual runs do not emit alert emails -- the user is already watching the
+	// run. Only scheduled runs feed the cadence-based alert path.
+	if o.notifier != nil && scheduled {
 		if err := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, true); err != nil {
 			log.Warn().Err(err).Stringer("portfolio_id", portfolioID).Msg("alert notification failed")
 		}
@@ -248,7 +250,7 @@ func (o *orchestrator) prune(ctx context.Context, portfolioID uuid.UUID) {
 // fail records the failure on both the portfolio and run rows, then returns
 // an appropriate wrapped error. Context cancellation is re-wrapped as
 // ErrTimedOut to give callers a consistent sentinel.
-func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, started time.Time, err error) error {
+func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, started time.Time, scheduled bool, err error) error {
 	msg := err.Error()
 	if len(msg) > 2048 {
 		msg = msg[:2048]
@@ -258,7 +260,9 @@ func (o *orchestrator) fail(ctx context.Context, portfolioID, runID uuid.UUID, s
 	if o.hub != nil {
 		o.hub.Complete(runID, "failed", msg)
 	}
-	if o.notifier != nil {
+	// Manual runs do not emit alert emails, including failure alerts; the user
+	// initiating the run sees the error directly. Only scheduled runs notify.
+	if o.notifier != nil && scheduled {
 		if notifyErr := o.notifier.NotifyRunComplete(ctx, portfolioID, runID, false); notifyErr != nil {
 			log.Warn().Err(notifyErr).Stringer("portfolio_id", portfolioID).Msg("alert notification failed")
 		}

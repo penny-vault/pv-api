@@ -89,6 +89,19 @@ func (f *fakeRunStoreFull) UpdateRunFailed(_ context.Context, _ uuid.UUID, msg s
 	return nil
 }
 
+// fakeNotifier records whether NotifyRunComplete was invoked and with what
+// success flag, so tests can assert the manual-vs-scheduled email gate.
+type fakeNotifier struct {
+	calls  int
+	lastOK bool
+}
+
+func (f *fakeNotifier) NotifyRunComplete(_ context.Context, _, _ uuid.UUID, success bool) error {
+	f.calls++
+	f.lastOK = success
+	return nil
+}
+
 var _ = Describe("Run orchestration", func() {
 	It("writes a fresh snapshot, renames it, and updates the portfolio row", func() {
 		snapsDir := GinkgoT().TempDir()
@@ -111,7 +124,7 @@ var _ = Describe("Run orchestration", func() {
 			})
 
 		runID := uuid.New()
-		err := r.Run(context.Background(), ps.row.ID, runID)
+		err := r.Run(context.Background(), ps.row.ID, runID, true)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(ps.markRunning).To(BeTrue())
@@ -124,6 +137,41 @@ var _ = Describe("Run orchestration", func() {
 		Expect(stErr).NotTo(HaveOccurred())
 		_, stErr = os.Stat(ps.snapshotOut + ".tmp")
 		Expect(os.IsNotExist(stErr)).To(BeTrue())
+	})
+
+	It("sends an alert for a scheduled run but not for a manual run", func() {
+		snapsDir := GinkgoT().TempDir()
+
+		fixture := filepath.Join(GinkgoT().TempDir(), "fx.sqlite")
+		Expect(snapshot.BuildTestSnapshot(fixture)).To(Succeed())
+		Expect(os.Setenv("FAKESTRAT_FIXTURE", fixture)).To(Succeed())
+		DeferCleanup(func() { os.Unsetenv("FAKESTRAT_FIXTURE") })
+
+		cfg := backtest.Config{SnapshotsDir: snapsDir, RunnerMode: "host"}
+		resolve := func(_ context.Context, _, _ string) (string, func(), error) {
+			return fakeStratBin, func() {}, nil
+		}
+		newPortfolio := func() *fakePortfolioStore {
+			return &fakePortfolioStore{row: backtest.PortfolioRow{
+				ID: uuid.New(), StrategyCode: "fake", StrategyVer: "v0.0.0",
+				Parameters: map[string]any{}, Benchmark: "SPY", Status: "queued",
+			}}
+		}
+
+		scheduledPS := newPortfolio()
+		scheduledNotifier := &fakeNotifier{}
+		scheduledRunner := backtest.NewRunner(cfg, &backtest.HostRunner{}, backtest.ArtifactBinary,
+			scheduledPS, &fakeRunStoreFull{}, resolve).WithNotifier(scheduledNotifier)
+		Expect(scheduledRunner.Run(context.Background(), scheduledPS.row.ID, uuid.New(), true)).To(Succeed())
+		Expect(scheduledNotifier.calls).To(Equal(1))
+		Expect(scheduledNotifier.lastOK).To(BeTrue())
+
+		manualPS := newPortfolio()
+		manualNotifier := &fakeNotifier{}
+		manualRunner := backtest.NewRunner(cfg, &backtest.HostRunner{}, backtest.ArtifactBinary,
+			manualPS, &fakeRunStoreFull{}, resolve).WithNotifier(manualNotifier)
+		Expect(manualRunner.Run(context.Background(), manualPS.row.ID, uuid.New(), false)).To(Succeed())
+		Expect(manualNotifier.calls).To(Equal(0))
 	})
 
 	It("records a failure when the runner fails", func() {
@@ -143,7 +191,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			})
 
-		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		err := r.Run(context.Background(), ps.row.ID, uuid.New(), true)
 		Expect(err).To(HaveOccurred())
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(ps.markFailed).NotTo(BeEmpty())
@@ -170,7 +218,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
 			})
 
-		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New(), true)).To(Succeed())
 		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
 	})
 
@@ -196,7 +244,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			}).WithProgressHub(hub)
 
-		Expect(r.Run(context.Background(), ps.row.ID, runID)).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, runID, true)).To(Succeed())
 
 		var terminal *backtest.TerminalEvent
 		for evt := range events {
@@ -228,7 +276,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			}).WithProgressHub(hub)
 
-		Expect(r.Run(context.Background(), ps.row.ID, runID)).To(MatchError(backtest.ErrRunnerFailed))
+		Expect(r.Run(context.Background(), ps.row.ID, runID, true)).To(MatchError(backtest.ErrRunnerFailed))
 
 		var terminal *backtest.TerminalEvent
 		for evt := range events {
@@ -259,7 +307,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() { cleanupCalls.Add(1) }, nil
 			})
 
-		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		err := r.Run(context.Background(), ps.row.ID, uuid.New(), true)
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(cleanupCalls.Load()).To(Equal(int32(1)))
 	})
@@ -283,7 +331,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			})
 
-		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New(), true)).To(Succeed())
 		Expect(ps.PruneRunsCalls).To(HaveLen(1))
 		Expect(ps.PruneRunsCalls[0]).To(Equal(ps.row.ID))
 	})
@@ -304,7 +352,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			})
 
-		err := r.Run(context.Background(), ps.row.ID, uuid.New())
+		err := r.Run(context.Background(), ps.row.ID, uuid.New(), true)
 		Expect(errors.Is(err, backtest.ErrRunnerFailed)).To(BeTrue())
 		Expect(ps.PruneRunsCalls).To(HaveLen(1))
 	})
@@ -333,7 +381,7 @@ var _ = Describe("Run orchestration", func() {
 			})
 
 		firstRunID := uuid.New()
-		Expect(r.Run(context.Background(), ps.row.ID, firstRunID)).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, firstRunID, true)).To(Succeed())
 		firstPath := ps.snapshotOut
 		_, stErr := os.Stat(firstPath)
 		Expect(stErr).NotTo(HaveOccurred())
@@ -344,7 +392,7 @@ var _ = Describe("Run orchestration", func() {
 		ps.row.Status = "queued"
 
 		secondRunID := uuid.New()
-		Expect(r.Run(context.Background(), ps.row.ID, secondRunID)).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, secondRunID, true)).To(Succeed())
 
 		Expect(ps.snapshotOut).NotTo(Equal(firstPath))
 		_, stErr = os.Stat(ps.snapshotOut)
@@ -382,7 +430,7 @@ var _ = Describe("Run orchestration", func() {
 				return fakeStratBin, func() {}, nil
 			})
 
-		Expect(r.Run(context.Background(), ps.row.ID, uuid.New())).To(Succeed())
+		Expect(r.Run(context.Background(), ps.row.ID, uuid.New(), true)).To(Succeed())
 		_, statErr := os.Stat(stalePath)
 		Expect(os.IsNotExist(statErr)).To(BeTrue())
 	})
