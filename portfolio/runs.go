@@ -50,7 +50,7 @@ type Run struct {
 // the portfolio layer (we only expose runs the user owns via their
 // portfolio).
 type RunStore interface {
-	CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (Run, error)
+	CreateRun(ctx context.Context, portfolioID uuid.UUID, status, trigger string) (Run, error)
 	UpdateRunRunning(ctx context.Context, runID uuid.UUID) error
 	UpdateRunSuccess(ctx context.Context, runID uuid.UUID, snapshotPath string, durationMs int32) error
 	UpdateRunFailed(ctx context.Context, runID uuid.UUID, errMsg string, durationMs int32) error
@@ -65,13 +65,13 @@ type PoolRunStore struct {
 
 func NewPoolRunStore(pool *pgxpool.Pool) *PoolRunStore { return &PoolRunStore{pool: pool} }
 
-func (s *PoolRunStore) CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (Run, error) {
+func (s *PoolRunStore) CreateRun(ctx context.Context, portfolioID uuid.UUID, status, trigger string) (Run, error) {
 	const q = `
-		INSERT INTO backtest_runs (id, portfolio_id, status)
-		VALUES (uuidv7(), $1, $2)
+		INSERT INTO backtest_runs (id, portfolio_id, status, triggered_by)
+		VALUES (uuidv7(), $1, $2, $3)
 		RETURNING id, portfolio_id, status, started_at, finished_at, duration_ms, error, snapshot_path
 	`
-	r, err := scanRun(s.pool.QueryRow(ctx, q, portfolioID, status))
+	r, err := scanRun(s.pool.QueryRow(ctx, q, portfolioID, status, trigger))
 	if err != nil && uniqueViolation(err) {
 		return Run{}, ErrRunInFlight
 	}

@@ -25,11 +25,20 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Run trigger values, persisted on backtest_runs.triggered_by. Scheduled runs
+// are dispatched by the nightly scheduler; manual runs come from a user action.
+// The distinction drives two behaviors: ClaimDue counts only scheduled runs as
+// "ran today", and only scheduled runs send alert emails.
+const (
+	TriggerScheduled = "scheduled"
+	TriggerManual    = "manual"
+)
+
 // RunStore is the subset of portfolio.RunStore the dispatcher needs.
 // Declared here (not imported from portfolio) to avoid the cycle
 // backtest → portfolio.
 type RunStore interface {
-	CreateRun(ctx context.Context, portfolioID uuid.UUID, status string) (RunRow, error)
+	CreateRun(ctx context.Context, portfolioID uuid.UUID, status, trigger string) (RunRow, error)
 	UpdateRunRunning(ctx context.Context, runID uuid.UUID) error
 	UpdateRunSuccess(ctx context.Context, runID uuid.UUID, snapshotPath string, durationMs int32) error
 	UpdateRunFailed(ctx context.Context, runID uuid.UUID, errMsg string, durationMs int32) error
@@ -83,6 +92,7 @@ type SetKpis struct {
 type task struct {
 	portfolioID uuid.UUID
 	runID       uuid.UUID
+	scheduled   bool
 }
 
 // Dispatcher is a bounded worker-pool that funnels task submissions to
@@ -91,7 +101,7 @@ type Dispatcher struct {
 	cfg     Config
 	runner  Runner
 	runs    RunStore
-	runFn   func(ctx context.Context, portfolioID, runID uuid.UUID) error
+	runFn   func(ctx context.Context, portfolioID, runID uuid.UUID, scheduled bool) error
 	tasks   chan task
 	wg      sync.WaitGroup
 	ctx     context.Context
@@ -102,7 +112,7 @@ type Dispatcher struct {
 // NewDispatcher builds a dispatcher. runFn is the orchestration callback;
 // production passes backtest.Run (Task 15). Tests pass nil and rely on the
 // direct-runner fallback for concurrency assertions.
-func NewDispatcher(cfg Config, runner Runner, runs RunStore, runFn func(ctx context.Context, portfolioID, runID uuid.UUID) error) *Dispatcher {
+func NewDispatcher(cfg Config, runner Runner, runs RunStore, runFn func(ctx context.Context, portfolioID, runID uuid.UUID, scheduled bool) error) *Dispatcher {
 	cfg.ApplyDefaults()
 	return &Dispatcher{
 		cfg:    cfg,
@@ -131,13 +141,13 @@ func (d *Dispatcher) Start(parent context.Context) {
 	log.Info().Int("workers", d.cfg.MaxConcurrency).Msg("backtest dispatcher started")
 }
 
-func (d *Dispatcher) Submit(ctx context.Context, portfolioID uuid.UUID) (uuid.UUID, error) {
-	run, err := d.runs.CreateRun(ctx, portfolioID, "queued")
+func (d *Dispatcher) Submit(ctx context.Context, portfolioID uuid.UUID, trigger string) (uuid.UUID, error) {
+	run, err := d.runs.CreateRun(ctx, portfolioID, "queued", trigger)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	select {
-	case d.tasks <- task{portfolioID: portfolioID, runID: run.ID}:
+	case d.tasks <- task{portfolioID: portfolioID, runID: run.ID, scheduled: trigger == TriggerScheduled}:
 		return run.ID, nil
 	default:
 		// Release the partial unique index on backtest_runs so a future
@@ -168,7 +178,7 @@ func (d *Dispatcher) worker() {
 	defer d.wg.Done()
 	for t := range d.tasks {
 		if d.runFn != nil {
-			if err := d.runFn(d.ctx, t.portfolioID, t.runID); err != nil {
+			if err := d.runFn(d.ctx, t.portfolioID, t.runID, t.scheduled); err != nil {
 				log.Error().Err(err).Stringer("run_id", t.runID).Msg("backtest run failed")
 			}
 			continue

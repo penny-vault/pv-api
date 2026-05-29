@@ -75,6 +75,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screen better (Apple Mail / iOS Mail; Gmail's app shows the wide table).
 - Alert email returns that round to zero now render as a neutral "0.0%"
   rather than a green "+0.0%", so a flat day isn't shown as a gain.
+- Scheduled portfolio runs and their alert emails now fire at 8:00 PM
+  US/Eastern regardless of the server's timezone. On a UTC host they were
+  firing at 8:00 PM UTC (4:00 PM Eastern, before the market close).
+- A manual "Run now" no longer sends an alert email, and no longer counts as
+  the day's scheduled run, so it can no longer suppress the evening scheduled
+  update or its alert email.
 
 ### Added
 - Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`

@@ -515,22 +515,27 @@ func ApplyUpgrade(ctx context.Context, pool *pgxpool.Pool, portfolioID uuid.UUID
 }
 
 // ClaimDue returns up to batchSize open-ended (end_date IS NULL) portfolio IDs
-// that have not yet run for the current ET calendar day and have no in-flight
-// run. The scheduler owns *when* this is called (8 PM ET on trading days, via
-// tradecron), so there is no wall-clock gate here; the ET-date check only
-// deduplicates a portfolio that already ran today, and the NOT EXISTS guard
-// skips portfolios with a queued or running backtest so repeated claims within
-// one dispatch pass do not double-submit.
+// that have not yet had a *scheduled* run for the current ET calendar day and
+// have no in-flight run. The scheduler owns *when* this is called (8 PM ET on
+// trading days, via tradecron), so there is no wall-clock gate here.
+//
+// The "already ran today" guard counts only scheduled runs: a manual "Run now"
+// must not satisfy the daily run, or it would suppress both the scheduled run
+// and its alert email. The NOT EXISTS on queued/running runs skips portfolios
+// with an in-flight backtest so repeated claims within one dispatch pass do not
+// double-submit.
 func ClaimDue(ctx context.Context, pool *pgxpool.Pool, batchSize int) ([]uuid.UUID, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT id
 		  FROM portfolios p
 		 WHERE p.end_date IS NULL
 		   AND p.status IN ('ready', 'failed')
-		   AND (
-		         p.last_run_at IS NULL
-		         OR (p.last_run_at AT TIME ZONE 'America/New_York')::date
-		            < (now() AT TIME ZONE 'America/New_York')::date
+		   AND NOT EXISTS (
+		         SELECT 1 FROM backtest_runs r
+		          WHERE r.portfolio_id = p.id
+		            AND r.triggered_by = 'scheduled'
+		            AND (r.started_at AT TIME ZONE 'America/New_York')::date
+		                = (now() AT TIME ZONE 'America/New_York')::date
 		       )
 		   AND NOT EXISTS (
 		         SELECT 1 FROM backtest_runs r
