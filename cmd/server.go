@@ -179,7 +179,7 @@ func init() {
 	serverCmd.Flags().String("strategy-official-dir", "", "where installed official strategy binaries live (default: <data-dir>/strategies/official)")
 	serverCmd.Flags().String("strategy-github-query", "owner:penny-vault topic:pvbt-strategy", "GitHub search query for official strategies (owner filter applied client-side)")
 	serverCmd.Flags().String("strategy-ephemeral-dir", "", "ephemeral build dir for unofficial strategies (default: <data-dir>/strategies/ephemeral)")
-	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 60*time.Second, "max time for one ephemeral clone+build")
+	serverCmd.Flags().Duration("strategy-ephemeral-install-timeout", 5*time.Minute, "max time for one ephemeral clone+build")
 	serverCmd.Flags().String("backtest-snapshots-dir", "", "directory where backtest snapshot files are stored (default: <data-dir>/snapshots)")
 	serverCmd.Flags().Duration("backtest-orphan-gc-interval", 7*24*time.Hour, "how often to sweep snapshot files no DB row references; <0 disables (sweep still runs at startup)")
 	serverCmd.Flags().String("runner-docker-socket", "unix:///var/run/docker.sock", "Docker daemon socket URL")

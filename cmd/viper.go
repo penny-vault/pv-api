@@ -45,7 +45,7 @@ func setViperDefaults() {
 	viper.SetDefault("scheduler.tick_interval", "60s")
 	viper.SetDefault("scheduler.batch_size", 32)
 	viper.SetDefault("scheduler.enabled", true)
-	viper.SetDefault("strategy.ephemeral_install_timeout", 60*time.Second)
+	viper.SetDefault("strategy.ephemeral_install_timeout", 5*time.Minute)
 	viper.SetDefault("strategy.stats_refresh_time", "17:00")
 	viper.SetDefault("strategy.stats_start_date", "2010-01-01")
 	viper.SetDefault("strategy.stats_tick_interval", 5*time.Minute)
