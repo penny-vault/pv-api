@@ -201,12 +201,10 @@ func (c *Checker) sendOne(ctx context.Context, a Alert, port portfolioData, now 
 	return nil
 }
 
-func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData, now time.Time, success bool) email.Payload {
-	displayNow := now.In(displayTZ)
+func (c *Checker) buildPayload(ctx context.Context, _ Alert, port portfolioData, _ time.Time, success bool) email.Payload {
 	p := email.Payload{
 		PortfolioName: port.Name,
 		StrategyCode:  port.StrategyCode,
-		RunDate:       displayNow.Format("Monday, January 2, 2006"),
 		Success:       success,
 		LogoDataURL:   email.LogoDataURL(),
 	}
@@ -221,25 +219,42 @@ func (c *Checker) buildPayload(ctx context.Context, a Alert, port portfolioData,
 		return p
 	}
 
-	if port.CurrentValue != nil {
+	if port.SnapshotPath != nil {
+		if dc, err := snapshotDayChange(ctx, *port.SnapshotPath); err == nil {
+			p.RunDate = "as of " + dc.LatestDate.In(displayTZ).Format("January 2, 2006")
+			if port.CurrentValue != nil {
+				p.CurrentValue = "$" + email.FormatMoneyVal(*port.CurrentValue)
+			}
+			if dc.HasPrior {
+				pct, abs, color, since, hasDelta := email.FormatDelta(
+					dc.LatestValue, dc.PriorValue,
+					dc.PriorDate.In(displayTZ), dc.LatestDate.In(displayTZ),
+				)
+				p.HasDelta = hasDelta
+				p.DeltaPct = pct
+				p.DeltaAbs = abs
+				p.DeltaColor = color
+				p.SinceLabel = since
+			}
+		}
+		c.fillReturns(ctx, &p, *port.SnapshotPath, port.Benchmark)
+		c.fillHoldingsAndTrades(ctx, &p, port)
+	} else if port.CurrentValue != nil {
 		p.CurrentValue = "$" + email.FormatMoneyVal(*port.CurrentValue)
 	}
 
-	if a.LastSentAt != nil && a.LastSentValue != nil && *a.LastSentValue > 0 && port.CurrentValue != nil {
-		pct, abs, color, since, hasDelta := email.FormatDelta(*port.CurrentValue, *a.LastSentValue, a.LastSentAt.In(displayTZ), displayNow)
-		p.HasDelta = hasDelta
-		p.DeltaPct = pct
-		p.DeltaAbs = abs
-		p.DeltaColor = color
-		p.SinceLabel = since
-	}
-
-	if port.SnapshotPath != nil {
-		c.fillReturns(ctx, &p, *port.SnapshotPath, port.Benchmark)
-		c.fillHoldingsAndTrades(ctx, &p, port)
-	}
-
 	return p
+}
+
+// snapshotDayChange opens the snapshot at path, reads the two most recent
+// equity marks, and closes it.
+func snapshotDayChange(ctx context.Context, path string) (snapshot.DayChangeSummary, error) {
+	r, err := snapshot.Open(path)
+	if err != nil {
+		return snapshot.DayChangeSummary{}, err
+	}
+	defer func() { _ = r.Close() }()
+	return r.DayChange(ctx)
 }
 
 // returnCell formats a fractional return into a grid cell, rendering an

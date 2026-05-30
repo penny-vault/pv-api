@@ -152,6 +152,56 @@ func (r *Reader) perfAsOf(ctx context.Context, metricClause string, t time.Time,
 	return 0, err
 }
 
+// DayChangeSummary holds the two most recent portfolio equity marks, sufficient
+// to build the headline one-day delta in an alert email.
+type DayChangeSummary struct {
+	LatestDate  time.Time
+	PriorDate   time.Time // zero when the snapshot has only one trading day
+	LatestValue float64
+	PriorValue  float64
+	HasPrior    bool
+}
+
+// DayChange returns the two most recent portfolio equity marks from the
+// snapshot's perf_data series. HasPrior is false when fewer than two rows exist.
+func (r *Reader) DayChange(ctx context.Context) (DayChangeSummary, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT date, value FROM perf_data WHERE `+portfolioValueClause+` ORDER BY date DESC LIMIT 2`)
+	if err != nil {
+		return DayChangeSummary{}, fmt.Errorf("day change: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var dates []time.Time
+	var values []float64
+	for rows.Next() {
+		var dateStr string
+		var val float64
+		if err := rows.Scan(&dateStr, &val); err != nil {
+			return DayChangeSummary{}, fmt.Errorf("day change scan: %w", err)
+		}
+		t, err := time.Parse(dateLayout, dateStr)
+		if err != nil {
+			return DayChangeSummary{}, fmt.Errorf("day change parse: %w", err)
+		}
+		dates = append(dates, t)
+		values = append(values, val)
+	}
+	if err := rows.Err(); err != nil {
+		return DayChangeSummary{}, err
+	}
+	if len(dates) == 0 {
+		return DayChangeSummary{}, nil
+	}
+	out := DayChangeSummary{LatestDate: dates[0], LatestValue: values[0]}
+	if len(dates) > 1 {
+		out.PriorDate = dates[1]
+		out.PriorValue = values[1]
+		out.HasPrior = true
+	}
+	return out, nil
+}
+
 // ShortTermReturns holds Day, WTD, and MTD returns computed from perf_data.
 // All values are fractional (e.g. 0.03 = 3%). Calculation is relative to the
 // most recent date in perf_data, not today's wall clock.
