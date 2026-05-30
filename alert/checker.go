@@ -35,17 +35,6 @@ import (
 // ErrEmailNotConfigured is returned by SendSummary when no Mailgun API key is set.
 var ErrEmailNotConfigured = errors.New("email not configured: no Mailgun API key")
 
-// displayTZ is the timezone used for human-facing dates in alert emails. NYSE
-// time matches the trading-session calendar these portfolios run against and
-// avoids "tomorrow" appearing for a US reader after late-evening UTC rollover.
-var displayTZ = func() *time.Location {
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}()
-
 type portfolioData struct {
 	Name             string
 	Slug             string
@@ -221,14 +210,14 @@ func (c *Checker) buildPayload(ctx context.Context, _ Alert, port portfolioData,
 
 	if port.SnapshotPath != nil {
 		if dc, err := snapshotDayChange(ctx, *port.SnapshotPath); err == nil {
-			p.RunDate = "as of " + dc.LatestDate.In(displayTZ).Format("January 2, 2006")
+			p.RunDate = "as of " + dc.LatestDate.Format("January 2, 2006")
 			if port.CurrentValue != nil {
 				p.CurrentValue = "$" + email.FormatMoneyVal(*port.CurrentValue)
 			}
 			if dc.HasPrior {
 				pct, abs, color, since, hasDelta := email.FormatDelta(
 					dc.LatestValue, dc.PriorValue,
-					dc.PriorDate.In(displayTZ), dc.LatestDate.In(displayTZ),
+					dc.PriorDate, dc.LatestDate,
 				)
 				p.HasDelta = hasDelta
 				p.DeltaPct = pct
