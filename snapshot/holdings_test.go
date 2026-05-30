@@ -64,12 +64,13 @@ var _ = Describe("Holdings", func() {
 	})
 
 	Describe("HoldingsHistory", func() {
-		It("only emits batches that contain buy/sell/split transactions", func() {
+		It("emits batches with buy/sell/split transactions OR annotations", func() {
 			resp, err := reader.HoldingsHistory(context.Background(), nil, nil)
 			Expect(err).NotTo(HaveOccurred())
-			// batch 2 (dividend only) and batch 3 (no transactions — monthly no-op) are excluded
-			Expect(resp.Items).To(HaveLen(2))
+			// batch 2 (dividend + annotation) and batch 3 (annotation-only, no-op hold) are now included
+			Expect(resp.Items).To(HaveLen(4))
 
+			// batch 1: initial buy
 			Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
 			Expect(resp.Items[0].Items).To(HaveLen(1))
 			Expect(resp.Items[0].Items[0].Ticker).To(Equal("VTI"))
@@ -79,13 +80,29 @@ var _ = Describe("Holdings", func() {
 			Expect(*resp.Items[0].PortfolioValue).To(BeNumerically("~", 100000, 0.01))
 			Expect(*resp.Items[0].Annotations).To(HaveKeyWithValue("reason", "initial allocation"))
 
-			// batch 4: annual rebalance sold VTI, bought QQQ
-			Expect(resp.Items[1].BatchId).To(Equal(int64(4)))
+			// batch 2: dividend-only batch — annotation present, ledger unchanged from batch 1
+			Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
 			Expect(resp.Items[1].Items).To(HaveLen(1))
-			Expect(resp.Items[1].Items[0].Ticker).To(Equal("QQQ"))
-			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 90, 0.01))
-			Expect(resp.Items[1].PortfolioValue).To(BeNil()) // no perf_data row for 2024-01-11
-			Expect(resp.Items[1].Annotations).To(BeNil())
+			Expect(resp.Items[1].Items[0].Ticker).To(Equal("VTI"))
+			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(*resp.Items[1].PortfolioValue).To(BeNumerically("~", 102000, 0.01))
+			Expect(*resp.Items[1].Annotations).To(HaveKeyWithValue("reason", "dividend payment"))
+
+			// batch 3: annotation-only hold batch — the case being fixed
+			Expect(resp.Items[2].BatchId).To(Equal(int64(3)))
+			Expect(resp.Items[2].Items).To(HaveLen(1))
+			Expect(resp.Items[2].Items[0].Ticker).To(Equal("VTI"))
+			Expect(resp.Items[2].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(*resp.Items[2].PortfolioValue).To(BeNumerically("~", 103000, 0.01))
+			Expect(*resp.Items[2].Annotations).To(HaveKeyWithValue("reason", "final state"))
+
+			// batch 4: annual rebalance sold VTI, bought QQQ
+			Expect(resp.Items[3].BatchId).To(Equal(int64(4)))
+			Expect(resp.Items[3].Items).To(HaveLen(1))
+			Expect(resp.Items[3].Items[0].Ticker).To(Equal("QQQ"))
+			Expect(resp.Items[3].Items[0].Quantity).To(BeNumerically("~", 90, 0.01))
+			Expect(resp.Items[3].PortfolioValue).To(BeNil()) // no perf_data row for 2024-01-11
+			Expect(resp.Items[3].Annotations).To(BeNil())
 		})
 
 		It("filters the batch range by from/to timestamps", func() {

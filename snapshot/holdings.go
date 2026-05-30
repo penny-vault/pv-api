@@ -202,8 +202,11 @@ func ledgerToAsOfResponse(date time.Time, ledger map[string]*ledgerRow) *openapi
 // batch's date, so batch_id=0 rows — pvbt's dividends and end-of-backtest
 // liquidations — don't leak into earlier batches.
 func (r *Reader) HoldingsHistory(ctx context.Context, from, to *time.Time) (*openapi.HoldingsHistoryResponse, error) {
+	// Include batches with trades OR annotations; pvbt emits annotation-only
+	// batches for "hold" decisions where no trades occur.
 	batchQ := `SELECT b.batch_id, b.timestamp FROM batches b
-		WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.batch_id = b.batch_id AND t.type IN ('buy','sell','split'))`
+		WHERE (EXISTS (SELECT 1 FROM transactions t WHERE t.batch_id = b.batch_id AND t.type IN ('buy','sell','split'))
+		    OR EXISTS (SELECT 1 FROM annotations a WHERE a.batch_id = b.batch_id))`
 	var args []any
 	if from != nil {
 		batchQ += " AND b.timestamp >= ?"
