@@ -257,8 +257,9 @@ type batchKey struct {
 
 // holdingsHistoryBatch builds one HoldingsHistoryEntry for the given batch by
 // replaying transactions (date-ordered) up to and including the batch's date.
-// Item values use lastTradeValue (qty × last trade price from the replay);
-// portfolioValue is the authoritative mark-to-market total from perf_data.
+// Per-position values prefer positions_daily market values (current prices);
+// portfolioValue uses perf_data when available, falling back to the
+// positions_daily sum — needed for hold batches that have no perf_data row.
 func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts time.Time) (openapi.HoldingsHistoryEntry, error) {
 	entry := openapi.HoldingsHistoryEntry{
 		BatchId:   batchID,
@@ -267,6 +268,13 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 	}
 
 	ledger, err := r.ledgerAsOf(ctx, ts)
+	if err != nil {
+		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	}
+
+	// positions_daily holds current market values; use them to override the
+	// stale lastPrice from the ledger (relevant for hold batches).
+	dailyMV, err := r.readPositionsDailyOn(ctx, ts)
 	if err != nil {
 		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
 	}
@@ -281,11 +289,15 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 		if pos.quantity <= 0 {
 			continue
 		}
+		ltv := pos.quantity * pos.lastPrice
+		if mv, ok := dailyMV[ticker]; ok {
+			ltv = mv
+		}
 		h := openapi.HistoricalHolding{
 			Ticker:         ticker,
 			Quantity:       pos.quantity,
 			AvgCost:        pos.totalCost / pos.quantity,
-			LastTradeValue: pos.quantity * pos.lastPrice,
+			LastTradeValue: ltv,
 		}
 		if pos.figi != "" {
 			figi := pos.figi
@@ -297,6 +309,13 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 	pv, err := r.readPortfolioValueOn(ctx, ts)
 	if err != nil {
 		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	}
+	if pv == nil && len(dailyMV) > 0 {
+		var sum float64
+		for _, mv := range dailyMV {
+			sum += mv
+		}
+		pv = &sum
 	}
 	entry.PortfolioValue = pv
 
@@ -328,6 +347,28 @@ func (r *Reader) readPortfolioValueOn(ctx context.Context, ts time.Time) (*float
 		return nil, fmt.Errorf("read portfolio value: %w", err)
 	}
 	return &v, nil
+}
+
+// readPositionsDailyOn returns ticker→market_value from positions_daily for
+// the given date. Returns an empty map (not an error) when no rows exist.
+func (r *Reader) readPositionsDailyOn(ctx context.Context, ts time.Time) (map[string]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT ticker, market_value FROM positions_daily WHERE date = ?`,
+		ts.Format(dateLayout))
+	if err != nil {
+		return nil, fmt.Errorf("positions daily on %s: %w", ts.Format(dateLayout), err)
+	}
+	defer func() { _ = rows.Close() }()
+	mv := map[string]float64{}
+	for rows.Next() {
+		var ticker string
+		var val float64
+		if err := rows.Scan(&ticker, &val); err != nil {
+			return nil, fmt.Errorf("positions daily scan: %w", err)
+		}
+		mv[ticker] = val
+	}
+	return mv, rows.Err()
 }
 
 // readBatchAnnotations returns the annotations map for the given batch ID.
