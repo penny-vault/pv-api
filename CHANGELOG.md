@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GET /portfolios/{slug}/trailing-returns` for benchmark windowed returns.
 
 ### Fixed
+- Holdings history (`GET /portfolios/{slug}/holdings/history`) now includes
+  the cash sleeve (`$CASH`) in each batch's holdings. Previously cash was
+  omitted because it never flows through a transaction, so weeks split
+  between an asset and cash appeared to hold only the asset, and an all-cash
+  week returned no holdings at all.
 - Alert emails no longer arrive on weekends or NYSE holidays. The portfolio
   update that triggers them no longer runs on a closed-market day, so no
   update with a spurious one-day return computed off stale data is sent.

@@ -70,33 +70,41 @@ var _ = Describe("Holdings", func() {
 			// batch 2 (dividend + annotation) and batch 3 (annotation-only, no-op hold) are now included
 			Expect(resp.Items).To(HaveLen(4))
 
-			// batch 1: initial buy
+			// batch 1: initial buy. The cash sleeve from positions_daily is
+			// appended after the ledger holdings.
 			Expect(resp.Items[0].BatchId).To(Equal(int64(1)))
-			Expect(resp.Items[0].Items).To(HaveLen(1))
+			Expect(resp.Items[0].Items).To(HaveLen(2))
 			Expect(resp.Items[0].Items[0].Ticker).To(Equal("VTI"))
 			Expect(resp.Items[0].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
 			Expect(resp.Items[0].Items[0].LastTradeValue).To(BeNumerically("~", 100*100, 0.01))
+			Expect(resp.Items[0].Items[1].Ticker).To(Equal("$CASH"))
+			Expect(resp.Items[0].Items[1].LastTradeValue).To(BeNumerically("~", 90000, 0.01))
 			Expect(resp.Items[0].PortfolioValue).NotTo(BeNil())
 			Expect(*resp.Items[0].PortfolioValue).To(BeNumerically("~", 100000, 0.01))
 			Expect(*resp.Items[0].Annotations).To(HaveKeyWithValue("reason", "initial allocation"))
 
 			// batch 2: dividend-only batch — annotation present, ledger unchanged from batch 1
 			Expect(resp.Items[1].BatchId).To(Equal(int64(2)))
-			Expect(resp.Items[1].Items).To(HaveLen(1))
+			Expect(resp.Items[1].Items).To(HaveLen(2))
 			Expect(resp.Items[1].Items[0].Ticker).To(Equal("VTI"))
 			Expect(resp.Items[1].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(resp.Items[1].Items[1].Ticker).To(Equal("$CASH"))
+			Expect(resp.Items[1].Items[1].LastTradeValue).To(BeNumerically("~", 91800, 0.01))
 			Expect(*resp.Items[1].PortfolioValue).To(BeNumerically("~", 102000, 0.01))
 			Expect(*resp.Items[1].Annotations).To(HaveKeyWithValue("reason", "dividend payment"))
 
 			// batch 3: annotation-only hold batch — the case being fixed
 			Expect(resp.Items[2].BatchId).To(Equal(int64(3)))
-			Expect(resp.Items[2].Items).To(HaveLen(1))
+			Expect(resp.Items[2].Items).To(HaveLen(2))
 			Expect(resp.Items[2].Items[0].Ticker).To(Equal("VTI"))
 			Expect(resp.Items[2].Items[0].Quantity).To(BeNumerically("~", 100, 0.01))
+			Expect(resp.Items[2].Items[1].Ticker).To(Equal("$CASH"))
+			Expect(resp.Items[2].Items[1].LastTradeValue).To(BeNumerically("~", 92700, 0.01))
 			Expect(*resp.Items[2].PortfolioValue).To(BeNumerically("~", 103000, 0.01))
 			Expect(*resp.Items[2].Annotations).To(HaveKeyWithValue("reason", "final state"))
 
-			// batch 4: annual rebalance sold VTI, bought QQQ
+			// batch 4: annual rebalance sold VTI, bought QQQ. No positions_daily
+			// row for 2024-01-11, so no cash sleeve is merged in.
 			Expect(resp.Items[3].BatchId).To(Equal(int64(4)))
 			Expect(resp.Items[3].Items).To(HaveLen(1))
 			Expect(resp.Items[3].Items[0].Ticker).To(Equal("QQQ"))
