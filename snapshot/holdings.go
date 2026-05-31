@@ -279,6 +279,41 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
 	}
 
+	entry.Items = ledgerToHistoricalHoldings(ledger, dailyMV)
+
+	pv, err := r.readPortfolioValueOn(ctx, ts)
+	if err != nil {
+		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	}
+	if pv == nil && len(dailyMV) > 0 {
+		var sum float64
+		for _, mv := range dailyMV {
+			sum += mv
+		}
+		pv = &sum
+	}
+	entry.PortfolioValue = pv
+
+	ann, err := r.readBatchAnnotations(ctx, batchID)
+	if err != nil {
+		return entry, err
+	}
+	if len(ann) > 0 {
+		entry.Annotations = &ann
+	}
+	return entry, nil
+}
+
+// ledgerToHistoricalHoldings converts a replayed ledger into sorted
+// HistoricalHoldings, preferring positions_daily market values (current
+// prices) over the stale ledger lastPrice. The cash sleeve is then appended
+// from positions_daily: cash never flows through transactions, so without
+// this the Tickers column omits cash (showing only the equity/hedge leg) and
+// a 100%-cash batch yields an empty item list. Cash quantity equals its
+// market value (unit price $1).
+func ledgerToHistoricalHoldings(ledger map[string]*ledgerRow, dailyMV map[string]float64) []openapi.HistoricalHolding {
+	items := []openapi.HistoricalHolding{}
+
 	tickers := make([]string, 0, len(ledger))
 	for t := range ledger {
 		tickers = append(tickers, t)
@@ -303,30 +338,19 @@ func (r *Reader) holdingsHistoryBatch(ctx context.Context, batchID int64, ts tim
 			figi := pos.figi
 			h.Figi = &figi
 		}
-		entry.Items = append(entry.Items, h)
+		items = append(items, h)
 	}
 
-	pv, err := r.readPortfolioValueOn(ctx, ts)
-	if err != nil {
-		return entry, fmt.Errorf("holdings history batch %d: %w", batchID, err)
+	if cash, ok := dailyMV[cashTicker]; ok && cash != 0 {
+		items = append(items, openapi.HistoricalHolding{
+			Ticker:         cashTicker,
+			Quantity:       cash,
+			AvgCost:        1,
+			LastTradeValue: cash,
+		})
 	}
-	if pv == nil && len(dailyMV) > 0 {
-		var sum float64
-		for _, mv := range dailyMV {
-			sum += mv
-		}
-		pv = &sum
-	}
-	entry.PortfolioValue = pv
 
-	ann, err := r.readBatchAnnotations(ctx, batchID)
-	if err != nil {
-		return entry, err
-	}
-	if len(ann) > 0 {
-		entry.Annotations = &ann
-	}
-	return entry, nil
+	return items
 }
 
 // readPortfolioValueOn returns the perf_data portfolio equity on the given
