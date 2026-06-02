@@ -49,6 +49,7 @@ var _ = Describe("Transactions", func() {
 			sell := trades[0]
 			Expect(sell.Ticker).To(Equal("VTI"))
 			Expect(sell.Type).To(Equal("sell"))
+			Expect(sell.Date).To(Equal("2024-01-11"))
 			Expect(sell.Quantity).To(BeNumerically("==", 100))
 			Expect(sell.Price).To(BeNumerically("==", 110))
 			Expect(sell.Amount).To(BeNumerically("==", 11000))
@@ -57,6 +58,7 @@ var _ = Describe("Transactions", func() {
 			buy := trades[1]
 			Expect(buy.Ticker).To(Equal("QQQ"))
 			Expect(buy.Type).To(Equal("buy"))
+			Expect(buy.Date).To(Equal("2024-01-11"))
 			Expect(buy.Quantity).To(BeNumerically("==", 90))
 			Expect(buy.Price).To(BeNumerically("==", 110))
 			Expect(buy.Amount).To(BeNumerically("==", 9900))

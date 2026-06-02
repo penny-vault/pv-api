@@ -400,7 +400,18 @@ func (c *Checker) fillHoldingsAndTrades(ctx context.Context, p *email.Payload, p
 		log.Warn().Err(err).Msg("alert: latest batch trades")
 		return
 	}
+	fillTrades(p, trades)
+}
+
+// fillTrades populates the trade rows and the shared execution date on the
+// payload from the most recent rebalance batch.
+func fillTrades(p *email.Payload, trades []snapshot.LatestBatchTrade) {
 	for _, tx := range trades {
+		if p.TradesDate == "" && tx.Date != "" {
+			if d, err := time.Parse("2006-01-02", tx.Date); err == nil {
+				p.TradesDate = d.Format("January 2, 2006")
+			}
+		}
 		action := strings.ToUpper(tx.Type[:1]) + tx.Type[1:]
 		actionColor, actionBgColor := "#16a34a", "#dcfce7"
 		if tx.Type == "sell" {
