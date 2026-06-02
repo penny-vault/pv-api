@@ -31,6 +31,7 @@ import (
 type LatestBatchTrade struct {
 	Ticker   string
 	Type     string
+	Date     string // execution date, "2006-01-02"
 	Quantity float64
 	Price    float64
 	Amount   float64
@@ -41,7 +42,7 @@ type LatestBatchTrade struct {
 // slice when no such batch exists.
 func (r *Reader) LatestBatchTrades(ctx context.Context) ([]LatestBatchTrade, error) {
 	const q = `
-		SELECT t.ticker, t.type, t.quantity, t.price, t.amount
+		SELECT t.ticker, t.type, t.date, t.quantity, t.price, t.amount
 		  FROM transactions t
 		 WHERE t.batch_id = (
 		           SELECT MAX(batch_id) FROM transactions
@@ -59,7 +60,7 @@ func (r *Reader) LatestBatchTrades(ctx context.Context) ([]LatestBatchTrade, err
 	out := []LatestBatchTrade{}
 	for rows.Next() {
 		var trade LatestBatchTrade
-		if err := rows.Scan(&trade.Ticker, &trade.Type, &trade.Quantity, &trade.Price, &trade.Amount); err != nil {
+		if err := rows.Scan(&trade.Ticker, &trade.Type, &trade.Date, &trade.Quantity, &trade.Price, &trade.Amount); err != nil {
 			return nil, fmt.Errorf("latest batch trades scan: %w", err)
 		}
 		out = append(out, trade)

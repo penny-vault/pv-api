@@ -105,6 +105,11 @@ type Payload struct {
 	SinceLabel   string
 	DeltaColor   string
 
+	// TradesDate is the formatted date the trades should be executed on
+	// (the rebalance date shared by every row in Trades). Empty when there
+	// are no trades.
+	TradesDate string
+
 	// Returns drives the wide (desktop) returns grid: row 0 is the portfolio,
 	// row 1 (when present) is the benchmark, each spanning Day/WTD/MTD/YTD/1Y.
 	Returns []ReturnsRow
@@ -258,7 +263,11 @@ func buildPlaintext(p Payload) string {
 	if len(p.Trades) == 0 {
 		b.WriteString("No trades required.\n\n")
 	} else {
-		b.WriteString("Trades to Execute:\n")
+		if p.TradesDate != "" {
+			b.WriteString("Trades to Execute (" + p.TradesDate + "):\n")
+		} else {
+			b.WriteString("Trades to Execute:\n")
+		}
 		for _, tr := range p.Trades {
 			fmt.Fprintf(&b, "  %s %s %s shares (~%s)\n", tr.Action, tr.Ticker, tr.Shares, tr.Value)
 		}
