@@ -3,7 +3,7 @@ module github.com/penny-vault/pv-api
 go 1.25.6
 
 require (
-	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/bytedance/sonic v1.15.2
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-units v0.5.0
