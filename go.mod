@@ -17,7 +17,7 @@ require (
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/penny-vault/pvbt v0.10.4
-	golang.org/x/mod v0.36.0
+	golang.org/x/mod v0.37.0
 	modernc.org/sqlite v1.52.0
 )
 
@@ -113,5 +113,5 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 )
