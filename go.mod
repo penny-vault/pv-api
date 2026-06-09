@@ -16,7 +16,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.1.1
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/penny-vault/pvbt v0.10.4
+	github.com/penny-vault/pvbt v0.11.0
 	golang.org/x/mod v0.36.0
 	modernc.org/sqlite v1.52.0
 )
