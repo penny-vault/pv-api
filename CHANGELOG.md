@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-07-14
+
 ### Added
+- `GET /portfolios/{slug}/prediction` returns the strategy's predicted
+  transactions and resulting holdings for its next scheduled trade date
+  (requires a snapshot written by pvbt v0.12.0 or later; 404 for older
+  snapshots).
 - Live progress (`pct`, `step`, `eta`) on `GET /portfolios/{slug}/runs`
   and `GET /portfolios/{slug}/runs/{runId}`, so polling clients can show
   progress without opening the SSE stream.
@@ -18,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /portfolios/{slug}/metrics` accepts `window=10yr` and exposes
   pvbt's benchmark and after-tax metrics (`BenchmarkTWRR`, `BenchmarkCAGR`,
   `AfterTaxTWRR`, `AfterTaxCAGR`, and the rest of the `Benchmark*` family).
+- Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`
+  that no DB row references, plus per-portfolio dirs whose portfolio has
+  been deleted. Runs at startup and every `backtest.orphan_gc_interval`
+  (default 7d; <0 disables the periodic sweep).
 
 ### Changed
 - `PortfolioStatistic.value` is nullable. Metrics absent from the snapshot
@@ -86,12 +96,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A manual "Run now" no longer sends an alert email, and no longer counts as
   the day's scheduled run, so it can no longer suppress the evening scheduled
   update or its alert email.
-
-### Added
-- Periodic orphan-snapshot sweep removes any `<snapshots_dir>/<portfolio_id>/<run_id>.sqlite`
-  that no DB row references, plus per-portfolio dirs whose portfolio has
-  been deleted. Runs at startup and every `backtest.orphan_gc_interval`
-  (default 7d; <0 disables the periodic sweep).
 
 ## [3.0.0] - 2026-05-03
 
@@ -209,6 +213,7 @@ nothing from 0.1.0 carries forward; treat this as a new product.
 ### Added
 - Tests for postgresql schema and functions
 
-[Unreleased]: https://github.com/penny-vault/pv-api/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/penny-vault/pv-api/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/penny-vault/pv-api/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/penny-vault/pv-api/compare/v0.1.0...v3.0.0
 [0.1.0]: https://github.com/penny-vault/pv-api/releases/tag/v0.1.0
