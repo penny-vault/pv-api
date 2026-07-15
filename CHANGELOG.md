@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-07-14
+
+### Security
+- Replaced the deprecated Docker Engine Go SDK (`github.com/docker/docker`,
+  five open advisories, no patched release) with the supported
+  `github.com/moby/moby` client and api modules.
+- Updated the email-template toolchain past its advisories (mjml 5.4.0
+  stable, js-yaml 4.3.0).
+
 ## [3.1.0] - 2026-07-14
 
 ### Added
@@ -213,7 +222,8 @@ nothing from 0.1.0 carries forward; treat this as a new product.
 ### Added
 - Tests for postgresql schema and functions
 
-[Unreleased]: https://github.com/penny-vault/pv-api/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/penny-vault/pv-api/compare/v3.1.1...HEAD
+[3.1.1]: https://github.com/penny-vault/pv-api/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/penny-vault/pv-api/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/penny-vault/pv-api/compare/v0.1.0...v3.0.0
 [0.1.0]: https://github.com/penny-vault/pv-api/releases/tag/v0.1.0
