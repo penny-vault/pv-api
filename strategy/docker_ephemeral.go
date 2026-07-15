@@ -24,9 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/image"
 	"github.com/google/uuid"
+	dockerclient "github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/dockercli"
@@ -129,7 +128,7 @@ func makeEphemeralCleanup(client dockercli.Client, tag, buildDir string) func() 
 			return
 		}
 		removed = true
-		_, _ = client.ImageRemove(context.Background(), tag, image.RemoveOptions{Force: true, PruneChildren: true})
+		_, _ = client.ImageRemove(context.Background(), tag, dockerclient.ImageRemoveOptions{Force: true, PruneChildren: true})
 		_ = os.RemoveAll(buildDir)
 	}
 }
@@ -159,7 +158,7 @@ func ephemeralBuildImage(ctx context.Context, c dockercli.Client, buildDir, tag 
 	if err != nil {
 		return fmt.Errorf("ephemeral-image: tar: %w", err)
 	}
-	resp, err := c.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
+	resp, err := c.ImageBuild(ctx, buildCtx, dockerclient.ImageBuildOptions{
 		Dockerfile: "Dockerfile",
 		Tags:       []string{tag},
 		Remove:     true,

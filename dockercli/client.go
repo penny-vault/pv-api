@@ -22,23 +22,17 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/moby/moby/client"
 )
 
-// Client is the subset of *docker/client.Client pvapi uses. Production wires
-// a real *client.Client built with client.NewClientWithOpts; tests pass a
-// fake.
+// Client is the subset of *moby/client.Client pvapi uses. Production wires
+// a real *client.Client built with client.New; tests pass a fake.
 type Client interface {
-	ImageBuild(ctx context.Context, buildContext io.Reader, opts build.ImageBuildOptions) (build.ImageBuildResponse, error)
-	ImageRemove(ctx context.Context, imageID string, opts image.RemoveOptions) ([]image.DeleteResponse, error)
-	ContainerCreate(ctx context.Context, cfg *container.Config, hostCfg *container.HostConfig, netCfg *network.NetworkingConfig, platform *ocispec.Platform, name string) (container.CreateResponse, error)
-	ContainerStart(ctx context.Context, id string, opts container.StartOptions) error
-	ContainerLogs(ctx context.Context, id string, opts container.LogsOptions) (io.ReadCloser, error)
-	ContainerWait(ctx context.Context, id string, cond container.WaitCondition) (<-chan container.WaitResponse, <-chan error)
-	ContainerKill(ctx context.Context, id, signal string) error
-	ContainerRemove(ctx context.Context, id string, opts container.RemoveOptions) error
+	ImageBuild(ctx context.Context, buildContext io.Reader, opts client.ImageBuildOptions) (client.ImageBuildResult, error)
+	ImageRemove(ctx context.Context, imageID string, opts client.ImageRemoveOptions) (client.ImageRemoveResult, error)
+	ContainerCreate(ctx context.Context, opts client.ContainerCreateOptions) (client.ContainerCreateResult, error)
+	ContainerStart(ctx context.Context, id string, opts client.ContainerStartOptions) (client.ContainerStartResult, error)
+	ContainerLogs(ctx context.Context, id string, opts client.ContainerLogsOptions) (client.ContainerLogsResult, error)
+	ContainerWait(ctx context.Context, id string, opts client.ContainerWaitOptions) client.ContainerWaitResult
+	ContainerKill(ctx context.Context, id string, opts client.ContainerKillOptions) (client.ContainerKillResult, error)
 }

@@ -29,7 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"github.com/penny-vault/pv-api/strategy"
 )
@@ -41,7 +41,7 @@ func TestEphemeralImageBuild_IntegrationBootstrap(t *testing.T) {
 
 var _ = Describe("EphemeralImageBuild (real daemon)", func() {
 	It("builds + runs describe end-to-end", func() {
-		dc, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		dc, err := client.New(client.FromEnv)
 		Expect(err).NotTo(HaveOccurred())
 
 		repo := itMakeLocalGitRepo(GinkgoT(), "../strategy/testdata/fake-strategy-src", "v1.0.0")

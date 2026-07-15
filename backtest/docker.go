@@ -23,10 +23,11 @@ import (
 	"io"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/dockercli"
@@ -83,17 +84,21 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 		Tmpfs: map[string]string{"/tmp": "size=256m"},
 	}
 
-	resp, err := r.Client.ContainerCreate(timeoutCtx, cfg, hostCfg, nil, nil, containerNameForRun(req.RunID))
+	resp, err := r.Client.ContainerCreate(timeoutCtx, client.ContainerCreateOptions{
+		Config:     cfg,
+		HostConfig: hostCfg,
+		Name:       containerNameForRun(req.RunID),
+	})
 	if err != nil {
 		return fmt.Errorf("%w: container create: %w", ErrRunnerFailed, err)
 	}
 	log.Debug().Str("container_id", truncID(resp.ID)).Str("image", req.Artifact).Msg("container created")
 
-	if err := r.Client.ContainerStart(timeoutCtx, resp.ID, container.StartOptions{}); err != nil {
+	if _, err := r.Client.ContainerStart(timeoutCtx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("%w: container start: %w", ErrRunnerFailed, err)
 	}
 
-	logs, lerr := r.Client.ContainerLogs(timeoutCtx, resp.ID, container.LogsOptions{
+	logs, lerr := r.Client.ContainerLogs(timeoutCtx, resp.ID, client.ContainerLogsOptions{
 		ShowStdout: true, ShowStderr: true, Follow: true,
 	})
 	var tail tailWriter
@@ -116,24 +121,26 @@ func (r *DockerRunner) Run(ctx context.Context, req RunRequest) error {
 		}
 	}
 
-	waitCh, errCh := r.Client.ContainerWait(timeoutCtx, resp.ID, container.WaitConditionNotRunning)
+	wait := r.Client.ContainerWait(timeoutCtx, resp.ID, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNotRunning,
+	})
 	select {
-	case werr := <-errCh:
+	case werr := <-wait.Error:
 		if errors.Is(werr, context.DeadlineExceeded) || errors.Is(werr, context.Canceled) {
-			_ = r.Client.ContainerKill(context.Background(), resp.ID, "SIGKILL")
+			_, _ = r.Client.ContainerKill(context.Background(), resp.ID, client.ContainerKillOptions{Signal: "SIGKILL"})
 			drainLogs()
 			return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(tail.String(), 2048))
 		}
 		drainLogs()
 		return fmt.Errorf("%w: wait: %w", ErrRunnerFailed, werr)
-	case st := <-waitCh:
+	case st := <-wait.Result:
 		drainLogs()
 		if st.StatusCode != 0 {
 			return fmt.Errorf("%w: exit=%d: %s", ErrRunnerFailed, st.StatusCode, firstNBytes(tail.String(), 2048))
 		}
 		return nil
 	case <-timeoutCtx.Done():
-		_ = r.Client.ContainerKill(context.Background(), resp.ID, "SIGKILL")
+		_, _ = r.Client.ContainerKill(context.Background(), resp.ID, client.ContainerKillOptions{Signal: "SIGKILL"})
 		drainLogs()
 		return fmt.Errorf("%w: %s", ErrTimedOut, firstNBytes(tail.String(), 2048))
 	}

@@ -30,9 +30,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 
 	"github.com/penny-vault/pv-api/dockercli"
@@ -177,7 +177,7 @@ func buildDockerImage(ctx context.Context, c dockercli.Client, dir, tag string) 
 	if err != nil {
 		return fmt.Errorf("tar build context: %w", err)
 	}
-	resp, err := c.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
+	resp, err := c.ImageBuild(ctx, buildCtx, client.ImageBuildOptions{
 		Dockerfile: "Dockerfile",
 		Tags:       []string{tag},
 		Remove:     true,
@@ -287,23 +287,26 @@ func drainBuildStream(r io.Reader) (string, error) {
 // with cmd = ["describe", "--json"], starts it, waits for exit 0, and
 // returns stdout. AutoRemove=true cleans up the container on exit.
 func runDescribeInContainer(ctx context.Context, c dockercli.Client, image string) ([]byte, error) {
-	resp, err := c.ContainerCreate(ctx, &container.Config{
-		Image: image,
-		Cmd:   []string{"describe", "--json"},
-		Tty:   false,
-	}, &container.HostConfig{AutoRemove: true}, nil, nil, "")
+	resp, err := c.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config: &container.Config{
+			Image: image,
+			Cmd:   []string{"describe", "--json"},
+			Tty:   false,
+		},
+		HostConfig: &container.HostConfig{AutoRemove: true},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("container create: %w", err)
 	}
-	if err := c.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if _, err := c.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return nil, fmt.Errorf("container start: %w", err)
 	}
 
-	waitCh, errCh := c.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	wait := c.ContainerWait(ctx, resp.ID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
 	select {
-	case werr := <-errCh:
+	case werr := <-wait.Error:
 		return nil, fmt.Errorf("container wait: %w", werr)
-	case st := <-waitCh:
+	case st := <-wait.Result:
 		if st.StatusCode != 0 {
 			return nil, fmt.Errorf("%w: exit %d", ErrDescribeNonZeroExit, st.StatusCode)
 		}
@@ -311,7 +314,7 @@ func runDescribeInContainer(ctx context.Context, c dockercli.Client, image strin
 		return nil, ctx.Err()
 	}
 
-	logs, err := c.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	logs, err := c.ContainerLogs(ctx, resp.ID, client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
 	if err != nil {
 		return nil, fmt.Errorf("container logs: %w", err)
 	}

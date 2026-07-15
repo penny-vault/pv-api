@@ -24,10 +24,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/client"
 	units "github.com/docker/go-units"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -299,10 +299,7 @@ var serverCmd = &cobra.Command{
 			}
 
 		case "docker":
-			dc, err := client.NewClientWithOpts(
-				client.WithHost(conf.Runner.Docker.Socket),
-				client.WithAPIVersionNegotiation(),
-			)
+			dc, err := client.New(client.WithHost(conf.Runner.Docker.Socket))
 			if err != nil {
 				log.Fatal().Err(err).Msg("docker client")
 			}
