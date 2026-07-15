@@ -28,7 +28,7 @@ import (
 //
 // The fixture represents a 5-day backtest with known equity curve,
 // three batches (rebalance points), one BUY and one DIVIDEND transaction,
-// and per-batch annotations. Note: the batches table and batch_id columns
+// per-batch annotations, and a schema-6 next-trade prediction. Note: the batches table and batch_id columns
 // on transactions/annotations anticipate in-flight pvbt schema additions
 // — pvapi development is coordinated with that work.
 func BuildTestSnapshot(path string) error {
@@ -56,8 +56,11 @@ func BuildTestSnapshot(path string) error {
     PRIMARY KEY (date, ticker, figi)
  )`,
 		`CREATE INDEX idx_positions_daily_ticker ON positions_daily(ticker, date)`,
+		`CREATE TABLE prediction (date TEXT NOT NULL)`,
+		`CREATE TABLE predicted_transactions (date TEXT NOT NULL, type TEXT NOT NULL, ticker TEXT, figi TEXT, quantity REAL, price REAL, amount REAL, justification TEXT)`,
+		`CREATE TABLE predicted_holdings (asset_ticker TEXT NOT NULL, asset_figi TEXT NOT NULL, quantity REAL NOT NULL, market_value REAL NOT NULL)`,
 
-		`INSERT INTO metadata VALUES ('schema_version', '4')`,
+		`INSERT INTO metadata VALUES ('schema_version', '6')`,
 		`INSERT INTO metadata VALUES ('start_date', '2024-01-02')`,
 		`INSERT INTO metadata VALUES ('end_date', '2024-01-08')`,
 		`INSERT INTO metadata VALUES ('benchmark', 'SPY')`,
@@ -101,6 +104,15 @@ func BuildTestSnapshot(path string) error {
 
 		`INSERT INTO holdings VALUES ('VTI', 'BBG000BDTBL9', 100, 100, 10300)`,
 		`INSERT INTO holdings VALUES ('$CASH', '', 1, 93000, 93000)`,
+
+		// Next-trade prediction (schema 6). Prices are the 2024-01-08 close
+		// forward-filled to the predicted date. No $CASH row in
+		// predicted_holdings; cash is the remainder.
+		`INSERT INTO prediction VALUES ('2024-01-11')`,
+		`INSERT INTO predicted_transactions VALUES ('2024-01-11', 'sell', 'VTI', 'BBG000BDTBL9', 100, 103, 10300, 'annual rebalance')`,
+		`INSERT INTO predicted_transactions VALUES ('2024-01-11', 'buy', 'QQQ', 'BBG000BDTF76', 30, 400, 12000, NULL)`,
+		`INSERT INTO predicted_holdings VALUES ('QQQ', 'BBG000BDTF76', 30, 12000)`,
+		`INSERT INTO predicted_holdings VALUES ('SHV', 'BBG000QSTS64', 40, 4000)`,
 
 		`INSERT INTO metrics VALUES ('2024-01-08', 'sharpe_ratio', 'full', 1.23)`,
 		`INSERT INTO metrics VALUES ('2024-01-08', 'sortino_ratio', 'full', 1.80)`,

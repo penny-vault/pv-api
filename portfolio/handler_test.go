@@ -31,6 +31,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -691,6 +692,7 @@ func (f *fakeSnapshotOpener) Open(path string) (portfolio.SnapshotReader, error)
 type fakeSnapshotReader struct {
 	summary          *openapi.PortfolioSummary
 	metrics          *openapi.PortfolioMetrics
+	prediction       *openapi.PredictionResponse
 	holdingsImpactFn func(ctx context.Context, slug string, topN int) (*openapi.HoldingsImpactResponse, error)
 }
 
@@ -724,6 +726,12 @@ func (f *fakeSnapshotReader) Transactions(_ context.Context, _ portfolio.Snapsho
 }
 func (f *fakeSnapshotReader) Metrics(_ context.Context, _, _ []string) (*openapi.PortfolioMetrics, error) {
 	return f.metrics, nil
+}
+func (f *fakeSnapshotReader) Prediction(_ context.Context) (*openapi.PredictionResponse, error) {
+	if f.prediction == nil {
+		return nil, portfolio.ErrSnapshotNotFound
+	}
+	return f.prediction, nil
 }
 func (f *fakeSnapshotReader) HoldingsImpact(ctx context.Context, slug string, topN int) (*openapi.HoldingsImpactResponse, error) {
 	if f.holdingsImpactFn != nil {
@@ -1026,6 +1034,70 @@ func (c *capturingMetricsReader) Metrics(ctx context.Context, windows, metrics [
 	c.onMetrics(windows, metrics)
 	return c.fakeSnapshotReader.Metrics(ctx, windows, metrics)
 }
+
+var _ = Describe("Handler.Prediction", func() {
+	var (
+		app    *fiber.App
+		store  *fakeStore
+		opener *fakeSnapshotOpener
+		reader *fakeSnapshotReader
+		sub    = "auth0|owner"
+		path   = "/fake/snap.sqlite"
+	)
+
+	BeforeEach(func() {
+		store = &fakeStore{}
+		reader = &fakeSnapshotReader{}
+		opener = &fakeSnapshotOpener{readers: map[string]portfolio.SnapshotReader{path: reader}}
+		app = fiber.New(fiber.Config{JSONEncoder: sonic.Marshal, JSONDecoder: sonic.Unmarshal})
+		app.Use(func(c fiber.Ctx) error {
+			c.Locals(types.AuthSubjectKey{}, sub)
+			return c.Next()
+		})
+		h := portfolio.NewHandler(store, &fakeStrategyStore{}, opener, &countingDispatcher{runID: uuid.Must(uuid.NewV7())}, nil, nil, strategy.EphemeralOptions{})
+		app.Get("/portfolios/:slug/prediction", h.Prediction)
+
+		store.rows = []portfolio.Portfolio{{
+			ID: uuid.Must(uuid.NewV7()), OwnerSub: sub, Slug: "s1",
+			Status: portfolio.StatusReady, SnapshotPath: &path,
+		}}
+	})
+
+	It("returns the snapshot's prediction", func() {
+		ticker := "QQQ"
+		reader.prediction = &openapi.PredictionResponse{
+			Date: openapi_types.Date{Time: time.Date(2024, 1, 11, 0, 0, 0, 0, time.UTC)},
+			Transactions: []openapi.PredictedTransaction{
+				{Type: "buy", Ticker: &ticker},
+			},
+			Holdings: []openapi.PredictedHolding{
+				{Ticker: "QQQ", Quantity: 30, MarketValue: 12000, Weight: 1},
+			},
+			TotalMarketValue: 12000,
+		}
+
+		req := httptest.NewRequest("GET", "/portfolios/s1/prediction", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusOK))
+
+		body, _ := io.ReadAll(resp.Body)
+		var got openapi.PredictionResponse
+		Expect(sonic.Unmarshal(body, &got)).To(Succeed())
+		Expect(got.Date.Format("2006-01-02")).To(Equal("2024-01-11"))
+		Expect(got.Transactions).To(HaveLen(1))
+		Expect(got.Holdings).To(HaveLen(1))
+		Expect(got.TotalMarketValue).To(BeNumerically("==", 12000))
+	})
+
+	It("returns 404 when the snapshot recorded no prediction", func() {
+		// reader.prediction is nil → fake returns ErrSnapshotNotFound.
+		req := httptest.NewRequest("GET", "/portfolios/s1/prediction", nil)
+		resp, err := app.Test(req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(fiber.StatusNotFound))
+	})
+})
 
 var _ = Describe("Create with date period", func() {
 	installedVer := "v1.0.0"

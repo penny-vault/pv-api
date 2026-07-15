@@ -1103,6 +1103,50 @@ type PortfolioUpdateRequest struct {
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 }
 
+// PredictedHolding defines model for PredictedHolding.
+type PredictedHolding struct {
+	Figi *string `json:"figi,omitempty"`
+
+	// MarketValue Marked at the last available close.
+	MarketValue float64 `json:"marketValue"`
+	Quantity    float64 `json:"quantity"`
+	Ticker      string  `json:"ticker"`
+
+	// Weight marketValue / totalMarketValue, ignoring cash. 0 when totalMarketValue is 0.
+	Weight float64 `json:"weight"`
+}
+
+// PredictedTransaction An order the strategy is predicted to place on the prediction date.
+// Prices are the last available close forward-filled to that date.
+type PredictedTransaction struct {
+	Amount        *float64 `json:"amount,omitempty"`
+	Figi          *string  `json:"figi,omitempty"`
+	Justification *string  `json:"justification,omitempty"`
+	Price         *float64 `json:"price,omitempty"`
+	Quantity      *float64 `json:"quantity,omitempty"`
+	Ticker        *string  `json:"ticker,omitempty"`
+
+	// Type Same values as Transaction.type (buy, sell, ...).
+	Type string `json:"type"`
+}
+
+// PredictionResponse defines model for PredictionResponse.
+type PredictionResponse struct {
+	// Date Next scheduled trade date after the backtest window ends.
+	Date openapi_types.Date `json:"date"`
+
+	// Holdings Positions the portfolio would hold after the predicted trades
+	// execute, sorted by ticker then FIGI. Cash is not listed; it is
+	// the remainder.
+	Holdings []PredictedHolding `json:"holdings"`
+
+	// TotalMarketValue Sum of the predicted holdings' market values (cash excluded).
+	TotalMarketValue float64 `json:"totalMarketValue"`
+
+	// Transactions Orders the strategy would place on `date`. Empty means the strategy would not trade.
+	Transactions []PredictedTransaction `json:"transactions"`
+}
+
 // Problem RFC 7807 Problem Details.
 type Problem struct {
 	// Detail Human-readable explanation specific to this occurrence.

@@ -807,6 +807,37 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /portfolios/{slug}/prediction:
+    get:
+      tags: [Portfolios]
+      operationId: getPortfolioPrediction
+      summary: Predicted trades and holdings for the next scheduled trade date
+      description: |
+        Returns the strategy's prediction for its next scheduled trade date
+        after the backtest window ends (pvbt schema 6+). `transactions` may
+        legitimately be empty: it means the strategy would not trade, not
+        that data is missing. Prices and market values are based on the last
+        available close forward-filled to the predicted date, not real
+        future prices. Responds 404 when the snapshot recorded no prediction
+        (files written by pvbt releases before v0.12.0).
+      parameters:
+        - $ref: '#/components/parameters/PortfolioSlug'
+      responses:
+        '200':
+          description: Predicted transactions and post-trade holdings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResponse'
+        '202':
+          $ref: '#/components/responses/Recalculating'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /portfolios/{slug}/alerts:
     get:
       tags: [Alerts]
@@ -1579,6 +1610,84 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Transaction'
+
+    # ============ Prediction (next scheduled trade) ============
+    PredictedTransaction:
+      type: object
+      required: [type]
+      description: |
+        An order the strategy is predicted to place on the prediction date.
+        Prices are the last available close forward-filled to that date.
+      properties:
+        type:
+          type: string
+          description: Same values as Transaction.type (buy, sell, ...).
+        ticker:
+          type: string
+          nullable: true
+        figi:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          format: double
+        price:
+          type: number
+          format: double
+        amount:
+          type: number
+          format: double
+        justification:
+          type: string
+          nullable: true
+
+    PredictedHolding:
+      type: object
+      required: [ticker, quantity, marketValue, weight]
+      properties:
+        ticker:
+          type: string
+          example: 'VTI'
+        figi:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          format: double
+        marketValue:
+          type: number
+          format: double
+          description: Marked at the last available close.
+        weight:
+          type: number
+          format: double
+          description: marketValue / totalMarketValue, ignoring cash. 0 when totalMarketValue is 0.
+
+    PredictionResponse:
+      type: object
+      required: [date, transactions, holdings, totalMarketValue]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Next scheduled trade date after the backtest window ends.
+        transactions:
+          type: array
+          description: Orders the strategy would place on `date`. Empty means the strategy would not trade.
+          items:
+            $ref: '#/components/schemas/PredictedTransaction'
+        holdings:
+          type: array
+          description: |
+            Positions the portfolio would hold after the predicted trades
+            execute, sorted by ticker then FIGI. Cash is not listed; it is
+            the remainder.
+          items:
+            $ref: '#/components/schemas/PredictedHolding'
+        totalMarketValue:
+          type: number
+          format: double
+          description: Sum of the predicted holdings' market values (cash excluded).
 
     HoldingsHistoryEntry:
       type: object

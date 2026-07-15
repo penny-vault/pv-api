@@ -814,6 +814,17 @@ func (h *Handler) HoldingsHistory(c fiber.Ctx) error {
 	})
 }
 
+// GET /portfolios/{slug}/prediction
+func (h *Handler) Prediction(c fiber.Ctx) error {
+	return h.readSnapshot(c, func(r SnapshotReader) (any, error) {
+		resp, err := r.Prediction(c.Context())
+		if errors.Is(err, ErrSnapshotNotFound) {
+			return nil, errNotFoundSentinel
+		}
+		return resp, err
+	})
+}
+
 // GET /portfolios/{slug}/performance
 func (h *Handler) Performance(c fiber.Ctx) error {
 	from, to, perr := parseFromTo(c)

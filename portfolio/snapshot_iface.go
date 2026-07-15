@@ -44,6 +44,7 @@ type SnapshotReader interface {
 	Performance(ctx context.Context, slug string, from, to *time.Time) (*openapi.PortfolioPerformance, error)
 	Transactions(ctx context.Context, filter SnapshotTxFilter) (*openapi.TransactionsResponse, error)
 	Metrics(ctx context.Context, windows, metrics []string) (*openapi.PortfolioMetrics, error)
+	Prediction(ctx context.Context) (*openapi.PredictionResponse, error)
 	Close() error
 }
 
