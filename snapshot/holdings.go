@@ -427,7 +427,24 @@ func (r *Reader) readEndDate(ctx context.Context) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("read end_date: %w", err)
 	}
-	return time.Parse(dateLayout, s)
+	return parseMetadataDate(s)
+}
+
+// parseMetadataDate parses a date value from the metadata table. pvbt writes
+// run.start/run.end as RFC3339 timestamps (e.g. 2026-07-14T23:59:59-04:00);
+// legacy snapshots store bare dates. RFC3339 values are truncated to midnight
+// UTC of the calendar day in the timestamp's own offset, matching what a bare
+// date parses to.
+func parseMetadataDate(s string) (time.Time, error) {
+	if t, err := time.Parse(dateLayout, s); err == nil {
+		return t, nil
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse metadata date %q: %w", s, err)
+	}
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC), nil
 }
 
 func (r *Reader) readDateWindow(ctx context.Context) (time.Time, time.Time, error) {
@@ -444,7 +461,7 @@ func (r *Reader) readDateWindow(ctx context.Context) (time.Time, time.Time, erro
 		if err := rows.Scan(&k, &v); err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		t, perr := time.Parse(dateLayout, v)
+		t, perr := parseMetadataDate(v)
 		if perr != nil {
 			return time.Time{}, time.Time{}, perr
 		}

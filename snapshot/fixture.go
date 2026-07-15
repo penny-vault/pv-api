@@ -61,8 +61,11 @@ func BuildTestSnapshot(path string) error {
 		`CREATE TABLE predicted_holdings (asset_ticker TEXT NOT NULL, asset_figi TEXT NOT NULL, quantity REAL NOT NULL, market_value REAL NOT NULL)`,
 
 		`INSERT INTO metadata VALUES ('schema_version', '6')`,
-		`INSERT INTO metadata VALUES ('start_date', '2024-01-02')`,
-		`INSERT INTO metadata VALUES ('end_date', '2024-01-08')`,
+		// pvbt writes run.start/run.end as RFC3339 timestamps (legacy
+		// snapshots used bare-date start_date/end_date keys, covered by a
+		// dedicated test).
+		`INSERT INTO metadata VALUES ('run.start', '2024-01-02T00:00:00-05:00')`,
+		`INSERT INTO metadata VALUES ('run.end', '2024-01-08T23:59:59-05:00')`,
 		`INSERT INTO metadata VALUES ('benchmark', 'SPY')`,
 		`INSERT INTO metadata VALUES ('perf_data_frequency', 'daily')`,
 

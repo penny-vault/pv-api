@@ -17,6 +17,7 @@ package snapshot_test
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -50,5 +51,26 @@ var _ = Describe("Kpis", func() {
 		Expect(*k.BenchmarkYtdReturn).To(BeNumerically("~", 0.02, 1e-9))
 		// 1yr is not in the 5-day fixture, so the cell stays nil.
 		Expect(k.OneYearReturn).To(BeNil())
+	})
+
+	It("reads legacy bare-date start_date/end_date metadata keys", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "f.sqlite")
+		Expect(snapshot.BuildTestSnapshot(path)).To(Succeed())
+
+		db, err := sql.Open("sqlite", "file:"+path)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec(`DELETE FROM metadata WHERE key IN ('run.start','run.end')`)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec(`INSERT INTO metadata VALUES ('start_date', '2024-01-02'), ('end_date', '2024-01-08')`)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(db.Close()).To(Succeed())
+
+		r, err := snapshot.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		defer r.Close()
+
+		k, err := r.Kpis(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k.InceptionDate.Format("2006-01-02")).To(Equal("2024-01-02"))
 	})
 })
