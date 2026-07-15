@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-07-14
+
+### Added
+- `GET /portfolios/{slug}/prediction` now includes `annotations`, the
+  key/value labels the strategy recorded during the prediction run, in
+  recording order (requires a snapshot written by pvbt v0.12.2 or later;
+  empty for older snapshots).
+
+### Fixed
+- Backtest runs no longer fail with a "read kpis" date-parse error on
+  snapshots where pvbt writes `run.start`/`run.end` as full timestamps.
+
 ## [3.1.1] - 2026-07-14
 
 ### Security
