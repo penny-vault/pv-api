@@ -1,756 +1,619 @@
 <!doctype html>
 <html lang="und" dir="auto" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-  <head>
-    <title>{{.PortfolioName}} — Penny Vault</title>
-    <!--[if !mso]><!-->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <!--<![endif]-->
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style type="text/css">
-      #outlook a {
-        padding: 0;
-      }
-      body {
-        margin: 0;
-        padding: 0;
-        -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
-      }
-      table,
-      td {
-        border-collapse: collapse;
-        mso-table-lspace: 0pt;
-        mso-table-rspace: 0pt;
-      }
-      img {
-        border: 0;
-        height: auto;
-        line-height: 100%;
-        outline: none;
-        text-decoration: none;
-        -ms-interpolation-mode: bicubic;
-      }
-      p {
-        display: block;
-        margin: 13px 0;
-      }
-    </style>
-    <!--[if mso]>
-      <noscript>
-        <xml>
-          <o:OfficeDocumentSettings>
-            <o:AllowPNG />
-            <o:PixelsPerInch>96</o:PixelsPerInch>
-          </o:OfficeDocumentSettings>
-        </xml>
-      </noscript>
-    <![endif]-->
-    <!--[if lte mso 11]>
-      <style type="text/css">
-        .mj-outlook-group-fix {
-          width: 100% !important;
-        }
-      </style>
-    <![endif]-->
 
+<head>
+  <title>{{.PortfolioName}} — Penny Vault</title>
+  <!--[if !mso]><!-->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!--<![endif]-->
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style type="text/css">
+    #outlook a {
+      padding: 0;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+
+    table,
+    td {
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+
+    img {
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+      -ms-interpolation-mode: bicubic;
+    }
+
+    p {
+      display: block;
+      margin: 13px 0;
+    }
+  </style>
+  <!--[if mso]>
+    <noscript>
+    <xml>
+    <o:OfficeDocumentSettings>
+      <o:AllowPNG/>
+      <o:PixelsPerInch>96</o:PixelsPerInch>
+    </o:OfficeDocumentSettings>
+    </xml>
+    </noscript>
+    <![endif]-->
+  <!--[if lte mso 11]>
     <style type="text/css">
-      @media only screen and (min-width: 480px) {
-        .mj-column-per-100 {
-          width: 100% !important;
-          max-width: 100%;
-        }
-        .mj-column-px-88 {
-          width: 88px !important;
-          max-width: 88px;
-        }
-        .mj-column-per-50 {
-          width: 50% !important;
-          max-width: 50%;
-        }
-      }
+      .mj-outlook-group-fix { width:100% !important; }
     </style>
-    <style media="screen and (min-width:480px)">
-      .moz-text-html .mj-column-per-100 {
+    <![endif]-->
+  <style type="text/css">
+    @media only screen and (min-width:480px) {
+      .mj-column-per-100 {
         width: 100% !important;
         max-width: 100%;
       }
-      .moz-text-html .mj-column-px-88 {
+
+      .mj-column-px-88 {
         width: 88px !important;
         max-width: 88px;
       }
-      .moz-text-html .mj-column-per-50 {
+
+      .mj-column-per-50 {
         width: 50% !important;
         max-width: 50%;
       }
-    </style>
+    }
+  </style>
+  <style media="screen and (min-width:480px)">
+    .moz-text-html .mj-column-per-100 {
+      width: 100% !important;
+      max-width: 100%;
+    }
 
-    <style type="text/css">
-      @media only screen and (max-width: 479px) {
-        table.mj-full-width-mobile {
-          width: 100% !important;
-        }
-        td.mj-full-width-mobile {
-          width: auto !important;
-        }
-      }
-    </style>
+    .moz-text-html .mj-column-px-88 {
+      width: 88px !important;
+      max-width: 88px;
+    }
 
-    <style type="text/css">
-      @media (prefers-color-scheme: dark) {
-        body,
-        .email-bg {
-          background-color: #0f172a !important;
-        }
-        .card {
-          background-color: #1e293b !important;
-        }
-        .pv-heading {
-          color: #f1f5f9 !important;
-        }
-        .pv-value {
-          color: #f1f5f9 !important;
-        }
-        .pv-muted {
-          color: #94a3b8 !important;
-        }
-        .pv-divider {
-          border-color: #334155 !important;
-          border-top-color: #334155 !important;
-        }
-        .pv-divider-right {
-          border-right-color: #334155 !important;
-        }
-        td {
-          color: #f1f5f9 !important;
-        }
+    .moz-text-html .mj-column-per-50 {
+      width: 50% !important;
+      max-width: 50%;
+    }
+  </style>
+  <style type="text/css">
+    @media only screen and (max-width:479px) {
+      table.mj-full-width-mobile {
+        width: 100% !important;
       }
-      @media only screen and (max-width: 479px) {
-        /* Trades/holdings tables: prevent mid-word and mid-number wrapping, and
+
+      td.mj-full-width-mobile {
+        width: auto !important;
+      }
+    }
+  </style>
+  <style type="text/css">
+    @media (prefers-color-scheme: dark) {
+
+      body,
+      .email-bg {
+        background-color: #0f172a !important;
+      }
+
+      .card {
+        background-color: #1e293b !important;
+      }
+
+      .pv-heading {
+        color: #f1f5f9 !important;
+      }
+
+      .pv-value {
+        color: #f1f5f9 !important;
+      }
+
+      .pv-muted {
+        color: #94a3b8 !important;
+      }
+
+      .pv-divider {
+        border-color: #334155 !important;
+        border-top-color: #334155 !important;
+      }
+
+      .pv-divider-right {
+        border-right-color: #334155 !important;
+      }
+
+      td {
+        color: #f1f5f9 !important;
+      }
+    }
+
+    @media only screen and (max-width: 479px) {
+
+      /* Trades/holdings tables: prevent mid-word and mid-number wrapping, and
            tighten cell padding so wide values fit on narrow screens. */
-        .pv-table th,
-        .pv-table td {
-          padding: 9px 8px !important;
-          letter-spacing: 0 !important;
-          white-space: nowrap !important;
-        }
-        .pv-table .pv-cell-num {
-          font-size: 13px !important;
-        }
-        /* Returns grid: on phones swap the wide layout (a row per series, five
+      .pv-table th,
+      .pv-table td {
+        padding: 9px 8px !important;
+        letter-spacing: 0 !important;
+        white-space: nowrap !important;
+      }
+
+      .pv-table .pv-cell-num {
+        font-size: 13px !important;
+      }
+
+      /* Returns grid: on phones swap the wide layout (a row per series, five
            window columns) for the flipped layout (a row per window, a column
            per series), which fits a narrow screen far better. */
-        .pv-returns-wide {
-          display: none !important;
-          max-height: 0 !important;
-          overflow: hidden !important;
-        }
-        .pv-returns-tall {
-          display: block !important;
-          max-height: none !important;
-          overflow: visible !important;
-        }
+      .pv-returns-wide {
+        display: none !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
       }
-    </style>
-  </head>
-  <body style="word-spacing: normal; background-color: #f1f5f9">
-    <div class="email-bg" style="background-color: #f1f5f9" lang="und" dir="auto">
-      <!-- Top spacer -->
 
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div style="background: #f1f5f9; background-color: #f1f5f9; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f1f5f9; background-color: #f1f5f9; width: 100%">
-          <tbody>
-            <tr>
-              <td style="direction: ltr; font-size: 0px; padding: 16px 0 0; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 10px 25px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000"></div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- HEADER: logo + portfolio name -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; border-radius: 12px 12px 0 0; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%; border-radius: 12px 12px 0 0">
-          <tbody>
-            <tr>
-              <td style="border-top: 4px solid #0ea5e9; direction: ltr; font-size: 0px; padding: 0; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:middle;width:88px;" ><![endif]-->
-
-                <div class="mj-column-px-88 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: middle; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="vertical-align: middle; padding: 20px 0 20px 24px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse: collapse; border-spacing: 0px">
-                                    <tbody>
-                                      <tr>
-                                        <td style="width: 56px">
-                                          <img
-                                            alt="Penny Vault"
-                                            src="{{.LogoDataURL}}"
-                                            style="border: 0; border-radius: 10px; display: block; outline: none; text-decoration: none; height: auto; width: 100%; font-size: 13px"
-                                            width="56"
-                                            height="auto"
-                                          />
-                                        </td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td><td class="" style="vertical-align:middle;width:300px;" ><![endif]-->
-
-                <div class="mj-column-per-50 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: middle; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                    <tbody>
-                      <tr>
-                        <td style="vertical-align: middle; padding: 20px 24px 20px 8px">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
-                            <tbody>
-                              <tr>
-                                <td align="left" style="font-size: 0px; padding: 0 0 4px; word-break: break-word">
-                                  <div
-                                    style="
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 10px;
-                                      font-weight: 700;
-                                      letter-spacing: 2px;
-                                      line-height: 1;
-                                      text-align: left;
-                                      text-transform: uppercase;
-                                      color: #0ea5e9;
-                                    "
-                                  >
-                                    PENNY VAULT
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="left" class="pv-heading" style="font-size: 0px; padding: 0; word-break: break-word">
-                                  <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 21px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; text-align: left; color: #0f172a">
-                                    {{.PortfolioName}}
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr>
-                                <td align="left" class="pv-muted" style="font-size: 0px; padding: 5px 0 0; word-break: break-word">
-                                  <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; line-height: 1; text-align: left; color: #64748b">{{.StrategyCode}} &middot; {{.RunDate}}</div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- HERO: Portfolio Value -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 28px 24px 8px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" class="pv-muted" style="font-size: 0px; padding: 0 0 8px; word-break: break-word">
-                          <div
-                            style="
-                              font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                              font-size: 10px;
-                              font-weight: 700;
-                              letter-spacing: 1.2px;
-                              line-height: 1;
-                              text-align: left;
-                              text-transform: uppercase;
-                              color: #64748b;
-                            "
-                          >
-                            Portfolio Value
-                          </div>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td align="left" class="pv-value" style="font-size: 0px; padding: 0; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 42px; font-weight: 800; letter-spacing: -2px; line-height: 1; text-align: left; color: #0f172a">
-                            {{.CurrentValue}}
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- DELTA SINCE LAST SEND -->{{if .HasDelta}}
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 8px 24px 20px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 0; word-break: break-word">
-                          <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;font-weight:700;line-height:1;text-align:left;color:{{.DeltaColor}};">
-                            {{.DeltaPct}} ({{.DeltaAbs}}) since {{.SinceLabel}}
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      {{end}}<!-- RETURNS GRID: Portfolio vs Benchmark across Day / WTD / MTD / YTD / 1Y -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-bottom: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 20px 24px 24px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 0; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000">
-                            <!-- Wide (desktop): a row per series, a column per window. -->
-                            <div class="pv-returns-wide">
-                              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; table-layout: fixed">
-                                <thead>
-                                  <tr>
-                                    <th style="width: 32%; padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: left">&nbsp;</th>
-                                    <th style="padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; white-space: nowrap">Day</th>
-                                    <th style="padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; white-space: nowrap">WTD</th>
-                                    <th style="padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; white-space: nowrap">MTD</th>
-                                    <th style="padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; white-space: nowrap">YTD</th>
-                                    <th style="padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: right; white-space: nowrap">1Y</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {{range .Returns}}
-                                  <tr>
-                                    <td style="padding: 10px 8px 0 0; font-size: 12px; font-weight: 600; color: #334155; text-align: left">{{.Label}}</td>
-                                    <td style="padding: 10px 0 0; text-align: right; white-space: nowrap"><span style="font-size:14px;font-weight:700;color:{{.Day.Color}};">{{.Day.Pct}}</span></td>
-                                    <td style="padding: 10px 0 0; text-align: right; white-space: nowrap"><span style="font-size:14px;font-weight:700;color:{{.Wtd.Color}};">{{.Wtd.Pct}}</span></td>
-                                    <td style="padding: 10px 0 0; text-align: right; white-space: nowrap"><span style="font-size:14px;font-weight:700;color:{{.Mtd.Color}};">{{.Mtd.Pct}}</span></td>
-                                    <td style="padding: 10px 0 0; text-align: right; white-space: nowrap"><span style="font-size:14px;font-weight:700;color:{{.Ytd.Color}};">{{.Ytd.Pct}}</span></td>
-                                    <td style="padding: 10px 0 0; text-align: right; white-space: nowrap"><span style="font-size:14px;font-weight:700;color:{{.OneYear.Color}};">{{.OneYear.Pct}}</span></td>
-                                  </tr>
-                                  {{end}}
-                                </tbody>
-                              </table>
-                            </div>
-                            <!-- Narrow (phone): flipped — a row per window, a column per series.
-               Hidden until the max-width:479px media query reveals it. -->
-                            <div class="pv-returns-tall" style="display: none; max-height: 0; overflow: hidden; mso-hide: all">
-                              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; table-layout: fixed">
-                                <thead>
-                                  <tr>
-                                    <th style="width: 26%; padding: 0 0 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: left">&nbsp;</th>
-                                    {{range .SeriesLabels}}
-                                    <th style="padding: 0 0 10px; font-size: 11px; font-weight: 600; color: #94a3b8; text-align: right">{{.}}</th>
-                                    {{end}}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {{range .ReturnWindows}}
-                                  <tr>
-                                    <td style="padding: 11px 8px 0 0; font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #94a3b8; text-align: left">{{.Label}}</td>
-                                    {{range .Cells}}
-                                    <td style="padding: 11px 0 0; text-align: right; white-space: nowrap"><span style="font-size:15px;font-weight:700;color:{{.Color}};">{{.Pct}}</span></td>
-                                    {{end}}
-                                  </tr>
-                                  {{end}}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- TRADES -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 24px 24px 0; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" class="pv-heading" style="font-size: 0px; padding: 0 0 4px; word-break: break-word">
-                          <div
-                            style="
-                              font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                              font-size: 11px;
-                              font-weight: 700;
-                              letter-spacing: 1px;
-                              line-height: 1;
-                              text-align: left;
-                              text-transform: uppercase;
-                              color: #0f172a;
-                            "
-                          >
-                            Trades to Execute
-                          </div>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 0 0 16px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #64748b">
-                            {{if .TradesDate}}Execute on {{.TradesDate}}{{end}}
-                          </div>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 0 0 24px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000">
-                            <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
-                              <thead>
-                                <tr style="background-color: #0ea5e9">
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Ticker</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Action</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Shares</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Value</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {{if .Trades}}{{range .Trades}}
-                                <tr style="border-top: 1px solid #e2e8f0">
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap">{{.Ticker}}</td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 13px; white-space: nowrap">
-                                    <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{.ActionBgColor}};color:{{.ActionColor}};">{{.Action}}</span>
-                                  </td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right; white-space: nowrap">{{.Shares}}</td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right; white-space: nowrap">{{.Value}}</td>
-                                </tr>
-                                {{end}}{{else}}
-                                <tr>
-                                  <td colspan="4" style="padding: 20px 14px; font-size: 14px; color: #94a3b8; text-align: center; font-style: italic">No trades required</td>
-                                </tr>
-                                {{end}}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- HOLDINGS -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 24px 24px 0; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" class="pv-heading" style="font-size: 0px; padding: 0 0 16px; word-break: break-word">
-                          <div
-                            style="
-                              font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                              font-size: 11px;
-                              font-weight: 700;
-                              letter-spacing: 1px;
-                              line-height: 1;
-                              text-align: left;
-                              text-transform: uppercase;
-                              color: #0f172a;
-                            "
-                          >
-                            Current Holdings
-                          </div>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 0 0 28px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000">
-                            <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; border-radius: 8px; overflow: hidden">
-                              <thead>
-                                <tr style="background-color: #0ea5e9">
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap">Ticker</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Shares</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Value</th>
-                                  <th style="padding: 10px 14px; font-size: 11px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; white-space: nowrap">Weight</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {{range .Holdings}}
-                                <tr style="border-top: 1px solid #e2e8f0">
-                                  <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};white-space:nowrap;">{{.Ticker}}</td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; text-align: right; white-space: nowrap">{{.Shares}}</td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #334155; font-weight: 600; text-align: right; white-space: nowrap">{{.Value}}</td>
-                                  <td class="pv-cell-num" style="padding: 13px 14px; font-size: 14px; color: #64748b; text-align: right; white-space: nowrap">{{.WeightPct}}%</td>
-                                </tr>
-                                {{end}}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- CTA BUTTON -->{{if .PortfolioURL}}
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #ffffff; background-color: #ffffff; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #ffffff; background-color: #ffffff; width: 100%">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 4px 24px 28px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="center" style="font-size: 0px; padding: 14px 36px; word-break: break-word">
-                          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse: separate; line-height: 100%">
-                            <tbody>
-                              <tr>
-                                <td align="center" bgcolor="#0ea5e9" role="presentation" style="border: none; border-radius: 8px; cursor: auto; mso-padding-alt: 0; background: #0ea5e9" valign="middle">
-                                  <a
-                                    href="{{.PortfolioURL}}"
-                                    style="
-                                      display: inline-block;
-                                      background: #0ea5e9;
-                                      color: #ffffff;
-                                      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
-                                      font-size: 14px;
-                                      font-weight: 700;
-                                      line-height: 120%;
-                                      letter-spacing: 0.2px;
-                                      margin: 0;
-                                      text-decoration: none;
-                                      text-transform: none;
-                                      padding: 0;
-                                      mso-padding-alt: 0px;
-                                      border-radius: 8px;
-                                    "
-                                    target="_blank"
-                                  >
-                                    View Portfolio &rarr;
-                                  </a>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      {{end}}<!-- FOOTER -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#f8fafc" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div class="card pv-divider" style="background: #f8fafc; background-color: #f8fafc; margin: 0px auto; border-radius: 0 0 12px 12px; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f8fafc; background-color: #f8fafc; width: 100%; border-radius: 0 0 12px 12px">
-          <tbody>
-            <tr>
-              <td style="border-top: 1px solid #e2e8f0; direction: ltr; font-size: 0px; padding: 20px 24px; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="center" class="pv-muted" style="font-size: 0px; padding: 0 0 8px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; line-height: 1; text-align: center; color: #94a3b8">Penny Vault &middot; Portfolio Alerts</div>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td align="center" class="pv-muted" style="font-size: 0px; padding: 0; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 11px; line-height: 1; text-align: center; color: #cbd5e1">
-                            {{if .UnsubscribeURL}}<a href="{{.UnsubscribeURL}}" style="color: #94a3b8; text-decoration: underline">Unsubscribe</a>{{end}}
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
-
-      <!-- Bottom spacer -->
-
-      <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-
-      <div style="background: #f1f5f9; background-color: #f1f5f9; margin: 0px auto; max-width: 600px">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background: #f1f5f9; background-color: #f1f5f9; width: 100%">
-          <tbody>
-            <tr>
-              <td style="direction: ltr; font-size: 0px; padding: 16px 0; text-align: center">
-                <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
-
-                <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size: 0px; text-align: left; direction: ltr; display: inline-block; vertical-align: top; width: 100%">
-                  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align: top" width="100%">
-                    <tbody>
-                      <tr>
-                        <td align="left" style="font-size: 0px; padding: 10px 25px; word-break: break-word">
-                          <div style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 13px; line-height: 1; text-align: left; color: #000000"></div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!--[if mso | IE]></td></tr></table><![endif]-->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!--[if mso | IE]></td></tr></table><![endif]-->
+      .pv-returns-tall {
+        display: block !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="email-bg" style="word-spacing:normal;background-color:#f1f5f9;">
+  <div aria-label="{{.PortfolioName}} — Penny Vault" aria-roledescription="email" role="article" lang="und" dir="auto" style="word-spacing:normal;background-color:#f1f5f9;">
+    <!-- Top spacer -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div style="background:#f1f5f9;background-color:#f1f5f9;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#f1f5f9;background-color:#f1f5f9;width:100%;">
+        <tbody>
+          <tr>
+            <td style="direction:ltr;font-size:0px;padding:16px 0 0;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:10px 25px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#000000;"></div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-  </body>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- HEADER: logo + portfolio name -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;border-radius:12px 12px 0 0;overflow:hidden;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;border-collapse:separate;">
+        <tbody>
+          <tr>
+            <td style="border-top:4px solid #0ea5e9;border-radius:12px 12px 0 0;direction:ltr;font-size:0px;padding:0;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:middle;width:88px;" ><![endif]-->
+              <div class="mj-column-px-88 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:middle;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                  <tbody>
+                    <tr>
+                      <td style="vertical-align:middle;padding:20px 0 20px 24px;">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
+                          <tbody>
+                            <tr>
+                              <td align="center" style="font-size:0px;padding:0;word-break:break-word;">
+                                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;border-spacing:0px;">
+                                  <tbody>
+                                    <tr>
+                                      <td style="width:56px;">
+                                        <img alt="Penny Vault" src="{{.LogoDataURL}}" style="border:0;border-radius:10px;display:block;outline:none;text-decoration:none;height:auto;width:100%;font-size:13px;" width="56" height="auto" />
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td><td class="" style="vertical-align:middle;width:300px;" ><![endif]-->
+              <div class="mj-column-per-50 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:middle;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                  <tbody>
+                    <tr>
+                      <td style="vertical-align:middle;padding:20px 24px 20px 8px;">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="" width="100%">
+                          <tbody>
+                            <tr>
+                              <td align="left" style="font-size:0px;padding:0 0 4px;word-break:break-word;">
+                                <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;line-height:1;text-align:left;text-transform:uppercase;color:#0ea5e9;">PENNY VAULT</div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td align="left" class="pv-heading" style="font-size:0px;padding:0;word-break:break-word;">
+                                <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.5px;line-height:1;text-align:left;color:#0f172a;">{{.PortfolioName}}</div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td align="left" class="pv-muted" style="font-size:0px;padding:5px 0 0;word-break:break-word;">
+                                <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:12px;line-height:1;text-align:left;color:#64748b;">{{.StrategyCode}} &middot; {{.RunDate}}</div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- HERO: Portfolio Value -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:28px 24px 8px;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" class="pv-muted" style="font-size:0px;padding:0 0 8px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:10px;font-weight:700;letter-spacing:1.2px;line-height:1;text-align:left;text-transform:uppercase;color:#64748b;">Portfolio Value</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="left" class="pv-value" style="font-size:0px;padding:0;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:42px;font-weight:800;letter-spacing:-2px;line-height:1;text-align:left;color:#0f172a;">{{.CurrentValue}}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- DELTA SINCE LAST SEND -->{{if .HasDelta}}
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:8px 24px 20px;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:0;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;font-weight:700;line-height:1;text-align:left;color:{{.DeltaColor}};">{{.DeltaPct}} ({{.DeltaAbs}}) since {{.SinceLabel}}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    {{end}}<!-- RETURNS GRID: Portfolio vs Benchmark across Day / WTD / MTD / YTD / 1Y -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-bottom:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:20px 24px 24px;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:0;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#000000;"><!-- Wide (desktop): a row per series, a column per window. -->
+                          <div class="pv-returns-wide">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;table-layout:fixed;">
+                              <thead>
+                                <tr>
+                                  <th style="width:32%;padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">&nbsp;</th>
+                                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">Day</th>
+                                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">WTD</th>
+                                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">MTD</th>
+                                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">YTD</th>
+                                  <th style="padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:right;white-space:nowrap;">1Y</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {{range .Returns}}
+                                <tr>
+                                  <td style="padding:10px 8px 0 0;font-size:12px;font-weight:600;color:#334155;text-align:left;">{{.Label}}</td>
+                                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Day.Color}};">{{.Day.Pct}}</span></td>
+                                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Wtd.Color}};">{{.Wtd.Pct}}</span></td>
+                                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Mtd.Color}};">{{.Mtd.Pct}}</span></td>
+                                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.Ytd.Color}};">{{.Ytd.Pct}}</span></td>
+                                  <td style="padding:10px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:14px;font-weight:700;color:{{.OneYear.Color}};">{{.OneYear.Pct}}</span></td>
+                                </tr>
+                                {{end}}
+                              </tbody>
+                            </table>
+                          </div>
+                          <!-- Narrow (phone): flipped — a row per window, a column per series.
+               Hidden until the max-width:479px media query reveals it. -->
+                          <div class="pv-returns-tall" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;table-layout:fixed;">
+                              <thead>
+                                <tr>
+                                  <th style="width:26%;padding:0 0 10px;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">&nbsp;</th>
+                                  {{range .SeriesLabels}}
+                                  <th style="padding:0 0 10px;font-size:11px;font-weight:600;color:#94a3b8;text-align:right;">{{.}}</th>
+                                  {{end}}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {{range .ReturnWindows}}
+                                <tr>
+                                  <td style="padding:11px 8px 0 0;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8;text-align:left;">{{.Label}}</td>
+                                  {{range .Cells}}
+                                  <td style="padding:11px 0 0;text-align:right;white-space:nowrap;"><span style="font-size:15px;font-weight:700;color:{{.Color}};">{{.Pct}}</span></td>
+                                  {{end}}
+                                </tr>
+                                {{end}}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- TRADES -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:24px 24px 0;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" class="pv-heading" style="font-size:0px;padding:0 0 4px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1;text-align:left;text-transform:uppercase;color:#0f172a;">Trades to Execute</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:0 0 16px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#64748b;">{{if .TradesDate}}Execute on {{.TradesDate}}{{end}}</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:0 0 24px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#000000;">
+                          <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
+                            <thead>
+                              <tr style="background-color:#0ea5e9;">
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Ticker</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Action</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Shares</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {{if .Trades}}{{range .Trades}}
+                              <tr style="border-top:1px solid #e2e8f0;">
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;">{{.Ticker}}</td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:13px;white-space:nowrap;">
+                                  <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px;background-color:{{.ActionBgColor}};color:{{.ActionColor}};">{{.Action}}</span>
+                                </td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;white-space:nowrap;">{{.Shares}}</td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;white-space:nowrap;">{{.Value}}</td>
+                              </tr>
+                              {{end}}
+                              {{else}}
+                                <tr>
+                                  <td colspan="4" style="padding:20px 14px;font-size:14px;color:#94a3b8;text-align:center;font-style:italic;">No trades required</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- HOLDINGS -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:24px 24px 0;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" class="pv-heading" style="font-size:0px;padding:0 0 16px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1;text-align:left;text-transform:uppercase;color:#0f172a;">Current Holdings</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:0 0 28px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#000000;">
+                          <table class="pv-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;border-radius:8px;overflow:hidden;">
+                            <thead>
+                              <tr style="background-color:#0ea5e9;">
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;white-space:nowrap;">Ticker</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Shares</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Value</th>
+                                <th style="padding:10px 14px;font-size:11px;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;white-space:nowrap;">Weight</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {{range .Holdings}}
+                              <tr style="border-top:1px solid #e2e8f0;">
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;font-weight:700;color:{{.TickerColor}};white-space:nowrap;">{{.Ticker}}</td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;text-align:right;white-space:nowrap;">{{.Shares}}</td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#334155;font-weight:600;text-align:right;white-space:nowrap;">{{.Value}}</td>
+                                <td class="pv-cell-num" style="padding:13px 14px;font-size:14px;color:#64748b;text-align:right;white-space:nowrap;">{{.WeightPct}}%</td>
+                              </tr>
+                              {{end}}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- CTA BUTTON -->{{if .PortfolioURL}}
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;direction:ltr;font-size:0px;padding:4px 24px 28px;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="center" style="font-size:0px;padding:14px 36px;word-break:break-word;">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:separate;line-height:100%;">
+                          <tbody>
+                            <tr>
+                              <td align="center" bgcolor="#0ea5e9" role="presentation" style="border:none;border-radius:8px;cursor:auto;mso-padding-alt:0;background:#0ea5e9;" valign="middle">
+                                <a href="{{.PortfolioURL}}" style="display:inline-block;background:#0ea5e9;color:#ffffff;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:14px;font-weight:700;line-height:120%;letter-spacing:0.2px;margin:0;text-decoration:none;text-transform:none;padding:0;mso-padding-alt:0px;border-radius:8px;" target="_blank"> View Portfolio &rarr; </a>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    {{end}}<!-- FOOTER -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="card-outlook pv-divider-outlook" role="presentation" style="width:600px;" width="600" bgcolor="#f8fafc" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div class="card pv-divider" style="background:#f8fafc;background-color:#f8fafc;margin:0px auto;max-width:600px;border-radius:0 0 12px 12px;overflow:hidden;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#f8fafc;background-color:#f8fafc;width:100%;border-collapse:separate;">
+        <tbody>
+          <tr>
+            <td style="border-top:1px solid #e2e8f0;border-radius:0 0 12px 12px;direction:ltr;font-size:0px;padding:20px 24px;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:552px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="center" class="pv-muted" style="font-size:0px;padding:0 0 8px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:12px;line-height:1;text-align:center;color:#94a3b8;">Penny Vault &middot; Portfolio Alerts</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="center" class="pv-muted" style="font-size:0px;padding:0;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:11px;line-height:1;text-align:center;color:#cbd5e1;">{{if .UnsubscribeURL}}<a href="{{.UnsubscribeURL}}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>{{end}}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+    <!-- Bottom spacer -->
+    <!--[if mso | IE]><table align="center" border="0" cellpadding="0" cellspacing="0" class="" role="presentation" style="width:600px;" width="600" bgcolor="#f1f5f9" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
+    <div style="background:#f1f5f9;background-color:#f1f5f9;margin:0px auto;max-width:600px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#f1f5f9;background-color:#f1f5f9;width:100%;">
+        <tbody>
+          <tr>
+            <td style="direction:ltr;font-size:0px;padding:16px 0;text-align:center;">
+              <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:top;width:600px;" ><![endif]-->
+              <div class="mj-column-per-100 mj-outlook-group-fix" style="font-size:0px;text-align:left;direction:ltr;display:inline-block;vertical-align:top;width:100%;">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="vertical-align:top;" width="100%">
+                  <tbody>
+                    <tr>
+                      <td align="left" style="font-size:0px;padding:10px 25px;word-break:break-word;">
+                        <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:13px;line-height:1;text-align:left;color:#000000;"></div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!--[if mso | IE]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!--[if mso | IE]></td></tr></table><![endif]-->
+  </div>
+</body>
+
 </html>
