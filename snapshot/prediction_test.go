@@ -70,6 +70,34 @@ var _ = Describe("Prediction", func() {
 		Expect(p.Holdings[1].Ticker).To(Equal("SHV"))
 		Expect(p.Holdings[1].Weight).To(BeNumerically("~", 0.25, 1e-9))
 		Expect(p.TotalMarketValue).To(BeNumerically("==", 16000))
+
+		Expect(p.Annotations).To(HaveLen(2))
+		Expect(p.Annotations[0].Key).To(Equal("reason"))
+		Expect(p.Annotations[0].Value).To(Equal("annual rebalance"))
+		Expect(p.Annotations[1].Key).To(Equal("confidence"))
+		Expect(p.Annotations[1].Value).To(Equal("high"))
+	})
+
+	It("returns an empty annotations list when the strategy recorded none", func() {
+		exec(`DELETE FROM predicted_annotations`)
+		r, err := snapshot.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		defer r.Close()
+
+		p, err := r.Prediction(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.Annotations).To(BeEmpty())
+	})
+
+	It("returns an empty annotations list for pre-schema-7 files without the table", func() {
+		exec(`DROP TABLE predicted_annotations`)
+		r, err := snapshot.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		defer r.Close()
+
+		p, err := r.Prediction(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(p.Annotations).To(BeEmpty())
 	})
 
 	It("returns empty transactions when the strategy would not trade", func() {

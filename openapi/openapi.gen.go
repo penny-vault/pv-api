@@ -1130,8 +1130,18 @@ type PredictedTransaction struct {
 	Type string `json:"type"`
 }
 
+// PredictionAnnotation defines model for PredictionAnnotation.
+type PredictionAnnotation struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 // PredictionResponse defines model for PredictionResponse.
 type PredictionResponse struct {
+	// Annotations Key/value labels the strategy recorded during the prediction
+	// run, in recording order. Empty when the strategy recorded none.
+	Annotations []PredictionAnnotation `json:"annotations"`
+
 	// Date Next scheduled trade date after the backtest window ends.
 	Date openapi_types.Date `json:"date"`
 

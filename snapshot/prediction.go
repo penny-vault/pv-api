@@ -32,6 +32,10 @@ import (
 // tables. Returns ErrNotFound when the snapshot predates schema 6 or
 // recorded no prediction. An empty transactions list with a populated
 // prediction row is valid and means the strategy would not trade.
+//
+// Snapshots written by pvbt v0.12.2+ (schema 7) also carry a
+// predicted_annotations table; older schema-6 snapshots lack it, so it is
+// read only when present.
 func (r *Reader) Prediction(ctx context.Context) (*openapi.PredictionResponse, error) {
 	var tables int
 	err := r.db.QueryRowContext(ctx,
@@ -60,12 +64,16 @@ func (r *Reader) Prediction(ctx context.Context) (*openapi.PredictionResponse, e
 		Date:         types.Date{Time: date},
 		Transactions: []openapi.PredictedTransaction{},
 		Holdings:     []openapi.PredictedHolding{},
+		Annotations:  []openapi.PredictionAnnotation{},
 	}
 
 	if err := r.readPredictedTransactions(ctx, out); err != nil {
 		return nil, err
 	}
 	if err := r.readPredictedHoldings(ctx, out); err != nil {
+		return nil, err
+	}
+	if err := r.readPredictedAnnotations(ctx, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -124,6 +132,41 @@ func (r *Reader) readPredictedHoldings(ctx context.Context, out *openapi.Predict
 		for i := range out.Holdings {
 			out.Holdings[i].Weight = out.Holdings[i].MarketValue / total
 		}
+	}
+	return nil
+}
+
+// readPredictedAnnotations reads the predicted_annotations table (pvbt
+// v0.12.2+, schema 7) in the order the strategy recorded them. Older
+// schema-6 snapshots lack this table, so it is skipped rather than treated
+// as an error.
+func (r *Reader) readPredictedAnnotations(ctx context.Context, out *openapi.PredictionResponse) error {
+	var tables int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'predicted_annotations'`).
+		Scan(&tables); err != nil {
+		return fmt.Errorf("predicted annotations table lookup: %w", err)
+	}
+	if tables == 0 {
+		return nil
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT key, value FROM predicted_annotations ORDER BY rowid`)
+	if err != nil {
+		return fmt.Errorf("predicted annotations query: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var a openapi.PredictionAnnotation
+		if err := rows.Scan(&a.Key, &a.Value); err != nil {
+			return fmt.Errorf("predicted annotations scan: %w", err)
+		}
+		out.Annotations = append(out.Annotations, a)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("predicted annotations iterate: %w", err)
 	}
 	return nil
 }
