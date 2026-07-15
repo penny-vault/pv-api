@@ -16,7 +16,7 @@ require (
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.0
 	github.com/oapi-codegen/runtime v1.5.0
-	github.com/penny-vault/pvbt v0.12.0
+	github.com/penny-vault/pvbt v0.12.1
 	golang.org/x/mod v0.38.0
 	modernc.org/sqlite v1.53.0
 )
